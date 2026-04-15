@@ -1,0 +1,2 @@
+Nếu flutter run -d windows báo thiếu Visual Studio toolchain, cần cài Visual Studio 2022 (Desktop development with C++).
+Lệnh kiểm tra: flutter doctor

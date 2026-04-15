@@ -1,0 +1,10 @@
+{
+  "name": "mqtt-firestore-bridge",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "commonjs",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "mqtt": "^5.15.1"
+  }
+}

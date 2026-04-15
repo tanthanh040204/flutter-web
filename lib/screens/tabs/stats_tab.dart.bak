@@ -1,0 +1,163 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../widgets/vehicle_picker.dart';
+
+import '../../providers/fleet_provider.dart';
+import '../../providers/trip_provider.dart';
+import '../../widgets/simple_bar_chart.dart';
+import '../maintenance_screen.dart';
+
+class StatsTab extends StatefulWidget {
+  const StatsTab({super.key});
+
+  @override
+  State<StatsTab> createState() => _StatsTabState();
+}
+
+class _StatsTabState extends State<StatsTab> {
+  int days = 7; // 7 or 30
+
+  @override
+  Widget build(BuildContext context) {
+    final fleet = context.watch<FleetProvider>();
+    final tripProvider = context.watch<TripProvider>();
+    final v = fleet.selectedOrNull;
+
+    if (v == null) {
+      return const Scaffold(body: Center(child: Text('Chưa có xe nào trong Firebase.')));
+    }
+
+    final stats = tripProvider.dailyStats(v.id, days: days);
+    final total = tripProvider.totalDistance(v.id, days: days);
+    final maxSpeed = tripProvider.maxSpeed(v.id, days: days);
+    final avgSpeed = tripProvider.avgSpeed(v.id, days: days);
+
+    final values = stats.map((s) => s.distanceKm).toList();
+    final labels = stats.map((s) => '${s.day.day}/${s.day.month}').toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Thông số'),
+        actions: [VehiclePicker(), SizedBox(width: 8),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: days,
+              items: const [
+                DropdownMenuItem(value: 7, child: Text('7 ngày')),
+                DropdownMenuItem(value: 30, child: Text('30 ngày')),
+              ],
+              onChanged: (v) => setState(() => days = v ?? 7),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(v.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.build),
+            title: const Text('Bảo dưỡng'),
+            subtitle: const Text('Thay nhớt, thắng, pin...'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
+            ),
+          ),
+          const Divider(),
+
+          _MetricRow(
+            leftTitle: 'Tổng quãng đường',
+            leftValue: '${total.toStringAsFixed(1)} km',
+            rightTitle: 'Tốc độ tối đa',
+            rightValue: '${maxSpeed.toStringAsFixed(0)} km/h',
+          ),
+          const SizedBox(height: 10),
+          _MetricRow(
+            leftTitle: 'Tốc độ trung bình',
+            leftValue: '${avgSpeed.toStringAsFixed(1)} km/h',
+            rightTitle: 'Số ngày có chạy',
+            rightValue: '${stats.where((s) => s.distanceKm > 0).length} ngày',
+          ),
+
+          const SizedBox(height: 16),
+          const Text('Biểu đồ quãng đường', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          SimpleBarChart(values: values, labels: labels),
+
+          const SizedBox(height: 16),
+          const Text('Chi tiết theo ngày', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          ...stats.reversed.map((s) => ListTile(
+                dense: true,
+                title: Text('${s.day.day}/${s.day.month}/${s.day.year}'),
+                subtitle: Text('Quãng đường: ${s.distanceKm.toStringAsFixed(2)} km'),
+                trailing: Text('${s.avgSpeedKmh.toStringAsFixed(1)} km/h'),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricRow extends StatelessWidget {
+  final String leftTitle;
+  final String leftValue;
+  final String rightTitle;
+  final String rightValue;
+
+  const _MetricRow({
+    required this.leftTitle,
+    required this.leftValue,
+    required this.rightTitle,
+    required this.rightValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _MetricCard(title: leftTitle, value: leftValue)),
+        const SizedBox(width: 12),
+        Expanded(child: _MetricCard(title: rightTitle, value: rightValue)),
+      ],
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+
+  const _MetricCard({required this.title, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+        ],
+      ),
+    );
+  }
+}

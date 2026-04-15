@@ -1,0 +1,20 @@
+{
+  "firebase": {
+    "serviceAccountPath": "./serviceAccountKey.json"
+  },
+  "mqtt": {
+    "host": "flutter-app-1d64c6a1.a01.euc1.aws.hivemq.cloud",
+    "port": 8883,
+    "username": "tanthanh1",
+    "password": "Tao040204@",
+    "topic": "vehicles/+/state",
+    "clientIdPrefix": "bridge_node"
+  },
+  "firestore": {
+    "vehiclesCollection": "vehicles",
+    "writeIntervalMs": 5000
+  },
+  "logging": {
+    "verbose": true
+  }
+}

@@ -1,0 +1,10 @@
+Da sua loi man hinh trang cho ban:
+1. firebase_options.dart dang la file placeholder va throw UnimplementedError
+2. main.dart da duoc bo sung try/catch de app van mo duoc khi chua cau hinh Firebase
+3. firebase_repo.dart da duoc safe fallback ve demo mode
+4. file_service.dart va fota_page.dart da bo dart:io de than thien voi Flutter Web
+
+Neu muon dung Firebase that, hay chay:
+flutterfire configure
+
+Sau do thay lai file lib/firebase_options.dart bang file FlutterFire sinh ra.
