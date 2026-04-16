@@ -406,7 +406,7 @@ async function saveVehicleState(topic, data) {
   const hum = parseNumber(data.hum, 0);
   const dust = parseNumber(data.dust, 0);
 
-  const isLocked = parseBoolean(data.isLocked, false);
+
   const isRunning = parseBoolean(data.isRunning, false);
 
   const mqttTs = parseNumber(data.ts, Date.now());
@@ -419,7 +419,7 @@ async function saveVehicleState(topic, data) {
   const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
 
   const prevState = lastVehicleStateCache.get(vehicleId) || {
-  isLocked: true,
+
   isRunning: false,
 };
 
@@ -438,14 +438,13 @@ if (!activeRoutes.has(vehicleId)) {
 
 const shouldCloseRoute =
   activeRoutes.has(vehicleId) &&
-  ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
+  ((prevState.isRunning && !isRunning) );
 
 if (shouldCloseRoute) {
   await closeRoute(vehicleId, point, totalKm, nowDate);
 }
 
 lastVehicleStateCache.set(vehicleId, {
-  isLocked,
   isRunning,
 });
 
@@ -453,11 +452,8 @@ lastVehicleStateCache.set(vehicleId, {
     id: vehicleId,
     name: data.name || vehicleId,
     batteryPercent,
-    isLocked,
     isRunning,
     totalKm,
-    speedKmh,
-    avgSpeedKmh,
     temp,
     hum,
     dust,
@@ -465,7 +461,6 @@ lastVehicleStateCache.set(vehicleId, {
       lat,
       lon,
       name: data.name || vehicleId,
-      totalKm,
     },
     mqttLastTopic: topic,
     mqttRawTs: data.ts ?? null,
