@@ -1,20 +1,29 @@
+import 'feature_config.dart';
+
+/// MqttConfig – re-export từ FeatureConfig để backward-compat.
+///
+/// Sửa MQTT endpoint tại [FeatureConfig]:
+///   static const String mqttHost  = '...';
+///   static const int    mqttWsPort = ...;
 class MqttConfig {
   MqttConfig._();
 
-  // HiveMQ Cloud
-  static const String host = 'flutter-app-1d64c6a1.a01.euc1.aws.hivemq.cloud';
-  static const int tlsPort = 8883;
+  static String get host => FeatureConfig.mqttHost;
+  static int get tlsPort => FeatureConfig.mqttWsPort;
 
-  // Flutter web / Chrome
-  static const String wsUrl =
-      'flutter-app-1d64c6a1.a01.euc1.aws.hivemq.cloud:8884/mqtt';
+  static String get wsUrl {
+    final proto = FeatureConfig.mqttUseSsl ? 'wss' : 'ws';
+    return '$proto://${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}/mqtt';
+  }
 
-  static const String username = 'tanthanh1';
-  static const String password = 'Tao040204@';
+  static String get username => FeatureConfig.mqttUsername;
+  static String get password => FeatureConfig.mqttPassword;
 
-  // Topic
-  static const String fleetStateTopic = 'vehicles/+/state';
-
-  static String commandTopic(String vehicleId) => 'vehicles/$vehicleId/command';
-  static String ackTopic(String vehicleId) => 'vehicles/$vehicleId/ack';
+  // Topic helpers (backward-compat)
+  static String commandTopic(String vehicleId) =>
+      '$vehicleId${FeatureConfig.topicCmdSuffix}';
+  static String dataTopic(String vehicleId) =>
+      '$vehicleId${FeatureConfig.topicDataSuffix}';
+  static String notiTopic(String vehicleId) =>
+      '$vehicleId${FeatureConfig.topicNotiSuffix}';
 }

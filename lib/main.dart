@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'models/bluetooth_device_info.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bluetooth_provider.dart';
+import 'providers/device_provider.dart';
 import 'providers/fleet_provider.dart';
 import 'providers/fota_provider.dart';
 import 'providers/maintenance_provider.dart';
@@ -43,6 +44,7 @@ class RouteTrackerApp extends StatelessWidget {
           create: (_) => MqttService(),
           dispose: (_, service) => service.dispose(),
         ),
+        ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => RouteProvider()),
         ChangeNotifierProvider(create: (_) => BluetoothProvider()),

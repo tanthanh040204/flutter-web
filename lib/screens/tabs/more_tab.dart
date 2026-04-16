@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/feature_config.dart';
 import '../../models/app_note.dart';
 import '../../models/employee_account.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../services/firebase_repo.dart';
+import '../../services/mqtt_service.dart';
+import '../../widgets/mqtt_status_badge.dart';
 import '../../widgets/vehicle_picker.dart';
 
 class MoreTab extends StatefulWidget {
@@ -24,6 +29,11 @@ class _MoreTabState extends State<MoreTab> {
   final _employeePasswordCtrl = TextEditingController();
   final _employeeConfirmPasswordCtrl = TextEditingController();
 
+  // ---- MQTT console ----
+  final _mqttTopicCtrl = TextEditingController();
+  final _mqttMessageCtrl = TextEditingController();
+  final List<_SentEntry> _sentLog = [];
+
   bool _hideCurrent = true;
   bool _hideNew = true;
   bool _hideConfirm = true;
@@ -39,6 +49,8 @@ class _MoreTabState extends State<MoreTab> {
     _employeeCodeCtrl.dispose();
     _employeePasswordCtrl.dispose();
     _employeeConfirmPasswordCtrl.dispose();
+    _mqttTopicCtrl.dispose();
+    _mqttMessageCtrl.dispose();
     super.dispose();
   }
 
@@ -695,17 +707,247 @@ class _MoreTabState extends State<MoreTab> {
     );
   }
 
+  // ================================================================
+  //  MQTT Console tab
+  // ================================================================
+
+  void _sendMqttMessage() {
+    final topic = _mqttTopicCtrl.text.trim();
+    final message = _mqttMessageCtrl.text.trim();
+    if (topic.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập topic và message.')),
+      );
+      return;
+    }
+
+    final mqtt = context.read<MqttService>();
+    final ok = mqtt.publishRaw(topic, message);
+
+    setState(() {
+      _sentLog.insert(
+        0,
+        _SentEntry(
+          topic: topic,
+          message: message,
+          time: DateTime.now(),
+          success: ok,
+        ),
+      );
+      if (_sentLog.length > 30) _sentLog.removeLast();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Đã gửi → $topic' : 'Gửi thất bại (chưa kết nối)'),
+        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildMqttTab() {
+    final deviceProvider = context.watch<DeviceProvider>();
+    final notiList = deviceProvider.notifications;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // ---- Status card ----
+        const MqttStatusBadge(compact: false),
+        const SizedBox(height: 4),
+        Text(
+          'SSL: ${FeatureConfig.mqttUseSsl ? "Bật (WSS)" : "Tắt (WS)"}',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 4),
+
+        // ---- Console ----
+        const Text(
+          'MQTT Console',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+
+        // Topic field
+        TextField(
+          controller: _mqttTopicCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Topic',
+            hintText: 'haq-trk-001/cmd',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.topic_outlined),
+            isDense: true,
+          ),
+          onSubmitted: (_) => _sendMqttMessage(),
+        ),
+        const SizedBox(height: 10),
+
+        // Message field
+        TextField(
+          controller: _mqttMessageCtrl,
+          minLines: 2,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Message',
+            hintText: 'LOCK  /  UNLOCK  /  RESET  /  {"key":"value"}',
+            border: OutlineInputBorder(),
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(bottom: 40),
+              child: Icon(Icons.message_outlined),
+            ),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Quick-fill buttons
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final cmd in ['LOCK', 'UNLOCK', 'RESET', 'KEEPALIVE'])
+              ActionChip(
+                label: Text(cmd, style: const TextStyle(fontSize: 12)),
+                onPressed: () {
+                  _mqttMessageCtrl.text = cmd;
+                  // Set default topic = first device /cmd if empty
+                  if (_mqttTopicCtrl.text.isEmpty &&
+                      FeatureConfig.defaultDevices.isNotEmpty) {
+                    _mqttTopicCtrl.text =
+                        '${FeatureConfig.defaultDevices.first}/cmd';
+                  }
+                },
+              ),
+            // Fill with device IDs from registry
+            for (final d in deviceProvider.devices)
+              ActionChip(
+                avatar: CircleAvatar(
+                  backgroundColor:
+                      _hexColor(d.color).withValues(alpha: 0.85),
+                  radius: 6,
+                ),
+                label: Text(
+                  d.id,
+                  style: const TextStyle(fontSize: 11),
+                ),
+                onPressed: () {
+                  _mqttTopicCtrl.text = '${d.id}/cmd';
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Send button
+        SizedBox(
+          height: 44,
+          child: ElevatedButton.icon(
+            onPressed: _sendMqttMessage,
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('Gửi'),
+          ),
+        ),
+
+        // ---- Sent log ----
+        if (_sentLog.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const Text(
+                'Lịch sử gửi',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => setState(() => _sentLog.clear()),
+                icon: const Icon(Icons.clear_all, size: 16),
+                label: const Text('Xóa', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final entry in _sentLog)
+            _SentLogTile(entry: entry),
+        ],
+
+        // ---- Received notifications ----
+        if (notiList.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const Text(
+            'Notifications nhận được (/noti)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          for (final noti in notiList.take(20))
+            Card(
+              margin: const EdgeInsets.only(bottom: 4),
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.notifications_outlined, size: 18),
+                title: Text(
+                  noti.message,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: Text(
+                  '${noti.deviceId}  •  ${_fmtTime(noti.receivedAt)}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy, size: 15),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: noti.message));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Đã copy'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  static Color _hexColor(String hex) {
+    final h = hex.replaceAll('#', '');
+    return Color(int.parse('FF$h', radix: 16));
+  }
+
+  static String _fmtTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final s = dt.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
+
+  // ================================================================
+  //  Build
+  // ================================================================
+
   @override
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
     final auth = context.watch<AuthProvider>();
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Thông tin khác'),
-          actions: const [VehiclePicker(), SizedBox(width: 8)],
+          actions: [
+            const MqttStatusBadge(compact: true),
+            const SizedBox(width: 8),
+            const VehiclePicker(),
+            const SizedBox(width: 8),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
@@ -713,6 +955,7 @@ class _MoreTabState extends State<MoreTab> {
               Tab(text: 'Ghi chú'),
               Tab(text: 'Nhân viên'),
               Tab(text: 'Đổi mật khẩu'),
+              Tab(text: 'MQTT'),
             ],
           ),
         ),
@@ -722,7 +965,97 @@ class _MoreTabState extends State<MoreTab> {
             _buildNotesTab(),
             _buildEmployeesTab(auth),
             _buildChangePasswordTab(auth),
+            _buildMqttTab(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================================================================
+//  Helper classes
+// ================================================================
+
+class _SentEntry {
+  final String topic;
+  final String message;
+  final DateTime time;
+  final bool success;
+
+  const _SentEntry({
+    required this.topic,
+    required this.message,
+    required this.time,
+    required this.success,
+  });
+}
+
+class _SentLogTile extends StatelessWidget {
+  final _SentEntry entry;
+  const _SentLogTile({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final h = entry.time.hour.toString().padLeft(2, '0');
+    final m = entry.time.minute.toString().padLeft(2, '0');
+    final s = entry.time.second.toString().padLeft(2, '0');
+    final timeStr = '$h:$m:$s';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 4),
+      color: entry.success ? null : Colors.red.shade50,
+      child: ListTile(
+        dense: true,
+        leading: Icon(
+          entry.success ? Icons.check_circle_outline : Icons.error_outline,
+          size: 18,
+          color: entry.success ? Colors.green.shade600 : Colors.red.shade400,
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade50,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.blueGrey.shade200),
+              ),
+              child: Text(
+                entry.topic,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                entry.message,
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          timeStr,
+          style: const TextStyle(fontSize: 10),
+        ),
+        trailing: IconButton(
+          tooltip: 'Copy message',
+          icon: const Icon(Icons.copy, size: 15),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: entry.message));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Đã copy'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
         ),
       ),
     );
