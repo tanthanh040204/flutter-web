@@ -1,3 +1,7 @@
+// @file       app_bootstrap.dart
+// @brief      Screen UI for App Bootstrap.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +15,7 @@ import '../services/mqtt_service.dart';
 import 'family_root_screen.dart';
 import 'login_screen.dart';
 
+/* Public classes ----------------------------------------------------- */
 class AppBootstrap extends StatefulWidget {
   const AppBootstrap({super.key});
 
@@ -18,6 +23,7 @@ class AppBootstrap extends StatefulWidget {
   State<AppBootstrap> createState() => _AppBootstrapState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _AppBootstrapState extends State<AppBootstrap> {
   bool _inited = false;
   VoidCallback? _fleetListener;
@@ -43,9 +49,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
     _fleetListener = syncAll;
     fleet.addListener(syncAll);
 
-    // Defer tất cả init sang sau frame đầu để tránh
-    // "setState() called during build" khi Firestore listener
-    // trả data ngay lập tức (cached).
+    // Defer the rest of initialization until after the first frame, to avoid doing
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
@@ -101,3 +105,5 @@ class _AppBootstrapState extends State<AppBootstrap> {
     return auth.isLoggedIn ? const FamilyRootScreen() : const LoginScreen();
   }
 }
+
+/* End of file -------------------------------------------------------- */

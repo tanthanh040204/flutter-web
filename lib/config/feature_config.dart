@@ -1,69 +1,35 @@
-/// ================================================================
-/// FEATURE CONFIG
-/// ================================================================
-/// Cấu hình trung tâm cho toàn bộ app:
-///   - MQTT broker endpoint (host/port)
-///   - Feature flags (bật/tắt từng tính năng)
-///   - Debug flags (in log chi tiết)
-///
-/// ĐỂ CHỈNH SỬA:
-///   1. Thay mqttHost / mqttWsPort theo broker của bạn.
-///   2. Bật/tắt tính năng qua các flag enableXxx.
-///   3. Tắt debug khi release: debugMqttLog = false, debugParserLog = false.
-/// ================================================================
+// @file       feature_config.dart
+// @brief      Configuration for Feature.
 
+/* Public classes ----------------------------------------------------- */
 class FeatureConfig {
   FeatureConfig._();
 
-  // ----------------------------------------------------------------
-  //  MQTT BROKER  ← CHỈNH SỬA TẠI ĐÂY
-  // ----------------------------------------------------------------
-
-  /// Hostname hoặc IP của MQTT broker
+  // Mqtt
   static const String mqttHost = 'broker.emqx.io';
-
-  /// WebSocket port của broker
-  /// Mosquitto mặc định: 9001  |  EMQX: 8083 (ws), 8084 (wss)
+  // Mqtt port
   static const int mqttWsPort = 8083;
-
-  /// true = dùng WSS (TLS),  false = WS thường
+  // WSS for TLS, ws for non-TLS
   static const bool mqttUseSsl = false;
-
-  /// Xác thực broker — để rỗng nếu không cần
+  // Username and password for MQTT authentication (if required by the broker)
   static const String mqttUsername = '';
   static const String mqttPassword = '';
 
-  // ----------------------------------------------------------------
-  //  DEVICE TOPICS  (khớp với web/js/config.js)
-  // ----------------------------------------------------------------
-
-  /// Topic nhận dữ liệu telemetry từ MCU:  <deviceId>/data
+  // Data topic: device -> web
   static const String topicDataSuffix = '/data';
-
-  /// Topic nhận notification từ MCU:  <deviceId>/noti
+  // Notification topic: device -> web
   static const String topicNotiSuffix = '/noti';
-
-  /// Topic gửi lệnh đến MCU:  <deviceId>/cmd
+  // Command topic: web -> device
   static const String topicCmdSuffix = '/cmd';
 
-  // ----------------------------------------------------------------
-  //  MQTT CLIENT
-  // ----------------------------------------------------------------
-
-  /// Prefix của clientId  (suffix = 6 ký tự hex ngẫu nhiên)
+  // Client ID prefix for MQTT connection
   static const String mqttClientIdPrefix = 'flutter-haq-';
-
-  /// Keepalive (giây)
+  // Keepalive interval for MQTT connection (seconds)
   static const int mqttKeepalive = 60;
-
-  // ----------------------------------------------------------------
-  //  DEVICES
-  // ----------------------------------------------------------------
-
-  /// Danh sách thiết bị mặc định khi chưa có cấu hình nào
+  // Default devices to subscribe to (can be overridden by user settings)
   static const List<String> defaultDevices = ['haq-trk-001'];
 
-  /// Bảng màu xoay vòng cho mỗi thiết bị mới
+  // Color palette for devices (used for route lines and markers on the map)
   static const List<String> deviceColorPalette = [
     '#3498db',
     '#e74c3c',
@@ -75,48 +41,25 @@ class FeatureConfig {
     '#e91e63',
   ];
 
-  // ----------------------------------------------------------------
-  //  FEATURE FLAGS
-  // ----------------------------------------------------------------
-
-  /// Kết nối MQTT khi khởi động app
+  // Features
   static const bool enableMqtt = true;
-
-  /// Sử dụng Firebase / Firestore
   static const bool enableFirebase = true;
-
-  /// Xử lý topic /noti  (KEEPALIVE, USER LOCK, …)
   static const bool enableNotifications = true;
-
-  /// Tự động đăng ký thiết bị lạ nhận được từ MQTT
+  // Auto register device when receiving data from an unknown device topic
   static const bool enableAutoRegisterDevice = true;
-
-  /// Bật kiểm tra thiết bị offline theo timer
   static const bool enableOfflineDetection = true;
-
-  /// Xử lý các field Fusion  (acc, gyr, cmp, ins/gps)
   static const bool enableFusionData = true;
 
-  // ----------------------------------------------------------------
-  //  DEBUG
-  // ----------------------------------------------------------------
-
-  /// In log MQTT chi tiết ra console  (connect, subscribe, publish, receive)
+  // Debug logs
   static const bool debugMqttLog = true;
-
-  /// In log DataParser khi parse thất bại
   static const bool debugParserLog = true;
 
-  // ----------------------------------------------------------------
-  //  TIMEOUTS
-  // ----------------------------------------------------------------
-
-  /// Thiết bị bị đánh dấu offline sau bao lâu không nhận data  (ms)
+  // Timeout
   static const int offlineTimeoutMs = 30000;
-
-  /// Thiết bị bị đánh dấu offline sau bao lâu không nhận KEEPALIVE  (ms)
+  // Device keepalive timeout (ms)
   static const int keepaliveTimeoutMs = 45000;
-
-  /// Chu kỳ timer kiểm tra offline  (ms)
+  // Interval for checking offline devices (ms)
   static const int offlineCheckIntervalMs = 5000;
 }
+
+/* End of file -------------------------------------------------------- */

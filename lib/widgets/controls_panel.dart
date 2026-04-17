@@ -1,3 +1,7 @@
+// @file       controls_panel.dart
+// @brief      Widget for Controls Panel.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,17 +9,11 @@ import '../config/app_constants.dart';
 import '../config/app_theme.dart';
 import '../providers/route_provider.dart';
 
-/// ============================================
-/// CONTROLS PANEL - Các nút điều khiển
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class ControlsPanel extends StatelessWidget {
   final VoidCallback? onFitBounds;
 
-  const ControlsPanel({
-    super.key,
-    this.onFitBounds,
-  });
+  const ControlsPanel({super.key, this.onFitBounds});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +32,7 @@ class ControlsPanel extends StatelessWidget {
                     Icon(Icons.settings, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text(
-                      'Điều Khiển',
+                      'Controls',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -86,3 +84,5 @@ class ControlsPanel extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,8 +1,13 @@
+// @file       login_screen.dart
+// @brief      Screen UI for Login.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 
+/* Public classes ----------------------------------------------------- */
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -10,6 +15,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _employeeCodeCtrl = TextEditingController();
@@ -64,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const Icon(Icons.lock_outline, size: 56),
                       const SizedBox(height: 16),
                       const Text(
-                        'Đăng nhập hệ thống',
+                        'Login',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 24,
@@ -73,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Nhập mã nhân viên và mật khẩu để vào web.',
+                        'Enter your employee code and password to login.',
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
@@ -81,13 +87,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _employeeCodeCtrl,
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: 'Nhập mã nhân viên',
+                          labelText: 'Employee Code',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.badge_outlined),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Bạn chưa nhập mã nhân viên.';
+                            return 'Please enter your employee code.';
                           }
                           return null;
                         },
@@ -98,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         onFieldSubmitted: (_) => _submit(),
                         decoration: InputDecoration(
-                          labelText: 'Mật khẩu',
+                          labelText: 'Password',
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.password_outlined),
                           suffixIcon: IconButton(
@@ -116,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Bạn chưa nhập mật khẩu.';
+                            return 'Please enter your password.';
                           }
                           return null;
                         },
@@ -132,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   height: 22,
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text('Đăng nhập'),
+                              : const Text('Login'),
                         ),
                       ),
                     ],
@@ -146,3 +152,5 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

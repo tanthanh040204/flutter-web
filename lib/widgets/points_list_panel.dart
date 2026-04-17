@@ -1,3 +1,7 @@
+// @file       points_list_panel.dart
+// @brief      Widget for Points List Panel.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,17 +10,12 @@ import '../config/app_theme.dart';
 import '../models/route_point.dart';
 import '../providers/route_provider.dart';
 
-/// ============================================
-/// POINTS LIST PANEL - Danh sách các điểm
-/// ============================================
 
+/* Public classes ----------------------------------------------------- */
 class PointsListPanel extends StatelessWidget {
   final Function(RoutePoint point, int index)? onPointTap;
 
-  const PointsListPanel({
-    super.key,
-    this.onPointTap,
-  });
+  const PointsListPanel({super.key, this.onPointTap});
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +34,7 @@ class PointsListPanel extends StatelessWidget {
                     const Icon(Icons.list, color: AppColors.primary),
                     const SizedBox(width: 8),
                     const Text(
-                      'Danh Sách Điểm',
+                      'Points List',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -44,7 +43,7 @@ class PointsListPanel extends StatelessWidget {
                     const Spacer(),
                     if (routeProvider.hasRoute)
                       Text(
-                        '${routeProvider.pointCount} điểm',
+                        '${routeProvider.pointCount} points',
                         style: const TextStyle(color: AppColors.gray500),
                       ),
                   ],
@@ -59,7 +58,7 @@ class PointsListPanel extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.all(UIConfig.paddingLarge),
                       child: Text(
-                        'Chưa có dữ liệu',
+                        'No data available',
                         style: TextStyle(
                           color: AppColors.gray500,
                           fontStyle: FontStyle.italic,
@@ -89,7 +88,8 @@ class PointsListPanel extends StatelessWidget {
       ),
       child: ListView.builder(
         shrinkWrap: true,
-        itemCount: displayPoints.length +
+        itemCount:
+            displayPoints.length +
             (points.length > UIConfig.maxDisplayPoints ? 1 : 0),
         itemBuilder: (context, index) {
           // Show "more" item
@@ -97,7 +97,7 @@ class PointsListPanel extends StatelessWidget {
             return ListTile(
               dense: true,
               title: Text(
-                '... và ${points.length - UIConfig.maxDisplayPoints} điểm khác',
+                '... and ${points.length - UIConfig.maxDisplayPoints} more points',
                 style: const TextStyle(
                   color: AppColors.gray500,
                   fontStyle: FontStyle.italic,
@@ -120,8 +120,8 @@ class PointsListPanel extends StatelessWidget {
                 color: isFirst
                     ? AppColors.startMarker
                     : isLast
-                        ? AppColors.endMarker
-                        : AppColors.normalMarker,
+                    ? AppColors.endMarker
+                    : AppColors.normalMarker,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -135,10 +135,7 @@ class PointsListPanel extends StatelessWidget {
                 ),
               ),
             ),
-            title: Text(
-              point.displayName,
-              overflow: TextOverflow.ellipsis,
-            ),
+            title: Text(point.displayName, overflow: TextOverflow.ellipsis),
             subtitle: point.name != null
                 ? Text(
                     point.formattedCoords,
@@ -152,3 +149,5 @@ class PointsListPanel extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

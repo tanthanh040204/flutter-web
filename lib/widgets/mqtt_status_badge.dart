@@ -1,14 +1,14 @@
+// @file       mqtt_status_badge.dart
+// @brief      Widget for MQTT Status Badge.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/feature_config.dart';
 import '../providers/device_provider.dart';
 
-/// Badge nhỏ hiển thị trạng thái kết nối MQTT.
-/// Dùng trong AppBar hoặc bất kỳ widget nào.
-///
-/// - [compact] = true → chỉ icon + text ngắn (dùng trong AppBar)
-/// - [compact] = false → card đầy đủ với host:port (dùng trong panel)
+/* Public classes ----------------------------------------------------- */
 class MqttStatusBadge extends StatelessWidget {
   final bool compact;
 
@@ -16,8 +16,7 @@ class MqttStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connected =
-        context.watch<DeviceProvider>().mqttConnected;
+    final connected = context.watch<DeviceProvider>().mqttConnected;
 
     if (compact) {
       return _CompactBadge(connected: connected);
@@ -26,7 +25,7 @@ class MqttStatusBadge extends StatelessWidget {
   }
 }
 
-// ── Compact badge (dùng trong AppBar) ───────────────────────────
+/* Private classes ---------------------------------------------------- */
 class _CompactBadge extends StatelessWidget {
   final bool connected;
   const _CompactBadge({required this.connected});
@@ -36,7 +35,7 @@ class _CompactBadge extends StatelessWidget {
     return Tooltip(
       message: connected
           ? 'MQTT: ${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}'
-          : 'MQTT: Chưa kết nối',
+          : 'MQTT: Not connected',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -65,7 +64,7 @@ class _FullCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = connected ? Colors.green.shade700 : Colors.red.shade600;
     final bg = connected ? Colors.green.shade50 : Colors.red.shade50;
-    final label = connected ? 'Đã kết nối' : 'Chưa kết nối';
+    final label = connected ? 'Connected' : 'Not Connected';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -134,7 +133,9 @@ class _Dot extends StatelessWidget {
         color: connected ? Colors.green.shade600 : Colors.red.shade400,
         boxShadow: [
           BoxShadow(
-            color: (connected ? Colors.green : Colors.red).withValues(alpha: 0.4),
+            color: (connected ? Colors.green : Colors.red).withValues(
+              alpha: 0.4,
+            ),
             blurRadius: 4,
             spreadRadius: 1,
           ),
@@ -143,3 +144,5 @@ class _Dot extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,7 +1,11 @@
-import 'package:flutter/foundation.dart';
+// @file       auth_provider.dart
+// @brief      State provider for Auth.
 
+/* Imports ------------------------------------------------------------ */
+import 'package:flutter/foundation.dart';
 import '../services/firebase_repo.dart';
 
+/* Public classes ----------------------------------------------------- */
 class AuthProvider extends ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isLoading = false;
@@ -21,7 +25,7 @@ class AuthProvider extends ChangeNotifier {
     final pass = password.trim();
 
     if (code.isEmpty || pass.isEmpty) {
-      _errorMessage = 'Vui lòng nhập đầy đủ mã nhân viên và mật khẩu.';
+      _errorMessage = 'Please enter both employee code and password.';
       notifyListeners();
       return false;
     }
@@ -37,7 +41,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (!ok) {
-        _errorMessage = 'Mã nhân viên hoặc mật khẩu không đúng.';
+        _errorMessage = 'Invalid employee code or password.';
         return false;
       }
 
@@ -47,7 +51,7 @@ class AuthProvider extends ChangeNotifier {
       await FirebaseRepo.instance.addLoginNotification(code);
       return true;
     } catch (e) {
-      _errorMessage = 'Đăng nhập thất bại: $e';
+      _errorMessage = 'Login failed: $e';
       return false;
     } finally {
       _isLoading = false;
@@ -62,7 +66,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final code = _employeeCode;
     if (code == null || !_isLoggedIn) {
-      _errorMessage = 'Bạn chưa đăng nhập.';
+      _errorMessage = 'You are not logged in.';
       notifyListeners();
       return false;
     }
@@ -70,19 +74,19 @@ class AuthProvider extends ChangeNotifier {
     if (currentPassword.trim().isEmpty ||
         newPassword.trim().isEmpty ||
         confirmPassword.trim().isEmpty) {
-      _errorMessage = 'Vui lòng nhập đầy đủ thông tin đổi mật khẩu.';
+      _errorMessage = 'Please fill in all fields to change password.';
       notifyListeners();
       return false;
     }
 
     if (newPassword.trim().length < 4) {
-      _errorMessage = 'Mật khẩu mới phải có ít nhất 4 ký tự.';
+      _errorMessage = 'New password must be at least 4 characters long.';
       notifyListeners();
       return false;
     }
 
     if (newPassword.trim() != confirmPassword.trim()) {
-      _errorMessage = 'Mật khẩu mới và xác nhận mật khẩu chưa khớp.';
+      _errorMessage = 'New password and confirm password do not match.';
       notifyListeners();
       return false;
     }
@@ -99,13 +103,13 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (!ok) {
-        _errorMessage = 'Mật khẩu hiện tại không đúng.';
+        _errorMessage = 'Current password is incorrect.';
         return false;
       }
 
       return true;
     } catch (e) {
-      _errorMessage = 'Đổi mật khẩu thất bại: $e';
+      _errorMessage = 'Failed to change password: $e';
       return false;
     } finally {
       _isLoading = false;
@@ -126,3 +130,5 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,8 +1,13 @@
+// @file       vehicle_picker.dart
+// @brief      Widget for Vehicle Picker.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/fleet_provider.dart';
 
+/* Public classes ----------------------------------------------------- */
 class VehiclePicker extends StatelessWidget {
   const VehiclePicker({super.key});
 
@@ -25,3 +30,5 @@ class VehiclePicker extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

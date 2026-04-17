@@ -1,10 +1,10 @@
+// @file       mqtt_config.dart
+// @brief      Configuration for MQTT.
+
+/* Imports ------------------------------------------------------------ */
 import 'feature_config.dart';
 
-/// MqttConfig – re-export từ FeatureConfig để backward-compat.
-///
-/// Sửa MQTT endpoint tại [FeatureConfig]:
-///   static const String mqttHost  = '...';
-///   static const int    mqttWsPort = ...;
+/* Public classes ----------------------------------------------------- */
 class MqttConfig {
   MqttConfig._();
 
@@ -27,3 +27,5 @@ class MqttConfig {
   static String notiTopic(String vehicleId) =>
       '$vehicleId${FeatureConfig.topicNotiSuffix}';
 }
+
+/* End of file -------------------------------------------------------- */

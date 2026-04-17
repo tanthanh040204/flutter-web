@@ -1,3 +1,7 @@
+// @file       controls_page.dart
+// @brief      Screen UI for Controls.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,25 +10,18 @@ import '../providers/bluetooth_provider.dart';
 import '../providers/route_provider.dart';
 import '../providers/streaming_provider.dart';
 
-/// ============================================
-/// CONTROLS PAGE - Trang điều khiển hiển thị
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class ControlsPage extends StatelessWidget {
   final VoidCallback? onFitRoute;
   final VoidCallback? onCenterUser;
 
-  const ControlsPage({
-    super.key,
-    this.onFitRoute,
-    this.onCenterUser,
-  });
+  const ControlsPage({super.key, this.onFitRoute, this.onCenterUser});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Điều khiển'),
+        title: const Text('Controls'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -33,152 +30,165 @@ class ControlsPage extends StatelessWidget {
       body: Consumer3<RouteProvider, StreamingProvider, BluetoothProvider>(
         builder:
             (context, routeProvider, streamingProvider, btProvider, child) {
-          final isConnected = btProvider.isConnected;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Map controls
-                const Text(
-                  'Điều khiển bản đồ',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-
-                _buildControlItem(
-                  icon: Icons.fit_screen,
-                  title: 'Fit Route',
-                  subtitle: 'Zoom để hiển thị toàn bộ route',
-                  onTap: routeProvider.points.isNotEmpty
-                      ? () {
-                          Navigator.pop(context);
-                          onFitRoute?.call();
-                        }
-                      : null,
-                ),
-
-                _buildControlItem(
-                  icon: Icons.my_location,
-                  title: 'Vị trí hiện tại',
-                  subtitle: 'Di chuyển về vị trí GPS',
-                  onTap: () {
-                    Navigator.pop(context);
-                    onCenterUser?.call();
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Streaming controls
-                const Text(
-                  'Streaming GPS',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-
-                _buildStreamingStatus(streamingProvider),
-                const SizedBox(height: 12),
-
-                // Warning nếu chưa kết nối
-                if (!isConnected)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppColors.warning.withValues(alpha: 0.3),
+              final isConnected = btProvider.isConnected;
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Map controls
+                    const Text(
+                      'Map Controls',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    child: Row(
+                    const SizedBox(height: 12),
+
+                    _buildControlItem(
+                      icon: Icons.fit_screen,
+                      title: 'Fit Route',
+                      subtitle: 'Zoom to display entire route',
+                      onTap: routeProvider.points.isNotEmpty
+                          ? () {
+                              Navigator.pop(context);
+                              onFitRoute?.call();
+                            }
+                          : null,
+                    ),
+
+                    _buildControlItem(
+                      icon: Icons.my_location,
+                      title: 'Current Location',
+                      subtitle: 'Center on GPS location',
+                      onTap: () {
+                        Navigator.pop(context);
+                        onCenterUser?.call();
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Streaming controls
+                    const Text(
+                      'Streaming GPS',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildStreamingStatus(streamingProvider),
+                    const SizedBox(height: 12),
+
+                    // Warning nếu chưa kết nối
+                    if (!isConnected)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber, color: AppColors.warning),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Connect Bluetooth MCU to use streaming',
+                                style: TextStyle(color: AppColors.warning),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    Row(
                       children: [
-                        Icon(Icons.warning_amber, color: AppColors.warning),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                !isConnected || streamingProvider.isStreaming
+                                ? null
+                                : () => streamingProvider.startStreaming(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Start'),
+                          ),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            'Kết nối Bluetooth MCU để sử dụng streaming',
-                            style: TextStyle(color: AppColors.warning),
+                          child: ElevatedButton.icon(
+                            onPressed: streamingProvider.isStreaming
+                                ? () => streamingProvider.stopStreaming()
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.danger,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            icon: const Icon(Icons.stop),
+                            label: const Text('Stop'),
                           ),
                         ),
                       ],
                     ),
-                  ),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: !isConnected || streamingProvider.isStreaming
-                            ? null
-                            : () => streamingProvider.startStreaming(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                    const SizedBox(height: 24),
+
+                    // Statistics
+                    if (streamingProvider.streamedPoints.isNotEmpty) ...[
+                      const Text(
+                        'Statistics',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Bắt đầu'),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: streamingProvider.isStreaming
-                            ? () => streamingProvider.stopStreaming()
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                      const SizedBox(height: 12),
+                      _buildStatisticsCard(streamingProvider),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _confirmClearStream(context, streamingProvider),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Xóa dữ liệu streaming'),
                         ),
-                        icon: const Icon(Icons.stop),
-                        label: const Text('Dừng'),
                       ),
-                    ),
+                    ],
+
+                    const SizedBox(height: 24),
+
+                    // Route statistics
+                    if (routeProvider.points.isNotEmpty) ...[
+                      const Text(
+                        'Route Info',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRouteInfoCard(routeProvider),
+                    ],
                   ],
                 ),
-
-                const SizedBox(height: 24),
-
-                // Statistics
-                if (streamingProvider.streamedPoints.isNotEmpty) ...[
-                  const Text(
-                    'Thống kê',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildStatisticsCard(streamingProvider),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _confirmClearStream(context, streamingProvider),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Xóa dữ liệu streaming'),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-
-                // Route statistics
-                if (routeProvider.points.isNotEmpty) ...[
-                  const Text(
-                    'Route Info',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildRouteInfoCard(routeProvider),
-                ],
-              ],
-            ),
-          );
-        },
+              );
+            },
       ),
     );
   }
@@ -249,19 +259,17 @@ class ControlsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isStreaming ? 'Đang stream...' : 'Tạm dừng',
+                    isStreaming ? 'Streaming...' : 'Paused',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color:
-                          isStreaming ? AppColors.success : AppColors.gray600,
+                      color: isStreaming
+                          ? AppColors.success
+                          : AppColors.gray600,
                     ),
                   ),
                   Text(
-                    '${provider.streamedPoints.length} điểm đã ghi',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.gray600,
-                    ),
+                    '${provider.streamedPoints.length} points recorded',
+                    style: TextStyle(fontSize: 12, color: AppColors.gray600),
                   ),
                 ],
               ),
@@ -278,7 +286,7 @@ class ControlsPage extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Tốc độ',
+                    'Speed',
                     style: TextStyle(fontSize: 12, color: AppColors.gray600),
                   ),
                 ],
@@ -302,14 +310,14 @@ class ControlsPage extends StatelessWidget {
                   value:
                       '${(provider.totalDistance / 1000).toStringAsFixed(2)}',
                   unit: 'km',
-                  label: 'Quãng đường',
+                  label: 'Distance',
                 ),
                 const SizedBox(width: 16),
                 _StatTile(
                   icon: Icons.speed,
                   value: provider.averageSpeed?.toStringAsFixed(1) ?? '--',
                   unit: 'km/h',
-                  label: 'TB',
+                  label: 'Average Speed',
                 ),
                 const SizedBox(width: 16),
                 _StatTile(
@@ -318,7 +326,7 @@ class ControlsPage extends StatelessWidget {
                       ? provider.maxSpeed.toStringAsFixed(1)
                       : '--',
                   unit: 'km/h',
-                  label: 'Max',
+                  label: 'Max Speed',
                 ),
               ],
             ),
@@ -329,14 +337,14 @@ class ControlsPage extends StatelessWidget {
                   icon: Icons.location_on,
                   value: '${provider.streamedPoints.length}',
                   unit: '',
-                  label: 'Điểm',
+                  label: 'Points',
                 ),
                 const SizedBox(width: 16),
                 _StatTile(
                   icon: Icons.timer,
                   value: _formatDuration(provider.streamingDuration),
                   unit: '',
-                  label: 'Thời gian',
+                  label: 'Duration',
                 ),
               ],
             ),
@@ -357,13 +365,13 @@ class ControlsPage extends StatelessWidget {
               icon: Icons.location_on,
               value: '${provider.points.length}',
               unit: '',
-              label: 'Điểm',
+              label: 'Points',
             ),
             _StatTile(
               icon: Icons.straighten,
               value: '${(provider.totalDistance / 1000).toStringAsFixed(2)}',
               unit: 'km',
-              label: 'Khoảng cách',
+              label: 'Distance',
             ),
           ],
         ),
@@ -388,12 +396,12 @@ class ControlsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text('Xóa toàn bộ dữ liệu streaming?'),
+        title: const Text('Confirm'),
+        content: const Text('Delete all streaming data?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -401,7 +409,7 @@ class ControlsPage extends StatelessWidget {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Xóa'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -409,6 +417,7 @@ class ControlsPage extends StatelessWidget {
   }
 }
 
+/* Private classes ---------------------------------------------------- */
 class _StatTile extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -450,12 +459,11 @@ class _StatTile extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: AppColors.gray600),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: AppColors.gray600)),
         ],
       ),
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

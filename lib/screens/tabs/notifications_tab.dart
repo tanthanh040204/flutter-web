@@ -1,3 +1,7 @@
+// @file       notifications_tab.dart
+// @brief      Tab UI for Notifications.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +11,7 @@ import '../../providers/maintenance_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../../widgets/vehicle_picker.dart';
 
+/* Public classes ----------------------------------------------------- */
 class NotificationsTab extends StatelessWidget {
   const NotificationsTab({super.key});
 
@@ -31,7 +36,7 @@ class NotificationsTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        title: const Text('Notifications'),
         actions: const [VehiclePicker(), SizedBox(width: 8)],
       ),
       body: StreamBuilder<List<AppNotificationItem>>(
@@ -43,7 +48,7 @@ class NotificationsTab extends StatelessWidget {
               loginNotifications.isNotEmpty || maintenanceMessages.isNotEmpty;
 
           if (!hasAny) {
-            return const Center(child: Text('Chưa có thông báo.'));
+            return const Center(child: Text('No notifications.'));
           }
 
           return ListView(
@@ -51,7 +56,7 @@ class NotificationsTab extends StatelessWidget {
             children: [
               if (loginNotifications.isNotEmpty) ...[
                 const Text(
-                  'Đăng nhập gần đây',
+                  'Recently Logged In',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -63,7 +68,7 @@ class NotificationsTab extends StatelessWidget {
                       title: Text(item.message),
                       subtitle: Text(_formatDateTime(item.createdAt)),
                       trailing: IconButton(
-                        tooltip: 'Xóa thông báo',
+                        tooltip: 'Delete notification',
                         icon: const Icon(Icons.close),
                         onPressed: () async {
                           await FirebaseRepo.instance.deleteAppNotification(
@@ -72,7 +77,7 @@ class NotificationsTab extends StatelessWidget {
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Đã xóa thông báo đăng nhập.'),
+                              content: Text('Notification deleted.'),
                             ),
                           );
                         },
@@ -84,7 +89,7 @@ class NotificationsTab extends StatelessWidget {
               ],
               if (maintenanceMessages.isNotEmpty) ...[
                 const Text(
-                  'Bảo dưỡng',
+                  'Maintenance',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -108,3 +113,5 @@ class NotificationsTab extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

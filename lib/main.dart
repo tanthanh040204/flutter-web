@@ -1,3 +1,7 @@
+// @file       main.dart
+// @brief      App entry point.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +21,7 @@ import 'providers/trip_provider.dart';
 import 'screens/app_bootstrap.dart';
 import 'services/mqtt_service.dart';
 
+/* Entry point -------------------------------------------------------- */
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -33,6 +38,7 @@ Future<void> main() async {
   runApp(const RouteTrackerApp());
 }
 
+/* Public classes ----------------------------------------------------- */
 class RouteTrackerApp extends StatelessWidget {
   const RouteTrackerApp({super.key});
 
@@ -85,3 +91,5 @@ class RouteTrackerApp extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

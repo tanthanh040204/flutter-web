@@ -1,3 +1,7 @@
+// @file       fota_page.dart
+// @brief      Screen UI for FOTA.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -10,10 +14,7 @@ import '../providers/fota_provider.dart';
 import '../services/fota_service.dart';
 import '../models/bluetooth_device_info.dart';
 
-/// ============================================
-/// FOTA PAGE - Firmware Over-The-Air Update
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class FotaPage extends StatefulWidget {
   const FotaPage({super.key});
 
@@ -21,6 +22,7 @@ class FotaPage extends StatefulWidget {
   State<FotaPage> createState() => _FotaPageState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _FotaPageState extends State<FotaPage> {
   final ScrollController _logScrollController = ScrollController();
   StreamSubscription? _connectionSubscription;
@@ -58,11 +60,11 @@ class _FotaPageState extends State<FotaPage> {
                 children: [
                   Icon(Icons.bluetooth_disabled, color: AppColors.danger),
                   SizedBox(width: 12),
-                  Text('Mất kết nối'),
+                  Text('Disconnected'),
                 ],
               ),
               content: const Text(
-                'Kết nối Bluetooth đã bị ngắt.\nVui lòng kết nối lại và thử lại.',
+                'Bluetooth connection has been lost.\nPlease reconnect and try again.',
               ),
               actions: [
                 ElevatedButton(
@@ -70,7 +72,7 @@ class _FotaPageState extends State<FotaPage> {
                     Navigator.of(ctx).pop();
                     Navigator.of(context).pop();
                   },
-                  child: const Text('Đóng'),
+                  child: const Text('Close'),
                 ),
               ],
             ),
@@ -88,7 +90,7 @@ class _FotaPageState extends State<FotaPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Chưa kết nối Bluetooth'),
+            content: Text('Not connected to Bluetooth'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -97,14 +99,15 @@ class _FotaPageState extends State<FotaPage> {
       return;
     }
 
-    final success =
-        await fotaProvider.initWithDevice(btProvider.connectedBleDevice!);
+    final success = await fotaProvider.initWithDevice(
+      btProvider.connectedBleDevice!,
+    );
     if (mounted) {
       setState(() => _isInitialized = success);
       if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Không thể khởi tạo FOTA'),
+            content: Text('Unable to initialize FOTA'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -135,9 +138,9 @@ class _FotaPageState extends State<FotaPage> {
       final data = result.files.single.bytes!;
       if (mounted) {
         context.read<FotaProvider>().setApp1Firmware(
-              Uint8List.fromList(data),
-              result.files.single.name,
-            );
+          Uint8List.fromList(data),
+          result.files.single.name,
+        );
       }
     }
   }
@@ -153,9 +156,9 @@ class _FotaPageState extends State<FotaPage> {
       final data = result.files.single.bytes!;
       if (mounted) {
         context.read<FotaProvider>().setApp2Firmware(
-              Uint8List.fromList(data),
-              result.files.single.name,
-            );
+          Uint8List.fromList(data),
+          result.files.single.name,
+        );
       }
     }
   }
@@ -164,7 +167,7 @@ class _FotaPageState extends State<FotaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('⚡ FOTA Update'),
+        title: const Text('FOTA Update'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -173,23 +176,25 @@ class _FotaPageState extends State<FotaPage> {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Đang update'),
+                  title: const Text('Updating'),
                   content: const Text(
-                      'Quá trình update đang diễn ra. Bạn có chắc muốn thoát?'),
+                    'The update process is in progress. Are you sure you want to exit?',
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Ở lại'),
+                      child: const Text('Stay'),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.danger),
+                        backgroundColor: AppColors.danger,
+                      ),
                       onPressed: () {
                         fotaProvider.reset();
                         Navigator.of(ctx).pop();
                         Navigator.of(context).pop();
                       },
-                      child: const Text('Thoát'),
+                      child: const Text('Exit'),
                     ),
                   ],
                 ),
@@ -280,11 +285,8 @@ class _FotaPageState extends State<FotaPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Trạng thái',
-                    style: TextStyle(
-                      color: AppColors.gray500,
-                      fontSize: 12,
-                    ),
+                    'Status',
+                    style: TextStyle(color: AppColors.gray500, fontSize: 12),
                   ),
                   Text(
                     provider.stateText,
@@ -330,10 +332,7 @@ class _FotaPageState extends State<FotaPage> {
                 SizedBox(width: 8),
                 Text(
                   'Firmware Files',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -383,7 +382,7 @@ class _FotaPageState extends State<FotaPage> {
               border: Border.all(color: AppColors.gray300),
             ),
             child: Text(
-              fileName ?? 'Chưa chọn file...',
+              fileName ?? 'No file selected',
               style: TextStyle(
                 color: fileName != null ? AppColors.dark : AppColors.gray500,
                 fontSize: 13,
@@ -396,7 +395,7 @@ class _FotaPageState extends State<FotaPage> {
         IconButton(
           icon: const Icon(Icons.folder_open),
           onPressed: onSelect,
-          tooltip: 'Chọn file',
+          tooltip: 'Select File',
         ),
       ],
     );
@@ -413,7 +412,7 @@ class _FotaPageState extends State<FotaPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Tiến trình',
+                  'Progress',
                   style: TextStyle(fontWeight: FontWeight.w500),
                 ),
                 Text(
@@ -436,8 +435,8 @@ class _FotaPageState extends State<FotaPage> {
                   provider.hasError
                       ? AppColors.danger
                       : provider.isCompleted
-                          ? AppColors.success
-                          : AppColors.primary,
+                      ? AppColors.success
+                      : AppColors.primary,
                 ),
               ),
             ),
@@ -472,10 +471,13 @@ class _FotaPageState extends State<FotaPage> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.white54, size: 20),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.white54,
+                    size: 20,
+                  ),
                   onPressed: () => provider.clearLogs(),
-                  tooltip: 'Xóa log',
+                  tooltip: 'Clear log',
                 ),
               ],
             ),
@@ -548,7 +550,7 @@ class _FotaPageState extends State<FotaPage> {
                     if (mounted && success) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Đã gửi lệnh UPDATE'),
+                          content: Text('Update command sent'),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -567,3 +569,5 @@ class _FotaPageState extends State<FotaPage> {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,5 +1,10 @@
+// @file       app_notification.dart
+// @brief      Data model for App Notification.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/* Public classes ----------------------------------------------------- */
 class AppNotificationItem {
   const AppNotificationItem({
     required this.id,
@@ -41,3 +46,5 @@ class AppNotificationItem {
     };
   }
 }
+
+/* End of file -------------------------------------------------------- */

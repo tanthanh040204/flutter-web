@@ -1,3 +1,7 @@
+// @file       trip_provider.dart
+// @brief      State provider for Trip.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:math';
 
@@ -8,6 +12,7 @@ import '../models/daily_stat.dart';
 import '../models/trip.dart';
 import '../services/firebase_repo.dart';
 
+/* Public classes ----------------------------------------------------- */
 class TripProvider extends ChangeNotifier {
   final Map<String, List<Trip>> _tripsByVehicle = {};
   final Map<String, StreamSubscription<List<Trip>>> _tripSubs = {};
@@ -299,3 +304,5 @@ class TripProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

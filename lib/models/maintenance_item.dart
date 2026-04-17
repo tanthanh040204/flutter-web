@@ -1,12 +1,14 @@
+// @file       maintenance_item.dart
+// @brief      Data model for Maintenance Item.
+
+/* Public classes ----------------------------------------------------- */
 class MaintenanceItem {
   final String id;
   final String name;
 
-  /// Số km đã đi kể từ lần bảo dưỡng gần nhất.
-  /// Giữ đúng tên field theo yêu cầu của bạn: maintanceKm.
+  // Total km at last maintenance.
   final double maintanceKm;
-
-  /// Chu kỳ bảo dưỡng (km).
+  // Maintenance cycle in km (0 if no maintenance needed).
   final double cycleKm;
 
   const MaintenanceItem({
@@ -32,11 +34,7 @@ class MaintenanceItem {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'maintanceKm': maintanceKm,
-      'cycleKm': cycleKm,
-    };
+    return {'name': name, 'maintanceKm': maintanceKm, 'cycleKm': cycleKm};
   }
 
   factory MaintenanceItem.fromMap(String id, Map<String, dynamic> map) {
@@ -53,3 +51,5 @@ class MaintenanceItem {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

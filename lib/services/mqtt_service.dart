@@ -1,3 +1,7 @@
+// @file       mqtt_service.dart
+// @brief      Service for MQTT.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -11,11 +15,7 @@ import '../config/feature_config.dart';
 import '../models/device_data.dart';
 import 'data_parser.dart';
 
-// ================================================================
-//  Message types
-// ================================================================
-
-/// Dữ liệu telemetry đã parse từ topic  <deviceId>/data
+/* Public classes ----------------------------------------------------- */
 class MqttDataMessage {
   final String deviceId;
   final DeviceData data;
@@ -28,7 +28,7 @@ class MqttDataMessage {
   });
 }
 
-/// Notification từ topic  <deviceId>/noti
+// Notification từ topic  <deviceId>/noti
 class MqttNotiMessage {
   final String deviceId;
   final String message;
@@ -36,7 +36,7 @@ class MqttNotiMessage {
   const MqttNotiMessage({required this.deviceId, required this.message});
 }
 
-/// Backward-compat: vehicle state từ bridge server (vehicles/+/state)
+// Backward-compat: vehicle state từ bridge server (vehicles/+/state)
 class MqttVehicleState {
   final String topic;
   final Map<String, dynamic> payload;
@@ -50,74 +50,61 @@ class MqttVehicleState {
   }
 }
 
-// ================================================================
-//  MqttService
-// ================================================================
-
-/// MQTT client cho toàn bộ app.
-///
-/// Luồng dữ liệu:
-///   Broker →(WS)→ MqttService._handleMessage()
-///                → DataParser.parse(raw)
-///                → dataMessages stream → DeviceProvider
-///                → notifications stream → DeviceProvider
-///
-/// Topics MCU (khớp với web):
-///   <deviceId>/data  – telemetry (subscribe)
-///   <deviceId>/noti  – notification  (subscribe)
-///   <deviceId>/cmd   – lệnh điều khiển (publish)
+// MQTT client for all MQTT interactions: connect, subscribe, publish, and message handling.
+// Workflow:
+//   Broker →(WS)→ MqttService._handleMessage()
+//                → DataParser.parse(raw)
+//                → dataMessages stream → DeviceProvider
+//                → notifications stream → DeviceProvider
+//
+// Topics MCU (khớp với web):
+//   <deviceId>/data  – subscription (subscribe)
+//   <deviceId>/noti  – notification  (subscribe)
+//   <deviceId>/cmd   – control command (publish)
 class MqttService {
   MqttClient? _client;
   bool _isConnected = false;
 
-  /// Tập topics đã subscribe (để re-sub sau reconnect)
+  // Tập topics đã subscribe (để re-sub sau reconnect)
   final Set<String> _subscribedTopics = {};
 
   // ---- Streams ----
-  final _dataController =
-      StreamController<MqttDataMessage>.broadcast();
-  final _notiController =
-      StreamController<MqttNotiMessage>.broadcast();
+  final _dataController = StreamController<MqttDataMessage>.broadcast();
+  final _notiController = StreamController<MqttNotiMessage>.broadcast();
   final _connectionController = StreamController<bool>.broadcast();
 
   // Backward-compat stream cho FleetProvider
   final _vehicleStateController =
       StreamController<MqttVehicleState>.broadcast();
 
-  /// Stream dữ liệu telemetry từ <deviceId>/data (đã parse)
+  // Stream parsed data
   Stream<MqttDataMessage> get dataMessages => _dataController.stream;
 
-  /// Stream notification từ <deviceId>/noti
+  // Stream notification từ <deviceId>/noti
   Stream<MqttNotiMessage> get notifications => _notiController.stream;
 
-  /// Stream trạng thái kết nối: true = connected, false = disconnected
+  // Stream state
   Stream<bool> get connectionState => _connectionController.stream;
 
-  /// Backward-compat: stream vehicle state (dùng bởi FleetProvider)
-  Stream<MqttVehicleState> get vehicleStates =>
-      _vehicleStateController.stream;
+  // Backward-compat: stream vehicle state (dùng bởi FleetProvider)
+  Stream<MqttVehicleState> get vehicleStates => _vehicleStateController.stream;
 
   bool get isConnected => _isConnected;
 
-  // ================================================================
-  //  Connection
-  // ================================================================
-
-  /// Kết nối đến broker qua WebSocket (web) hoặc TCP (native).
-  /// Sử dụng host/port từ [FeatureConfig].
+  // Connect to MQTT broker with configured settings.
   Future<void> connect() async {
     if (_isConnected && _client != null) return;
 
     final rand = math.Random();
-    final clientId = FeatureConfig.mqttClientIdPrefix +
+    final clientId =
+        FeatureConfig.mqttClientIdPrefix +
         rand.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
 
     if (kIsWeb) {
-      // mqtt_client (web) sẽ giữ nguyên path trong `server` rồi replace(port).
-      // Vì broker EMQX public dùng path `/mqtt`, ta truyền path ngay từ đây.
       final proto = FeatureConfig.mqttUseSsl ? 'wss' : 'ws';
       final serverBase = '$proto://${FeatureConfig.mqttHost}/mqtt';
-      final wsUrl = '$proto://${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}/mqtt';
+      final wsUrl =
+          '$proto://${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}/mqtt';
 
       if (FeatureConfig.debugMqttLog) {
         debugPrint('[MQTT] Connecting → $wsUrl | clientId: $clientId');
@@ -152,8 +139,7 @@ class MqttService {
         );
       }
 
-      final client =
-          MqttServerClient(FeatureConfig.mqttHost, clientId);
+      final client = MqttServerClient(FeatureConfig.mqttHost, clientId);
       client.port = FeatureConfig.mqttWsPort;
       client.setProtocolV311();
       client.secure = FeatureConfig.mqttUseSsl;
@@ -194,12 +180,7 @@ class MqttService {
     _isConnected = false;
   }
 
-  // ================================================================
-  //  Subscribe / Unsubscribe
-  // ================================================================
-
-  /// Subscribe topic data và noti của thiết bị.
-  /// Nếu chưa connect → sẽ được re-sub trong _onConnected().
+  // Subscribe device topics for data and notifications
   void subscribeDevice(String deviceId) {
     final topics = [
       '$deviceId${FeatureConfig.topicDataSuffix}',
@@ -216,7 +197,7 @@ class MqttService {
     }
   }
 
-  /// Hủy subscribe topics của thiết bị.
+  // Unsubscribe device topics for data and notifications
   void unsubscribeDevice(String deviceId) {
     final topics = [
       '$deviceId${FeatureConfig.topicDataSuffix}',
@@ -230,20 +211,14 @@ class MqttService {
     }
   }
 
-  /// Backward-compat: subscribe tất cả device mặc định từ FeatureConfig.
+  // Backward-compat: subscribe tất cả device mặc định từ FeatureConfig.
   Future<void> subscribeFleetState() async {
     for (final id in FeatureConfig.defaultDevices) {
       subscribeDevice(id);
     }
   }
 
-  // ================================================================
-  //  Publish
-  // ================================================================
-
-  /// Publish chuỗi lệnh đến  <deviceId>/cmd.
-  /// Ví dụ: publish('haq-trk-001', 'LOCK')
-  /// Trả về true nếu gửi thành công.
+  // Publish command (string)
   bool publish(String deviceId, String command) {
     if (!_isConnected || _client == null) {
       debugPrint('[MQTT] Cannot publish: not connected');
@@ -253,20 +228,18 @@ class MqttService {
     final builder = MqttClientPayloadBuilder()..addString(command);
     _client!.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
     if (FeatureConfig.debugMqttLog) {
-      final preview =
-          command.length > 80 ? command.substring(0, 80) : command;
+      final preview = command.length > 80 ? command.substring(0, 80) : command;
       debugPrint('[MQTT] Published → $topic | $preview');
     }
     return true;
   }
 
-  /// Publish JSON command đến <deviceId>/cmd.
-  /// Backward-compat với FleetProvider.sendSetLock() v.v.
+  // Publish JSON command
   bool publishCommand(String vehicleId, Map<String, dynamic> payload) {
     return publish(vehicleId, jsonEncode(payload));
   }
 
-  /// Publish tới bất kỳ topic nào (dùng cho MQTT console/debug).
+  // Publish to topic
   bool publishRaw(String topic, String message) {
     if (!_isConnected || _client == null) {
       debugPrint('[MQTT] Cannot publish: not connected');
@@ -280,10 +253,6 @@ class MqttService {
     return true;
   }
 
-  // ================================================================
-  //  Cleanup
-  // ================================================================
-
   void dispose() {
     disconnect();
     _dataController.close();
@@ -292,15 +261,12 @@ class MqttService {
     _vehicleStateController.close();
   }
 
-  // ================================================================
-  //  Private
-  // ================================================================
-
+  // ---- Private methods ----
   void _onConnected() {
     _isConnected = true;
     if (FeatureConfig.debugMqttLog) debugPrint('[MQTT] Connected');
 
-    // Re-subscribe tất cả topics đã đăng ký
+    // Re-subscribe all topics after reconnect
     for (final topic in _subscribedTopics) {
       _client!.subscribe(topic, MqttQos.atMostOnce);
       if (FeatureConfig.debugMqttLog) {
@@ -323,9 +289,7 @@ class MqttService {
       final msg = event.payload;
       if (msg is! MqttPublishMessage) continue;
 
-      final raw = MqttPublishPayload.bytesToStringAsString(
-        msg.payload.message,
-      );
+      final raw = MqttPublishPayload.bytesToStringAsString(msg.payload.message);
       if (FeatureConfig.debugMqttLog) {
         final preview = raw.length > 100 ? raw.substring(0, 100) : raw;
         debugPrint('[MQTT] RX  topic=${event.topic}  payload=$preview');
@@ -335,7 +299,7 @@ class MqttService {
     }
   }
 
-  /// Phân loại message theo topic suffix và dispatch vào đúng stream.
+  // Handle incoming MQTT message: parse and add to streams.
   void _handleMessage(String topic, String raw) {
     final dataSuffix = FeatureConfig.topicDataSuffix;
     final notiSuffix = FeatureConfig.topicNotiSuffix;
@@ -351,21 +315,23 @@ class MqttService {
       );
 
       // Backward-compat: map MCU data → MqttVehicleState cho FleetProvider
-      _vehicleStateController.add(MqttVehicleState(
-        topic: topic,
-        payload: {
-          'id': deviceId,
-          'batteryPercent': (parsed.battery ?? 0).toInt(),
-          'lat': parsed.lat ?? 0.0,
-          'lon': parsed.lng ?? 0.0,
-          'totalKm': (parsed.distanceM ?? 0) / 1000.0,
-          'isLocked': false,
-          'isRunning': (parsed.velocityKmh ?? 0) > 0,
-          'temp': parsed.temp ?? 0.0,
-          'hum': parsed.hum ?? 0.0,
-          'dust': parsed.dust ?? 0.0,
-        },
-      ));
+      _vehicleStateController.add(
+        MqttVehicleState(
+          topic: topic,
+          payload: {
+            'id': deviceId,
+            'batteryPercent': (parsed.battery ?? 0).toInt(),
+            'lat': parsed.lat ?? 0.0,
+            'lon': parsed.lng ?? 0.0,
+            'totalKm': (parsed.distanceM ?? 0) / 1000.0,
+            'isLocked': false,
+            'isRunning': (parsed.velocityKmh ?? 0) > 0,
+            'temp': parsed.temp ?? 0.0,
+            'hum': parsed.hum ?? 0.0,
+            'dust': parsed.dust ?? 0.0,
+          },
+        ),
+      );
     } else if (topic.endsWith(notiSuffix)) {
       // ---- NOTI message ----
       if (!FeatureConfig.enableNotifications) return;
@@ -380,3 +346,5 @@ class MqttService {
     }
   }
 }
+
+/* End of file -------------------------------------------------------- */

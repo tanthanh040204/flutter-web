@@ -1,9 +1,10 @@
+// @file       date_utils.dart
+// @brief      Utility helpers for Date.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:intl/intl.dart';
 
-/// ============================================
-/// DATE UTILITIES - Format ngày giờ
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class AppDateUtils {
   AppDateUtils._();
 
@@ -11,25 +12,25 @@ class AppDateUtils {
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
   static final DateFormat _timeFormat = DateFormat('HH:mm:ss');
 
-  /// Format DateTime đầy đủ
+  // Format DateTime
   static String formatDateTime(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _dateTimeFormat.format(dateTime);
   }
 
-  /// Format Date
+  // Format Date
   static String formatDate(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _dateFormat.format(dateTime);
   }
 
-  /// Format Time
+  // Format Time
   static String formatTime(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _timeFormat.format(dateTime);
   }
 
-  /// Tính duration giữa 2 DateTime
+  // Calculate duration between two DateTime objects
   static String formatDuration(DateTime? start, DateTime? end) {
     if (start == null || end == null) return '--';
 
@@ -46,3 +47,5 @@ class AppDateUtils {
     return '${seconds}s';
   }
 }
+
+/* End of file -------------------------------------------------------- */

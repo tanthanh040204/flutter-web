@@ -1,9 +1,11 @@
-import 'package:latlong2/latlong.dart';
+// @file       device_state.dart
+// @brief      Data model for Device State.
 
+/* Imports ------------------------------------------------------------ */
+import 'package:latlong2/latlong.dart';
 import 'device_data.dart';
 
-/// Một điểm trong lịch sử lộ trình của thiết bị.
-/// Tương đương RoutePoint trong web/js/deviceManager.js
+/* Public classes ----------------------------------------------------- */
 class RoutePoint {
   final double lat;
   final double lng;
@@ -35,7 +37,7 @@ class RoutePoint {
 
   LatLng get latLng => LatLng(lat, lng);
 
-  /// Tạo RoutePoint từ DeviceData (chỉ khi hasGps == true)
+  // RoutePoint from DeviceData (for real-time route)
   factory RoutePoint.fromDeviceData(DeviceData d) {
     return RoutePoint(
       lat: d.lat!,
@@ -54,11 +56,8 @@ class RoutePoint {
   }
 }
 
-/// Trạng thái khóa của thiết bị (từ topic /noti)
+/* Enums -------------------------------------------------------------- */
 enum DeviceLockState { active, locked }
-
-/// Toàn bộ state của một thiết bị tracking.
-/// Tương đương DeviceState object trong web/js/deviceManager.js
 class DeviceState {
   final String id;
   final String color;
@@ -101,3 +100,5 @@ class DeviceState {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

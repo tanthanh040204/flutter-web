@@ -1,25 +1,25 @@
-/// DeviceData – dữ liệu telemetry đã được parse từ payload MCU.
-///
-/// Tương đương object DeviceData trong web/js/dataParser.js.
-/// Tất cả field đều nullable – MCU có thể không gửi đầy đủ.
+// @file       device_data.dart
+// @brief      Data model for Device Data.
+
+/* Public classes ----------------------------------------------------- */
 class DeviceData {
   // ---- GPS ----
   final double? lat;
   final double? lng;
   final DateTime timestamp;
 
-  // ---- Telemetry cơ bản ----
+  // ---- Telemetry ----
   final double? battery; // %
   final double? velocityMs; // m/s
   final double? velocityKmh; // km/h
-  final double? distanceM; // m (khoảng cách từ điểm đầu)
-  final double? directionDeg; // độ (0–360)
+  final double? distanceM; // m
+  final double? directionDeg; // degrees (0-360)
   final String? directionStr; // "NE", "SE", …
   final double? dust; // µg/m³
-  final double? temp; // °C
+  final double? temp; // C
   final double? hum; // %
 
-  // ---- Fusion – Accelerometer (g) ----
+  // ---- Fusion – Accelerometer ----
   final double? accRx;
   final double? accRy;
   final double? accRz;
@@ -27,7 +27,7 @@ class DeviceData {
   final double? accFy;
   final double? accFz;
 
-  // ---- Fusion – Gyroscope (°/s) ----
+  // ---- Fusion – Gyroscope ----
   final double? gyrRx;
   final double? gyrRy;
   final double? gyrRz;
@@ -35,7 +35,7 @@ class DeviceData {
   final double? gyrFy;
   final double? gyrFz;
 
-  // ---- Fusion – Compass (µT) ----
+  // ---- Fusion – Compass ----
   final double? cmpRx;
   final double? cmpRy;
   final double? cmpRz;
@@ -62,20 +62,36 @@ class DeviceData {
     this.dust,
     this.temp,
     this.hum,
-    this.accRx, this.accRy, this.accRz,
-    this.accFx, this.accFy, this.accFz,
-    this.gyrRx, this.gyrRy, this.gyrRz,
-    this.gyrFx, this.gyrFy, this.gyrFz,
-    this.cmpRx, this.cmpRy, this.cmpRz,
-    this.cmpFx, this.cmpFy, this.cmpFz,
-    this.vIns, this.vGps,
-    this.dIns, this.dGps,
+    this.accRx,
+    this.accRy,
+    this.accRz,
+    this.accFx,
+    this.accFy,
+    this.accFz,
+    this.gyrRx,
+    this.gyrRy,
+    this.gyrRz,
+    this.gyrFx,
+    this.gyrFy,
+    this.gyrFz,
+    this.cmpRx,
+    this.cmpRy,
+    this.cmpRz,
+    this.cmpFx,
+    this.cmpFy,
+    this.cmpFz,
+    this.vIns,
+    this.vGps,
+    this.dIns,
+    this.dGps,
   });
 
-  /// true nếu có GPS fix hợp lệ
+  // true if both lat and lng are not null
   bool get hasGps => lat != null && lng != null;
 
-  /// true nếu có ít nhất 1 field Fusion
+  // true if there is at least 1 Fusion field
   bool get hasFusion =>
       accRx != null || gyrRx != null || cmpRx != null || vIns != null;
 }
+
+/* End of file -------------------------------------------------------- */

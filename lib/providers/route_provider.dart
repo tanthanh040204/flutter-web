@@ -1,12 +1,13 @@
+// @file       route_provider.dart
+// @brief      State provider for Route.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/foundation.dart';
 import '../models/route_point.dart';
 import '../services/file_service.dart';
 import '../utils/geo_utils.dart';
 
-/// ============================================
-/// ROUTE PROVIDER - State management cho route
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class RouteProvider extends ChangeNotifier {
   List<RoutePoint> _points = [];
   bool _isLoading = false;
@@ -37,7 +38,7 @@ class RouteProvider extends ChangeNotifier {
 
   RoutePoint? get lastPoint => _points.isNotEmpty ? _points.last : null;
 
-  /// Load route từ file picker
+  // Load route từ file picker
   Future<void> loadFromFilePicker() async {
     _setLoading(true);
     _clearError();
@@ -54,7 +55,7 @@ class RouteProvider extends ChangeNotifier {
     }
   }
 
-  /// Load sample data
+  // Load sample data
   Future<void> loadSampleData() async {
     _setLoading(true);
     _clearError();
@@ -71,7 +72,7 @@ class RouteProvider extends ChangeNotifier {
     }
   }
 
-  /// Load route từ đường dẫn
+  // Load route từ đường dẫn
   Future<void> loadFromPath(String path) async {
     _setLoading(true);
     _clearError();
@@ -88,20 +89,20 @@ class RouteProvider extends ChangeNotifier {
     }
   }
 
-  /// Set points directly (từ Bluetooth)
+  // Set points directly (từ Bluetooth)
   void setPoints(List<RoutePoint> points) {
     _points = List.from(points);
     _fileName = 'Bluetooth data';
     notifyListeners();
   }
 
-  /// Add single point (realtime mode)
+  // Add single point (realtime mode)
   void addPoint(RoutePoint point) {
     _points.add(point);
     notifyListeners();
   }
 
-  /// Clear route
+  // Clear route
   void clearRoute() {
     _points = [];
     _fileName = null;
@@ -109,25 +110,25 @@ class RouteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Toggle show markers
+  // Toggle show markers
   void toggleMarkers() {
     _showMarkers = !_showMarkers;
     notifyListeners();
   }
 
-  /// Set show markers
+  // Set show markers
   void setShowMarkers(bool value) {
     _showMarkers = value;
     notifyListeners();
   }
 
-  /// Toggle realtime mode
+  // Toggle realtime mode
   void toggleRealtimeMode() {
     _realtimeMode = !_realtimeMode;
     notifyListeners();
   }
 
-  /// Set realtime mode
+  // Set realtime mode
   void setRealtimeMode(bool value) {
     _realtimeMode = value;
     notifyListeners();
@@ -148,3 +149,5 @@ class RouteProvider extends ChangeNotifier {
     _error = null;
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,3 +1,7 @@
+// @file       firebase_repo.dart
+// @brief      Service for Firebase Repo.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +17,7 @@ import '../models/maintenance_item.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
 
+/* Public classes ----------------------------------------------------- */
 class FirebaseRepo {
   FirebaseRepo._();
   static final FirebaseRepo instance = FirebaseRepo._();
@@ -270,7 +275,7 @@ class FirebaseRepo {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final message = 'Mã số $employeeCode vừa đăng nhập lúc $hour:$minute';
+    final message = 'Employee code $employeeCode has logged in at $hour:$minute';
 
     final notifications = _appNotifications;
     if (notifications == null) {
@@ -431,7 +436,7 @@ class FirebaseRepo {
   Future<void> deleteHistoryRoute(String vehicleId, String routeId) async {
     final vehicles = _vehicles;
     if (vehicles == null) {
-      throw StateError('Firestore chưa được khởi tạo.');
+      throw StateError('Firestore has not been initialized.');
     }
 
     await vehicles
@@ -947,3 +952,5 @@ class FirebaseRepo {
     }, SetOptions(merge: true));
   }
 }
+
+/* End of file -------------------------------------------------------- */

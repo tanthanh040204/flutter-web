@@ -1,7 +1,7 @@
-/// ============================================
-/// MODEL: Bluetooth Device Info
-/// ============================================
+// @file       bluetooth_device_info.dart
+// @brief      Data model for Bluetooth Device Info.
 
+/* Enums -------------------------------------------------------------- */
 enum AppBluetoothConnectionState {
   disconnected,
   connecting,
@@ -9,6 +9,7 @@ enum AppBluetoothConnectionState {
   disconnecting,
 }
 
+/* Public classes ----------------------------------------------------- */
 class BluetoothDeviceInfo {
   final String id;
   final String name;
@@ -22,10 +23,10 @@ class BluetoothDeviceInfo {
     this.connectionState = AppBluetoothConnectionState.disconnected,
   });
 
-  /// Display name (name or ID if name is empty)
+  // Display name (name or ID if name is empty)
   String get displayName => name.isNotEmpty ? name : 'Unknown ($id)';
 
-  /// Signal strength description
+  // Signal strength description
   String get signalStrength {
     if (rssi == null) return 'N/A';
     if (rssi! >= -50) return 'Excellent';
@@ -34,15 +35,15 @@ class BluetoothDeviceInfo {
     return 'Weak';
   }
 
-  /// Is connected
+  // Is connected
   bool get isConnected =>
       connectionState == AppBluetoothConnectionState.connected;
 
-  /// Is connecting
+  // Is connecting
   bool get isConnecting =>
       connectionState == AppBluetoothConnectionState.connecting;
 
-  /// Copy with new values
+  // Copy with new values
   BluetoothDeviceInfo copyWith({
     String? id,
     String? name,
@@ -69,3 +70,5 @@ class BluetoothDeviceInfo {
   @override
   int get hashCode => id.hashCode;
 }
+
+/* End of file -------------------------------------------------------- */

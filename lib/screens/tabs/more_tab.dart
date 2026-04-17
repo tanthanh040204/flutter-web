@@ -1,3 +1,7 @@
+// @file       more_tab.dart
+// @brief      Tab UI for More.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +17,7 @@ import '../../services/mqtt_service.dart';
 import '../../widgets/mqtt_status_badge.dart';
 import '../../widgets/vehicle_picker.dart';
 
+/* Public classes ----------------------------------------------------- */
 class MoreTab extends StatefulWidget {
   const MoreTab({super.key});
 
@@ -20,6 +25,7 @@ class MoreTab extends StatefulWidget {
   State<MoreTab> createState() => _MoreTabState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _MoreTabState extends State<MoreTab> {
   final _currentPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
@@ -78,7 +84,7 @@ class _MoreTabState extends State<MoreTab> {
       _newPasswordCtrl.clear();
       _confirmPasswordCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đổi mật khẩu thành công.')),
+        const SnackBar(content: Text('Password changed successfully.')),
       );
       return;
     }
@@ -97,21 +103,21 @@ class _MoreTabState extends State<MoreTab> {
 
     if (code.isEmpty || pass.isEmpty || confirm.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đủ mã số và mật khẩu.')),
+        const SnackBar(content: Text('Please fill in all fields.')),
       );
       return;
     }
 
     if (pass.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mật khẩu phải có ít nhất 4 ký tự.')),
+        const SnackBar(content: Text('Password must be at least 4 characters long.')),
       );
       return;
     }
 
     if (pass != confirm) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xác nhận mật khẩu chưa khớp.')),
+        const SnackBar(content: Text('Password confirmation does not match.')),
       );
       return;
     }
@@ -128,7 +134,7 @@ class _MoreTabState extends State<MoreTab> {
       if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Mã nhân viên đã tồn tại hoặc dữ liệu chưa hợp lệ.'),
+            content: Text('Employee code already exists or data is invalid.'),
           ),
         );
         return;
@@ -138,7 +144,7 @@ class _MoreTabState extends State<MoreTab> {
       _employeePasswordCtrl.clear();
       _employeeConfirmPasswordCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã thêm mã nhân viên đăng nhập.')),
+        const SnackBar(content: Text('Employee account added successfully.')),
       );
     } finally {
       if (mounted) {
@@ -152,7 +158,7 @@ class _MoreTabState extends State<MoreTab> {
     if (item.employeeCode == auth.employeeCode) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không thể xóa mã nhân viên đang đăng nhập.'),
+          content: Text('Cannot delete the employee code currently logged in.'),
         ),
       );
       return;
@@ -161,18 +167,18 @@ class _MoreTabState extends State<MoreTab> {
     final ok = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Xóa mã nhân viên'),
+            title: const Text('Delete Employee Code'),
             content: Text(
-              'Bạn có chắc muốn xóa mã nhân viên ${item.employeeCode} không?',
+              'Are you sure you want to delete employee code ${item.employeeCode}?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Hủy'),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Xóa'),
+                child: const Text('Delete'),
               ),
             ],
           ),
@@ -191,8 +197,8 @@ class _MoreTabState extends State<MoreTab> {
       SnackBar(
         content: Text(
           deleted
-              ? 'Đã xóa mã nhân viên ${item.employeeCode}.'
-              : 'Không thể xóa mã nhân viên.',
+              ? 'Employee code ${item.employeeCode} deleted successfully.'
+              : 'Failed to delete employee code.',
         ),
       ),
     );
@@ -220,7 +226,7 @@ class _MoreTabState extends State<MoreTab> {
                       const Icon(Icons.sticky_note_2_outlined),
                       const SizedBox(width: 8),
                       Text(
-                        note == null ? 'Ghi chú mới' : 'Chỉnh sửa ghi chú',
+                        note == null ? 'New Note' : 'Edit Note',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -232,7 +238,7 @@ class _MoreTabState extends State<MoreTab> {
                   TextField(
                     controller: titleCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Tiêu đề ghi chú',
+                      labelText: 'Note Title',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -259,7 +265,7 @@ class _MoreTabState extends State<MoreTab> {
                         maxLines: null,
                         textAlignVertical: TextAlignVertical.top,
                         decoration: const InputDecoration(
-                          hintText: 'Nhập nội dung ghi chú ở đây...',
+                          hintText: 'Enter note content here...',
                           border: InputBorder.none,
                         ),
                       ),
@@ -271,13 +277,13 @@ class _MoreTabState extends State<MoreTab> {
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Hủy'),
+                        child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
                         onPressed: () => Navigator.pop(context, true),
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('Lưu ghi chú'),
+                        label: const Text('Save Note'),
                       ),
                     ],
                   ),
@@ -303,7 +309,7 @@ class _MoreTabState extends State<MoreTab> {
     if (content.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nội dung ghi chú không được để trống.')),
+        const SnackBar(content: Text('Note content cannot be empty.')),
       );
       return;
     }
@@ -321,7 +327,7 @@ class _MoreTabState extends State<MoreTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(note == null ? 'Đã thêm ghi chú.' : 'Đã cập nhật ghi chú.'),
+        content: Text(note == null ? 'Note added successfully.' : 'Note updated successfully.'),
       ),
     );
   }
@@ -330,18 +336,18 @@ class _MoreTabState extends State<MoreTab> {
     final ok = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Xóa ghi chú'),
+            title: const Text('Delete Note'),
             content: Text(
-              'Bạn có chắc muốn xóa ghi chú "${note.title.isEmpty ? 'Không tiêu đề' : note.title}" không?',
+              'Are you sure you want to delete the note "${note.title.isEmpty ? 'Untitled' : note.title}"?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Hủy'),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Xóa'),
+                child: const Text('Delete'),
               ),
             ],
           ),
@@ -353,7 +359,7 @@ class _MoreTabState extends State<MoreTab> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã xóa ghi chú.')),
+      const SnackBar(content: Text('Note deleted successfully.')),
     );
   }
 
@@ -385,11 +391,11 @@ class _MoreTabState extends State<MoreTab> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 8),
-                Text('• Tab Ghi chú dùng để tạo nhiều ghi chú và xóa từng ghi chú.'),
+                Text('• Noti tab for notifications from devices.'),
                 SizedBox(height: 4),
-                Text('• Tab Nhân viên dùng để thêm mã số có thể đăng nhập web.'),
+                Text('• Tab Notes for creating and managing notes.'),
                 SizedBox(height: 4),
-                Text('• Tab Đổi mật khẩu dùng để đổi mật khẩu của tài khoản đang đăng nhập.'),
+                Text('• Tab change password to update your login password.'),
               ],
             ),
           ),
@@ -400,7 +406,7 @@ class _MoreTabState extends State<MoreTab> {
             context.read<AuthProvider>().logout();
           },
           icon: const Icon(Icons.logout),
-          label: const Text('Đăng xuất'),
+          label: const Text('Logout'),
         ),
       ],
     );
@@ -417,7 +423,7 @@ class _MoreTabState extends State<MoreTab> {
                 child: ElevatedButton.icon(
                   onPressed: () => _openNoteEditor(),
                   icon: const Icon(Icons.add),
-                  label: const Text('Thêm ghi chú'),
+                  label: const Text('Add Note'),
                 ),
               ),
             ],
@@ -430,7 +436,7 @@ class _MoreTabState extends State<MoreTab> {
               final notes = snapshot.data ?? const <AppNote>[];
               if (notes.isEmpty) {
                 return const Center(
-                  child: Text('Chưa có ghi chú nào. Hãy bấm "Thêm ghi chú".'),
+                  child: Text('No notes available. Press "Add Note" to create one.'),
                 );
               }
 
@@ -440,7 +446,7 @@ class _MoreTabState extends State<MoreTab> {
                 itemBuilder: (context, index) {
                   final note = notes[index];
                   final title =
-                      note.title.trim().isEmpty ? 'Không tiêu đề' : note.title;
+                      note.title.trim().isEmpty ? 'No title' : note.title;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Padding(
@@ -464,7 +470,7 @@ class _MoreTabState extends State<MoreTab> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Cập nhật: ${_formatDateTime(note.updatedAt)}',
+                                      'Updated: ${_formatDateTime(note.updatedAt)}',
                                       style: TextStyle(
                                         color: Colors.grey.shade600,
                                       ),
@@ -473,12 +479,12 @@ class _MoreTabState extends State<MoreTab> {
                                 ),
                               ),
                               IconButton(
-                                tooltip: 'Sửa',
+                                tooltip: 'Edit',
                                 onPressed: () => _openNoteEditor(note: note),
                                 icon: const Icon(Icons.edit_outlined),
                               ),
                               IconButton(
-                                tooltip: 'Xóa',
+                                tooltip: 'Delete',
                                 onPressed: () => _deleteNote(note),
                                 icon: const Icon(Icons.delete_outline),
                               ),
@@ -518,7 +524,7 @@ class _MoreTabState extends State<MoreTab> {
         TextField(
           controller: _employeeCodeCtrl,
           decoration: const InputDecoration(
-            labelText: 'Mã nhân viên mới',
+            labelText: 'New Employee Code',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.badge_outlined),
           ),
@@ -528,7 +534,7 @@ class _MoreTabState extends State<MoreTab> {
           controller: _employeePasswordCtrl,
           obscureText: _hideEmployeePassword,
           decoration: InputDecoration(
-            labelText: 'Mật khẩu cho mã nhân viên mới',
+            labelText: 'Password for New Employee Code',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
@@ -550,7 +556,7 @@ class _MoreTabState extends State<MoreTab> {
           controller: _employeeConfirmPasswordCtrl,
           obscureText: _hideEmployeeConfirmPassword,
           decoration: InputDecoration(
-            labelText: 'Xác nhận mật khẩu',
+            labelText: 'Confirm Password',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.verified_user_outlined),
             suffixIcon: IconButton(
@@ -580,12 +586,12 @@ class _MoreTabState extends State<MoreTab> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.person_add_alt_1),
-            label: const Text('Thêm mã nhân viên đăng nhập'),
+            label: const Text('Add Employee Code'),
           ),
         ),
         const SizedBox(height: 24),
         const Text(
-          'Danh sách mã nhân viên',
+          'Employee Codes List',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -597,7 +603,7 @@ class _MoreTabState extends State<MoreTab> {
               return const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Chưa có mã nhân viên nào.'),
+                  child: Text('No employee codes available.'),
                 ),
               );
             }
@@ -611,14 +617,14 @@ class _MoreTabState extends State<MoreTab> {
                     leading: Icon(
                       isCurrent ? Icons.verified_user : Icons.badge_outlined,
                     ),
-                    title: Text('Mã số ${item.employeeCode}'),
+                    title: Text('Employee Code: ${item.employeeCode}'),
                     subtitle: Text(
                       isCurrent
-                          ? 'Đang đăng nhập'
-                          : 'Cập nhật: ${_formatDateTime(item.updatedAt)}',
+                          ? 'Currently logged in'
+                          : 'Updated: ${_formatDateTime(item.updatedAt)}',
                     ),
                     trailing: IconButton(
-                      tooltip: 'Xóa mã nhân viên',
+                      tooltip: 'Delete Employee Code',
                       onPressed: () => _confirmDeleteEmployee(item),
                       icon: const Icon(Icons.close),
                     ),
@@ -641,7 +647,7 @@ class _MoreTabState extends State<MoreTab> {
           controller: _currentPasswordCtrl,
           obscureText: _hideCurrent,
           decoration: InputDecoration(
-            labelText: 'Mật khẩu hiện tại',
+            labelText: 'Current Password',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
@@ -659,7 +665,7 @@ class _MoreTabState extends State<MoreTab> {
           controller: _newPasswordCtrl,
           obscureText: _hideNew,
           decoration: InputDecoration(
-            labelText: 'Mật khẩu mới',
+            labelText: 'New Password',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.password_outlined),
             suffixIcon: IconButton(
@@ -675,7 +681,7 @@ class _MoreTabState extends State<MoreTab> {
           controller: _confirmPasswordCtrl,
           obscureText: _hideConfirm,
           decoration: InputDecoration(
-            labelText: 'Xác nhận mật khẩu mới',
+            labelText: 'Confirm New Password',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.verified_user_outlined),
             suffixIcon: IconButton(
@@ -700,23 +706,20 @@ class _MoreTabState extends State<MoreTab> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_outlined),
-            label: const Text('Cập nhật mật khẩu'),
+            label: const Text('Update Password'),
           ),
         ),
       ],
     );
   }
 
-  // ================================================================
-  //  MQTT Console tab
-  // ================================================================
-
+  // ---- MQTT Console Tab ----
   void _sendMqttMessage() {
     final topic = _mqttTopicCtrl.text.trim();
     final message = _mqttMessageCtrl.text.trim();
     if (topic.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập topic và message.')),
+        const SnackBar(content: Text('Please enter both topic and message.')),
       );
       return;
     }
@@ -739,7 +742,7 @@ class _MoreTabState extends State<MoreTab> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Đã gửi → $topic' : 'Gửi thất bại (chưa kết nối)'),
+        content: Text(ok ? 'Message sent → $topic' : 'Failed to send message (not connected)'),
         backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
         duration: const Duration(seconds: 2),
       ),
@@ -757,7 +760,7 @@ class _MoreTabState extends State<MoreTab> {
         const MqttStatusBadge(compact: false),
         const SizedBox(height: 4),
         Text(
-          'SSL: ${FeatureConfig.mqttUseSsl ? "Bật (WSS)" : "Tắt (WS)"}',
+          'SSL: ${FeatureConfig.mqttUseSsl ? "Enabled (WSS)" : "Disabled (WS)"}',
           style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
         ),
 
@@ -848,7 +851,7 @@ class _MoreTabState extends State<MoreTab> {
           child: ElevatedButton.icon(
             onPressed: _sendMqttMessage,
             icon: const Icon(Icons.send_outlined),
-            label: const Text('Gửi'),
+            label: const Text('Send'),
           ),
         ),
 
@@ -858,14 +861,14 @@ class _MoreTabState extends State<MoreTab> {
           Row(
             children: [
               const Text(
-                'Lịch sử gửi',
+                'Send History',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
               TextButton.icon(
                 onPressed: () => setState(() => _sentLog.clear()),
                 icon: const Icon(Icons.clear_all, size: 16),
-                label: const Text('Xóa', style: TextStyle(fontSize: 12)),
+                label: const Text('Clear', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
@@ -878,7 +881,7 @@ class _MoreTabState extends State<MoreTab> {
         if (notiList.isNotEmpty) ...[
           const SizedBox(height: 20),
           const Text(
-            'Notifications nhận được (/noti)',
+            'Received Notifications (/noti)',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
@@ -928,10 +931,7 @@ class _MoreTabState extends State<MoreTab> {
     return '$h:$m:$s';
   }
 
-  // ================================================================
-  //  Build
-  // ================================================================
-
+  // Build method
   @override
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
@@ -941,7 +941,7 @@ class _MoreTabState extends State<MoreTab> {
       length: 5,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Thông tin khác'),
+          title: const Text('More Options'),
           actions: [
             const MqttStatusBadge(compact: true),
             const SizedBox(width: 8),
@@ -951,10 +951,10 @@ class _MoreTabState extends State<MoreTab> {
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
-              Tab(text: 'Thông tin'),
-              Tab(text: 'Ghi chú'),
-              Tab(text: 'Nhân viên'),
-              Tab(text: 'Đổi mật khẩu'),
+              Tab(text: 'Information'),
+              Tab(text: 'Notes'),
+              Tab(text: 'Employees'),
+              Tab(text: 'Change Password'),
               Tab(text: 'MQTT'),
             ],
           ),
@@ -972,10 +972,6 @@ class _MoreTabState extends State<MoreTab> {
     );
   }
 }
-
-// ================================================================
-//  Helper classes
-// ================================================================
 
 class _SentEntry {
   final String topic;
@@ -1051,7 +1047,7 @@ class _SentLogTile extends StatelessWidget {
             Clipboard.setData(ClipboardData(text: entry.message));
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Đã copy'),
+                content: Text('Copied to clipboard'),
                 duration: Duration(seconds: 1),
               ),
             );
@@ -1061,3 +1057,5 @@ class _SentLogTile extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

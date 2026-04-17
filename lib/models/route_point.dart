@@ -1,9 +1,10 @@
+// @file       route_point.dart
+// @brief      Data model for Route Point.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:latlong2/latlong.dart';
 
-/// ============================================
-/// MODEL: Route Point
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class RoutePoint {
   final double latitude;
   final double longitude;
@@ -27,28 +28,31 @@ class RoutePoint {
     this.accuracy,
   });
 
-  /// Convert to LatLng for flutter_map
+  // Convert to LatLng for flutter_map
   LatLng get latLng => LatLng(latitude, longitude);
 
-  /// Create from JSON
+  // Create from JSON
   factory RoutePoint.fromJson(Map<String, dynamic> json) {
     return RoutePoint(
       latitude: _parseDouble(json['lat'] ?? json['latitude'] ?? json['y']),
       longitude: _parseDouble(
-          json['lng'] ?? json['lon'] ?? json['longitude'] ?? json['x']),
+        json['lng'] ?? json['lon'] ?? json['longitude'] ?? json['x'],
+      ),
       name: json['name'] as String?,
       description: json['description'] ?? json['desc'] as String?,
       timestamp: _parseDateTime(json['timestamp'] ?? json['time']),
       speed: _parseDoubleOrNull(json['speed'] ?? json['spd']),
       altitude: _parseDoubleOrNull(
-          json['altitude'] ?? json['alt'] ?? json['elevation']),
+        json['altitude'] ?? json['alt'] ?? json['elevation'],
+      ),
       heading: _parseDoubleOrNull(
-          json['heading'] ?? json['bearing'] ?? json['course']),
+        json['heading'] ?? json['bearing'] ?? json['course'],
+      ),
       accuracy: _parseDoubleOrNull(json['accuracy'] ?? json['acc']),
     );
   }
 
-  /// Create from CSV line
+  // Create from CSV line
   factory RoutePoint.fromCsvLine(String line, List<String> headers) {
     final values = line.split(',').map((e) => e.trim()).toList();
     final map = <String, dynamic>{};
@@ -60,10 +64,12 @@ class RoutePoint {
     return RoutePoint.fromJson(map);
   }
 
-  /// Create from simple "lat,lng" format
+  // Create from simple "lat,lng" format
   factory RoutePoint.fromSimpleLine(String line) {
-    final parts =
-        line.split(RegExp(r'[,\s\t]+')).where((s) => s.isNotEmpty).toList();
+    final parts = line
+        .split(RegExp(r'[,\s\t]+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
     if (parts.length < 2) {
       throw FormatException('Invalid line format: $line');
     }
@@ -76,7 +82,7 @@ class RoutePoint {
     );
   }
 
-  /// Convert to JSON
+  // Convert to JSON
   Map<String, dynamic> toJson() {
     return {
       'lat': latitude,
@@ -91,7 +97,7 @@ class RoutePoint {
     };
   }
 
-  /// Validate coordinates
+  // Validate coordinates
   bool get isValid {
     return latitude >= -90 &&
         latitude <= 90 &&
@@ -99,11 +105,11 @@ class RoutePoint {
         longitude <= 180;
   }
 
-  /// Format coordinates as string
+  // Format coordinates as string
   String get formattedCoords =>
       '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}';
 
-  /// Display name (name or coordinates)
+  // Display name (name or coordinates)
   String get displayName => name ?? formattedCoords;
 
   @override
@@ -151,3 +157,5 @@ class RoutePoint {
     return null;
   }
 }
+
+/* End of file -------------------------------------------------------- */

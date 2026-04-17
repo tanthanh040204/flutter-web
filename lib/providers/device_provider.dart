@@ -1,3 +1,7 @@
+// @file       device_provider.dart
+// @brief      State provider for Device.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -7,7 +11,7 @@ import '../models/device_data.dart';
 import '../models/device_state.dart';
 import '../services/mqtt_service.dart';
 
-/// DeviceNotification – một mục notification nhận được từ /noti
+/* Public classes ----------------------------------------------------- */
 class DeviceNotification {
   final String deviceId;
   final String message;
@@ -20,18 +24,15 @@ class DeviceNotification {
   });
 }
 
-/// DeviceProvider – port 1:1 từ web/js/deviceManager.js
-///
-/// Quản lý registry các thiết bị tracking, telemetry state và lịch sử route.
-///
-/// CÁCH SỬ DỤNG:
-///   1. Gọi addDevice(id) để thêm thiết bị.
-///   2. Gọi bindToMqtt(mqttService) để nhận data realtime.
-///   3. Lắng nghe thay đổi qua ChangeNotifier.
-///
-/// Luồng dữ liệu:
-///   MqttService.dataMessages → _onData() → DeviceState.routePoints
-///   MqttService.notifications → _onNotification() → DeviceState.lockState
+// DeviceProvider
+// Manages the state of all ddevices
+// How to use:
+//   1. Call addDevice(id) to add a device.
+//   2. Call bindToMqtt(mqttService) to receive real-time data.
+//   3. Listen for changes via ChangeNotifier.
+// Data flow:
+//   MqttService.dataMessages → _onData() → DeviceState.routePoints
+//   MqttService.notifications → _onNotification() → DeviceState.lockState
 class DeviceProvider extends ChangeNotifier {
   // ---- Registry ----
   final Map<String, DeviceState> _devices = {};
@@ -53,30 +54,24 @@ class DeviceProvider extends ChangeNotifier {
   final List<DeviceNotification> _notifications = [];
   static const int _maxNotifications = 50;
 
-  // ================================================================
-  //  Public getters
-  // ================================================================
-
+  // Public getters ===============================================
   List<DeviceState> get devices => _devices.values.toList();
   bool get hasDevices => _devices.isNotEmpty;
   bool get mqttConnected => _mqttConnected;
 
-  /// Thiết bị đang được chọn (active)
+  // Active device (for map/panel display). Null if no devices.
   DeviceState? get activeDevice =>
       _activeId != null ? _devices[_activeId] : null;
 
   String? get activeId => _activeId;
 
-  /// Lịch sử notification nhận được từ /noti  (mới nhất trước)
+  // Notification history (newest first)
   List<DeviceNotification> get notifications =>
       List.unmodifiable(_notifications.reversed.toList());
 
-  // ================================================================
-  //  Lifecycle
-  // ================================================================
-
+  // Lifecycle
   DeviceProvider() {
-    // Thêm thiết bị mặc định từ FeatureConfig
+    // Auto-register default devices from config (for demo/testing).
     for (var i = 0; i < FeatureConfig.defaultDevices.length; i++) {
       _addDeviceInternal(FeatureConfig.defaultDevices[i], colorIndex: i);
     }
@@ -94,22 +89,17 @@ class DeviceProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // ================================================================
-  //  MQTT binding
-  // ================================================================
-
-  /// Kết nối DeviceProvider với MqttService.
-  /// Gọi sau khi mqtt.connect() thành công.
+  // Connect to mqtt service
+  // After blinding, the provider will automatically update
   void bindToMqtt(MqttService service) {
     _mqttService = service;
     _dataSub?.cancel();
     _notiSub?.cancel();
     _connSub?.cancel();
 
-    // Stream connectionState không replay trạng thái cũ, nên đồng bộ ngay.
+    // Stream connectionState.
     _mqttConnected = service.isConnected;
-
-    // Subscribe tất cả thiết bị hiện có
+    // Subscribe all existing devices to receive data/notifications.
     for (final id in _devices.keys) {
       service.subscribeDevice(id);
     }
@@ -119,7 +109,7 @@ class DeviceProvider extends ChangeNotifier {
       notifyListeners();
     });
 
-    // Đảm bảo UI cập nhật ngay khi vừa bind xong.
+    // Subscribe to data and notification streams.
     notifyListeners();
 
     _dataSub = service.dataMessages.listen((msg) {
@@ -131,11 +121,8 @@ class DeviceProvider extends ChangeNotifier {
     });
   }
 
-  // ================================================================
-  //  Device registry CRUD
-  // ================================================================
-
-  /// Thêm thiết bị mới. Trả về false nếu đã tồn tại.
+  // Device registry management
+  // Add a device to the registry and subscribe to its MQTT topic.
   bool addDevice(String id) {
     if (_devices.containsKey(id)) return false;
     _addDeviceInternal(id);
@@ -144,13 +131,13 @@ class DeviceProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Xóa thiết bị khỏi registry và hủy subscribe.
+  // Remove a device from the registry and unsubscribe from its MQTT topic.
   bool removeDevice(String id) {
     if (!_devices.containsKey(id)) return false;
     _devices.remove(id);
     _mqttService?.unsubscribeDevice(id);
 
-    // Nếu xóa active device → chọn device đầu tiên còn lại
+    // If the removed device is active, reset activeId to another device or null.
     if (_activeId == id) {
       _activeId = _devices.isEmpty ? null : _devices.keys.first;
     }
@@ -158,15 +145,14 @@ class DeviceProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Đặt thiết bị active (hiển thị trên bản đồ/panel).
+  // Set a device as active (displayed on the map/panel).
   void setActive(String id) {
     if (!_devices.containsKey(id)) return;
     _activeId = id;
     notifyListeners();
   }
 
-  /// Xóa lịch sử route.
-  /// [id] = null → xóa tất cả thiết bị.
+  // Clear route points for a device (or all devices if id is null).
   void clearRoute([String? id]) {
     if (id != null) {
       final s = _devices[id];
@@ -182,7 +168,7 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Publish lệnh chuỗi đến thiết bị qua /cmd.
+  // Publish a command to a device via MQTT.
   bool publishCommand(String deviceId, String command) {
     final mqtt = _mqttService;
     if (mqtt == null) {
@@ -192,24 +178,18 @@ class DeviceProvider extends ChangeNotifier {
     return mqtt.publish(deviceId, command);
   }
 
-  // ================================================================
-  //  Private – data handling
-  // ================================================================
-
+  // Private methods ===============================================
   void _addDeviceInternal(String id, {int? colorIndex}) {
     final palette = FeatureConfig.deviceColorPalette;
     final ci = colorIndex ?? _devices.length;
-    _devices[id] = DeviceState(
-      id: id,
-      color: palette[ci % palette.length],
-    );
-    // Tự chọn active nếu là thiết bị đầu tiên
+    _devices[id] = DeviceState(id: id, color: palette[ci % palette.length]);
+    // Auto activate the first added device
     _activeId ??= id;
   }
 
-  /// Xử lý data message từ <deviceId>/data
+  // Handle incoming data
   void _onData(String deviceId, DeviceData data) {
-    // Auto-register thiết bị lạ
+    // Auto-register unknown device
     if (!_devices.containsKey(deviceId)) {
       if (!FeatureConfig.enableAutoRegisterDevice) return;
       debugPrint('[DeviceProvider] Auto-registering: $deviceId');
@@ -221,10 +201,11 @@ class DeviceProvider extends ChangeNotifier {
 
     List<RoutePoint> nextPoints = List.of(current.routePoints);
 
-    // Thêm RoutePoint chỉ khi có GPS fix hợp lệ
+    // Add RoutePoint only when there is a valid GPS fix
     if (data.hasGps && _isValidCoord(data.lat!, data.lng!)) {
       final last = nextPoints.isNotEmpty ? nextPoints.last : null;
-      final isDuplicate = last != null &&
+      final isDuplicate =
+          last != null &&
           last.timestamp == data.timestamp &&
           last.lat == data.lat &&
           last.lng == data.lng;
@@ -244,7 +225,7 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Xử lý notification từ <deviceId>/noti
+  // Handle notifications from <deviceId>/noti
   void _onNotification(String deviceId, String message) {
     // Auto-register
     if (!_devices.containsKey(deviceId)) {
@@ -263,7 +244,7 @@ class DeviceProvider extends ChangeNotifier {
           online: true,
           lastSeen: now,
           lastKeepalive: now,
-          // Device vừa online lại → reset lock state
+          // Set lockState to active if it was previously offline (null) to prevent
           lockState: wasOnline ? null : DeviceLockState.active,
         );
         break;
@@ -279,12 +260,10 @@ class DeviceProvider extends ChangeNotifier {
 
     _devices[deviceId] = next;
 
-    // Lưu vào notification history
-    _notifications.add(DeviceNotification(
-      deviceId: deviceId,
-      message: message,
-      receivedAt: now,
-    ));
+    // Save notification to history (for display in UI)
+    _notifications.add(
+      DeviceNotification(deviceId: deviceId, message: message, receivedAt: now),
+    );
     if (_notifications.length > _maxNotifications) {
       _notifications.removeAt(0);
     }
@@ -292,10 +271,7 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ================================================================
-  //  Private – offline detection
-  // ================================================================
-
+  // Offline detection
   void _startOfflineTimer() {
     _offlineTimer?.cancel();
     _offlineTimer = Timer.periodic(
@@ -312,7 +288,6 @@ class DeviceProvider extends ChangeNotifier {
       final s = _devices[id]!;
       if (!s.online) continue;
 
-      // Ưu tiên KEEPALIVE timeout; fallback sang data timeout
       final lastPing = s.lastKeepalive ?? s.lastSeen;
       if (lastPing == null) continue;
 
@@ -330,10 +305,8 @@ class DeviceProvider extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
-  // ================================================================
-  //  Helpers
-  // ================================================================
-
   static bool _isValidCoord(double lat, double lng) =>
       lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
+
+/* End of file -------------------------------------------------------- */

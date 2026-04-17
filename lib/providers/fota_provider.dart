@@ -1,12 +1,14 @@
+// @file       fota_provider.dart
+// @brief      State provider for FOTA.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../services/fota_service.dart';
 
-/// ============================================
-/// FOTA PROVIDER - State management cho FOTA
-/// ============================================
 
+/* Public classes ----------------------------------------------------- */
 class FotaProvider extends ChangeNotifier {
   final FotaService _fotaService = FotaService();
 
@@ -33,20 +35,21 @@ class FotaProvider extends ChangeNotifier {
   bool get isReady => _app1Data != null && _app2Data != null;
   String? get app1FileName => _app1FileName;
   String? get app2FileName => _app2FileName;
-  bool get isUpdating => _state != FotaState.idle && 
-                         _state != FotaState.completed && 
-                         _state != FotaState.error;
+  bool get isUpdating =>
+      _state != FotaState.idle &&
+      _state != FotaState.completed &&
+      _state != FotaState.error;
   bool get isCompleted => _state == FotaState.completed;
   bool get hasError => _state == FotaState.error;
 
-  /// Khởi tạo với device đã kết nối
+  // Initialize with a connected device
   Future<bool> initWithDevice(BluetoothDevice device) async {
     if (_isInitialized) return true;
 
     final success = await _fotaService.initWithConnectedDevice(device);
     if (success) {
       _isInitialized = true;
-      
+
       // Listen to state changes
       _fotaService.stateStream.listen((state) {
         _state = state;
@@ -68,9 +71,9 @@ class FotaProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      _addLog('[FOTA] Khởi tạo thành công');
+      _addLog('[FOTA] Initialize successfully');
     } else {
-      _error = 'Không thể khởi tạo FOTA service';
+      _error = 'Failed to initialize FOTA service';
       _addLog('[ERROR] $_error');
     }
 
@@ -78,7 +81,7 @@ class FotaProvider extends ChangeNotifier {
     return success;
   }
 
-  /// Đặt firmware APP_1
+  // Set firmware for APP_1
   void setApp1Firmware(Uint8List data, String fileName) {
     _app1Data = data;
     _app1FileName = fileName;
@@ -86,7 +89,7 @@ class FotaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Đặt firmware APP_2
+  // Set firmware for APP_2
   void setApp2Firmware(Uint8List data, String fileName) {
     _app2Data = data;
     _app2FileName = fileName;
@@ -94,40 +97,40 @@ class FotaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bắt đầu update
+  // Bắt đầu update
   Future<bool> startUpdate() async {
     if (_app1Data == null || _app2Data == null) {
-      _error = 'Chưa chọn đủ file firmware APP_1 và APP_2';
+      _error = 'Not all firmware files selected';
       _addLog('[ERROR] $_error');
       notifyListeners();
       return false;
     }
 
     _error = null;
-    _addLog('[FOTA] Bắt đầu quá trình update...');
-    
+    _addLog('[FOTA] Starting update process...');
+
     final success = await _fotaService.startUpdate(
       app1Data: _app1Data!,
       app2Data: _app2Data!,
     );
 
     if (!success) {
-      _error = 'Update thất bại';
+      _error = 'Update failed';
     }
 
     notifyListeners();
     return success;
   }
 
-  /// Gửi lệnh UPDATE
+  // Send UPDATE command
   Future<bool> sendUpdateCommand() async {
-    _addLog('[FOTA] Gửi lệnh UPDATE để MCU cập nhật firmware...');
+    _addLog('[FOTA] Sending UPDATE command to MCU...');
     final success = await _fotaService.sendUpdateCommand();
     notifyListeners();
     return success;
   }
 
-  /// Reset state
+  // Reset state
   void reset() {
     _fotaService.reset();
     _state = FotaState.idle;
@@ -137,13 +140,13 @@ class FotaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clear logs
+  // Clear logs
   void clearLogs() {
     _logs.clear();
     notifyListeners();
   }
 
-  /// Clear all (including files)
+  // Clear all (including files)
   void clearAll() {
     reset();
     _app1Data = null;
@@ -166,23 +169,25 @@ class FotaProvider extends ChangeNotifier {
   String get stateText {
     switch (_state) {
       case FotaState.idle:
-        return 'Sẵn sàng';
+        return 'Ready to update';
       case FotaState.connecting:
-        return 'Đang kết nối...';
+        return 'Connecting...';
       case FotaState.waitingAppSelection:
-        return 'Đang chờ MCU chọn APP...';
+        return 'Waiting for MCU to select APP...';
       case FotaState.sendingInfo:
-        return 'Đang gửi thông tin file...';
+        return 'Sending file information...';
       case FotaState.sendingData:
-        return 'Đang truyền firmware...';
+        return 'Transferring firmware...';
       case FotaState.waitingEnd:
-        return 'Chờ xác nhận hoàn tất...';
+        return 'Waiting for completion confirmation...';
       case FotaState.sendingUpdate:
-        return 'Đang gửi lệnh UPDATE...';
+        return 'Sending UPDATE command...';
       case FotaState.completed:
-        return 'Hoàn tất!';
+        return 'Completed!';
       case FotaState.error:
-        return 'Lỗi!';
+        return 'Error!';
     }
   }
 }
+
+/* End of file -------------------------------------------------------- */

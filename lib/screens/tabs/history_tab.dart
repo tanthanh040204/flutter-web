@@ -1,3 +1,7 @@
+// @file       history_tab.dart
+// @brief      Tab UI for History.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +10,7 @@ import '../../providers/fleet_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../history_route_map_screen.dart';
 
+/* Public classes ----------------------------------------------------- */
 class HistoryTab extends StatelessWidget {
   const HistoryTab({super.key});
 
@@ -15,9 +20,9 @@ class HistoryTab extends StatelessWidget {
     final v = fleet.selectedOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lịch sử (30 ngày)')),
+      appBar: AppBar(title: const Text('History (30 days)')),
       body: v == null
-          ? const Center(child: Text('Chưa có xe nào để hiển thị.'))
+          ? const Center(child: Text('No vehicle selected.'))
           : StreamBuilder<List<HistoryRouteRecord>>(
               stream: FirebaseRepo.instance.watchHistoryRoutes(
                 v.id,
@@ -31,7 +36,7 @@ class HistoryTab extends StatelessWidget {
                 final routes = snap.data ?? const <HistoryRouteRecord>[];
                 if (routes.isEmpty) {
                   return const Center(
-                    child: Text('Chưa có dữ liệu hành trình.'),
+                    child: Text('No route data available.'),
                   );
                 }
 
@@ -76,26 +81,26 @@ class HistoryTab extends StatelessWidget {
                             ),
                           ),
                           IconButton(
-                            tooltip: 'Xóa lộ trình',
+                            tooltip: 'Delete route',
                             icon: const Icon(Icons.close),
                             onPressed: () async {
                               final ok = await showDialog<bool>(
                                 context: context,
                                 builder: (_) => AlertDialog(
-                                  title: const Text('Xóa lộ trình'),
+                                  title: const Text('Delete route'),
                                   content: Text(
-                                    'Bạn có muốn xóa "${route.buttonLabel}" không?',
+                                    'Do you want to delete "${route.buttonLabel}"?',
                                   ),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.pop(context, false),
-                                      child: const Text('Hủy'),
+                                      child: const Text('Cancel'),
                                     ),
                                     FilledButton(
                                       onPressed: () =>
                                           Navigator.pop(context, true),
-                                      child: const Text('Xóa'),
+                                      child: const Text('Delete'),
                                     ),
                                   ],
                                 ),
@@ -112,7 +117,7 @@ class HistoryTab extends StatelessWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Đã xóa lộ trình'),
+                                        content: Text('Route deleted successfully'),
                                       ),
                                     );
                                   }
@@ -120,7 +125,7 @@ class HistoryTab extends StatelessWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Không thể xóa: $e'),
+                                        content: Text('Failed to delete route: $e'),
                                       ),
                                     );
                                   }
@@ -139,3 +144,5 @@ class HistoryTab extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

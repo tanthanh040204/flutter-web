@@ -1,3 +1,7 @@
+// @file       upload_page.dart
+// @brief      Screen UI for Upload.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,10 +9,7 @@ import '../config/app_theme.dart';
 import '../providers/bluetooth_provider.dart';
 import '../providers/route_provider.dart';
 
-/// ============================================
-/// UPLOAD PAGE - Trang upload file/dữ liệu
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class UploadPage extends StatelessWidget {
   const UploadPage({super.key});
 
@@ -39,7 +40,7 @@ class UploadPage extends StatelessWidget {
 
                 // Upload options
                 const Text(
-                  'Chọn nguồn dữ liệu',
+                  'Select Data Source',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -47,8 +48,8 @@ class UploadPage extends StatelessWidget {
                 _buildUploadOption(
                   context,
                   icon: Icons.folder_open,
-                  title: 'Chọn file từ thiết bị',
-                  subtitle: 'Hỗ trợ JSON, GPX',
+                  title: 'Choose File from Device',
+                  subtitle: 'Supports JSON, GPX',
                   onTap: () => _uploadFromFile(context, routeProvider),
                 ),
 
@@ -56,7 +57,7 @@ class UploadPage extends StatelessWidget {
                   context,
                   icon: Icons.data_object,
                   title: 'Load Sample Data',
-                  subtitle: 'Dữ liệu mẫu để test',
+                  subtitle: 'Sample data for testing',
                   onTap: () => _loadSampleData(context, routeProvider),
                 ),
 
@@ -74,7 +75,7 @@ class UploadPage extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       icon: const Icon(Icons.delete_outline),
-                      label: const Text('Xóa route hiện tại'),
+                      label: const Text('Clear Current Route'),
                     ),
                   ),
               ],
@@ -112,7 +113,7 @@ class UploadPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hasRoute ? 'Route đã tải' : 'Chưa có route',
+                    hasRoute ? 'Installed Route' : 'No Route',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -122,23 +123,25 @@ class UploadPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   if (hasRoute) ...[
                     Text(
-                      '${provider.points.length} điểm',
+                      '${provider.points.length} points',
                       style: TextStyle(color: AppColors.gray600),
                     ),
                     if (provider.totalDistance > 0)
                       Text(
-                        'Khoảng cách: ${(provider.totalDistance / 1000).toStringAsFixed(2)} km',
+                        'Distance: ${(provider.totalDistance / 1000).toStringAsFixed(2)} km',
                         style: TextStyle(color: AppColors.gray600),
                       ),
                     if (provider.fileName != null)
                       Text(
-                        'Nguồn: ${provider.fileName}',
-                        style:
-                            TextStyle(color: AppColors.gray600, fontSize: 12),
+                        'Source: ${provider.fileName}',
+                        style: TextStyle(
+                          color: AppColors.gray600,
+                          fontSize: 12,
+                        ),
                       ),
                   ] else
                     Text(
-                      'Upload file để bắt đầu',
+                      'Upload file to start',
                       style: TextStyle(color: AppColors.gray600),
                     ),
                 ],
@@ -176,11 +179,11 @@ class UploadPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Dữ liệu từ Bluetooth',
+                        'Data from Bluetooth',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${btProvider.receivedPointsCount} điểm trong buffer',
+                        '${btProvider.receivedPointsCount} points in buffer',
                         style: TextStyle(
                           color: AppColors.gray600,
                           fontSize: 13,
@@ -220,14 +223,14 @@ class UploadPage extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Đã upload ${btProvider.receivedPointsCount} điểm',
+                              'Uploaded ${btProvider.receivedPointsCount} points',
                             ),
                             backgroundColor: AppColors.success,
                           ),
                         );
                       },
                       icon: const Icon(Icons.upload),
-                      label: const Text('Upload lên Map'),
+                      label: const Text('Upload to Map'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -293,7 +296,9 @@ class UploadPage extends StatelessWidget {
   }
 
   Future<void> _uploadFromFile(
-      BuildContext context, RouteProvider provider) async {
+    BuildContext context,
+    RouteProvider provider,
+  ) async {
     await provider.loadFromFilePicker();
     if (context.mounted && provider.points.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -313,12 +318,14 @@ class UploadPage extends StatelessWidget {
   }
 
   Future<void> _loadSampleData(
-      BuildContext context, RouteProvider provider) async {
+    BuildContext context,
+    RouteProvider provider,
+  ) async {
     await provider.loadSampleData();
     if (context.mounted && provider.points.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã load ${provider.points.length} điểm từ sample'),
+          content: Text('Loaded ${provider.points.length} points from sample'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -329,24 +336,22 @@ class UploadPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text('Bạn có chắc muốn xóa route hiện tại?'),
+        title: const Text('Confirm'),
+        content: const Text('Are you sure you want to clear the current route?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               provider.clearRoute();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã xóa route')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Route cleared')));
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             child: const Text('Xóa'),
           ),
         ],
@@ -354,3 +359,5 @@ class UploadPage extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

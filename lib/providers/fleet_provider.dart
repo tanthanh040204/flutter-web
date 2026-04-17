@@ -1,3 +1,7 @@
+// @file       fleet_provider.dart
+// @brief      State provider for Fleet.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +11,7 @@ import '../models/vehicle.dart';
 import '../services/firebase_repo.dart';
 import '../services/mqtt_service.dart';
 
+/* Public classes ----------------------------------------------------- */
 class FleetProvider extends ChangeNotifier {
   final List<Vehicle> _vehicles = [];
 
@@ -37,7 +42,7 @@ class FleetProvider extends ChangeNotifier {
   Vehicle get selected {
     final value = selectedOrNull;
     if (value == null) {
-      throw StateError('Chưa có xe nào trong danh sách.');
+      throw StateError('No vehicles available');
     }
     return value;
   }
@@ -329,3 +334,5 @@ class FleetProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

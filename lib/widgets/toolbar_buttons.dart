@@ -1,3 +1,7 @@
+// @file       toolbar_buttons.dart
+// @brief      Widget for Toolbar Buttons.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,11 +12,7 @@ import '../screens/bluetooth_page.dart';
 import '../screens/upload_page.dart';
 import '../screens/controls_page.dart';
 
-/// ============================================
-/// TOOLBAR BUTTONS - Các nút điều khiển trên AppBar
-/// ============================================
-
-/// Bluetooth icon button with status indicator
+/* Public classes ----------------------------------------------------- */
 class BluetoothToolbarButton extends StatelessWidget {
   const BluetoothToolbarButton({super.key});
 
@@ -31,8 +31,8 @@ class BluetoothToolbarButton extends StatelessWidget {
                 isConnected
                     ? Icons.bluetooth_connected
                     : isScanning
-                        ? Icons.bluetooth_searching
-                        : Icons.bluetooth,
+                    ? Icons.bluetooth_searching
+                    : Icons.bluetooth,
                 size: 24,
               ),
               // Status dot
@@ -46,8 +46,8 @@ class BluetoothToolbarButton extends StatelessWidget {
                     color: isConnected
                         ? AppColors.btConnected
                         : isScanning
-                            ? AppColors.btScanning
-                            : AppColors.btDisconnected,
+                        ? AppColors.btScanning
+                        : AppColors.btDisconnected,
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.white, width: 1.5),
                   ),
@@ -58,8 +58,8 @@ class BluetoothToolbarButton extends StatelessWidget {
           tooltip: isConnected
               ? 'Bluetooth: Đã kết nối'
               : isScanning
-                  ? 'Đang scan...'
-                  : 'Bluetooth',
+              ? 'Đang scan...'
+              : 'Bluetooth',
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const BluetoothPage()),
@@ -70,7 +70,7 @@ class BluetoothToolbarButton extends StatelessWidget {
   }
 }
 
-/// Upload icon button with data indicator
+// Upload icon button with data indicator
 class UploadToolbarButton extends StatelessWidget {
   const UploadToolbarButton({super.key});
 
@@ -115,16 +115,12 @@ class UploadToolbarButton extends StatelessWidget {
   }
 }
 
-/// Controls icon button
+// Controls icon button
 class ControlsToolbarButton extends StatelessWidget {
   final VoidCallback? onFitRoute;
   final VoidCallback? onCenterUser;
 
-  const ControlsToolbarButton({
-    super.key,
-    this.onFitRoute,
-    this.onCenterUser,
-  });
+  const ControlsToolbarButton({super.key, this.onFitRoute, this.onCenterUser});
 
   @override
   Widget build(BuildContext context) {
@@ -134,12 +130,12 @@ class ControlsToolbarButton extends StatelessWidget {
       onPressed: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ControlsPage(
-            onFitRoute: onFitRoute,
-            onCenterUser: onCenterUser,
-          ),
+          builder: (context) =>
+              ControlsPage(onFitRoute: onFitRoute, onCenterUser: onCenterUser),
         ),
       ),
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

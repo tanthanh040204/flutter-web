@@ -1,3 +1,7 @@
+// @file       bluetooth_service.dart
+// @brief      Service for Bluetooth.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -5,10 +9,7 @@ import '../config/app_constants.dart';
 import '../models/route_point.dart';
 import '../models/bluetooth_device_info.dart';
 
-/// ============================================
-/// BLUETOOTH SERVICE - Kết nối BLE với MCU
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class BluetoothService {
   // Singleton
   static final BluetoothService _instance = BluetoothService._internal();
@@ -51,22 +52,22 @@ class BluetoothService {
   List<RoutePoint> get receivedPoints => List.unmodifiable(_receivedPoints);
   bool get isConnected => _connectedDevice != null;
 
-  /// Kiểm tra Bluetooth khả dụng
+  // Kiểm tra Bluetooth khả dụng
   Future<bool> isBluetoothAvailable() async {
     return await FlutterBluePlus.isSupported;
   }
 
-  /// Kiểm tra Bluetooth đang bật
+  // Kiểm tra Bluetooth đang bật
   Future<bool> isBluetoothOn() async {
     final state = await FlutterBluePlus.adapterState.first;
     return state == BluetoothAdapterState.on;
   }
 
-  /// Bắt đầu scan thiết bị
+  // Bắt đầu scan thiết bị
   Future<void> startScan() async {
     final isOn = await isBluetoothOn();
     if (!isOn) {
-      throw Exception('Bluetooth chưa bật');
+      throw Exception('Bluetooth not enabled');
     }
 
     // Stop scan cũ nếu có
@@ -92,35 +93,37 @@ class BluetoothService {
     );
   }
 
-  /// Dừng scan
+  // Dừng scan
   Future<void> stopScan() async {
     await FlutterBluePlus.stopScan();
     await _scanSubscription?.cancel();
     _scanSubscription = null;
   }
 
-  /// Kết nối thiết bị
+  // Kết nối thiết bị
   Future<void> connect(String deviceId) async {
     try {
       _connectionStateController.add(AppBluetoothConnectionState.connecting);
-      _debugLogController.add('[CONNECT] Đang kết nối: $deviceId');
+      _debugLogController.add('[CONNECT] Connecting to: $deviceId');
 
       // Tìm device
       final device = BluetoothDevice.fromId(deviceId);
 
       // Kết nối
       await device.connect(
-        timeout:
-            const Duration(seconds: BluetoothConfig.connectionTimeoutSeconds),
+        timeout: const Duration(
+          seconds: BluetoothConfig.connectionTimeoutSeconds,
+        ),
       );
 
       _connectedDevice = device;
-      _debugLogController.add('[CONNECT] Đã kết nối thành công');
+      _debugLogController.add('[CONNECT] Connected successfully');
 
       // Discover services
       final services = await device.discoverServices();
-      _debugLogController
-          .add('[DISCOVER] Tìm thấy ${services.length} services');
+      _debugLogController.add(
+        '[DISCOVER] Found ${services.length} services',
+      );
 
       // Log all services and characteristics for debugging
       for (final service in services) {
@@ -136,21 +139,22 @@ class BluetoothService {
         }
       }
 
-      // Tìm characteristic theo UUID
-      // Chỉ chọn đúng characteristic FFE1 trong service FFE0
+      // Find target characteristic (FFE1 or UUID match)
       for (final service in services) {
         final serviceUuid = service.uuid.toString().toLowerCase();
         if (serviceUuid == BluetoothConfig.serviceUuid.toLowerCase() ||
             serviceUuid.endsWith('ffe0')) {
-          _debugLogController
-              .add('[MATCH] Found target service: ${service.uuid}');
+          _debugLogController.add(
+            '[MATCH] Found target service: ${service.uuid}',
+          );
           for (final char in service.characteristics) {
             final charUuid = char.uuid.toString().toLowerCase();
             if (charUuid == BluetoothConfig.characteristicUuid.toLowerCase() ||
                 charUuid.endsWith('ffe1')) {
               _characteristic = char;
-              _debugLogController
-                  .add('[MATCH] Found target characteristic: ${char.uuid}');
+              _debugLogController.add(
+                '[MATCH] Found target characteristic: ${char.uuid}',
+              );
               break;
             }
           }
@@ -158,21 +162,25 @@ class BluetoothService {
       }
       if (_characteristic == null) {
         _debugLogController.add(
-            '[ERROR] Không tìm thấy đúng characteristic FFE1 trong service FFE0 để subscribe notify!');
-        // Không chọn bất kỳ characteristic notify nào khác (đặc biệt là 2A05)
+          '[ERROR] Could not find the correct characteristic FFE1 in service FFE0 to subscribe to notifications!',
+        );
+        // Do not select any other notify characteristic (especially 2A05)
       }
 
       if (_characteristic != null) {
         // Subscribe to notifications
         _debugLogController.add('[NOTIFY] Đang subscribe notification...');
         await _characteristic!.setNotifyValue(true);
-        _characteristicSubscription =
-            _characteristic!.onValueReceived.listen(_onDataReceived);
-        _debugLogController
-            .add('[NOTIFY] Subscribe thành công! Sẵn sàng nhận data.');
+        _characteristicSubscription = _characteristic!.onValueReceived.listen(
+          _onDataReceived,
+        );
+        _debugLogController.add(
+          '[NOTIFY] Subscribe thành công! Sẵn sàng nhận data.',
+        );
       } else {
-        _debugLogController
-            .add('[ERROR] Không tìm thấy characteristic phù hợp!');
+        _debugLogController.add(
+          '[ERROR] Không tìm thấy characteristic phù hợp!',
+        );
       }
 
       // Listen connection state
@@ -190,7 +198,7 @@ class BluetoothService {
     }
   }
 
-  /// Ngắt kết nối
+  // Disconnect
   Future<void> disconnect() async {
     _connectionStateController.add(AppBluetoothConnectionState.disconnecting);
 
@@ -204,7 +212,7 @@ class BluetoothService {
     _handleDisconnect();
   }
 
-  /// Xử lý khi bị ngắt kết nối
+  // Handle disconnection cleanup
   void _handleDisconnect() {
     _connectedDevice = null;
     _characteristic = null;
@@ -213,7 +221,7 @@ class BluetoothService {
     _connectionStateController.add(AppBluetoothConnectionState.disconnected);
   }
 
-  /// Xử lý dữ liệu nhận được
+  // Handle received data
   void _onDataReceived(List<int> data) {
     _debugLogController.add('[RAW] Received ${data.length} bytes: $data');
 
@@ -227,9 +235,9 @@ class BluetoothService {
     // Normalize line endings: \r\n -> \n, \r -> \n
     _dataBuffer = _dataBuffer.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 
-    // Xử lý theo từng dòng
+    // Process each line
     final lines = _dataBuffer.split(BluetoothConfig.lineDelimiter);
-    _dataBuffer = lines.removeLast(); // Giữ phần chưa hoàn chỉnh
+    _dataBuffer = lines.removeLast(); // Keep the incomplete part
 
     for (final line in lines) {
       final trimmed = line.trim();
@@ -239,7 +247,7 @@ class BluetoothService {
     }
   }
 
-  /// Parse một dòng dữ liệu
+  // Parse one line of data into RoutePoint
   void _parseLine(String line) {
     try {
       RoutePoint? point;
@@ -253,7 +261,7 @@ class BluetoothService {
       else if (line.startsWith('\$GPGGA') || line.startsWith('\$GNGGA')) {
         point = _parseNMEA(line);
       }
-      // Format 3: Simple CSV (lat,lng hoặc lat,lng,name)
+      // Format 3: Simple CSV (lat,lng or lat,lng,name)
       else if (line.contains(',')) {
         point = RoutePoint.fromSimpleLine(line);
       }
@@ -276,7 +284,7 @@ class BluetoothService {
     }
   }
 
-  /// Parse NMEA GPGGA sentence
+  // Parse NMEA GPGGA sentence
   RoutePoint? _parseNMEA(String sentence) {
     final parts = sentence.split(',');
     if (parts.length < 10) return null;
@@ -295,14 +303,10 @@ class BluetoothService {
 
     if (lat == null || lng == null) return null;
 
-    return RoutePoint(
-      latitude: lat,
-      longitude: lng,
-      timestamp: DateTime.now(),
-    );
+    return RoutePoint(latitude: lat, longitude: lng, timestamp: DateTime.now());
   }
 
-  /// Convert NMEA to decimal degrees
+  // Convert NMEA to decimal degrees
   double? _nmeaToDecimal(String coord, String dir, bool isLng) {
     if (coord.isEmpty || dir.isEmpty) return null;
 
@@ -319,7 +323,7 @@ class BluetoothService {
     return decimal;
   }
 
-  /// Gửi dữ liệu
+  // Gửi dữ liệu
   Future<void> sendData(String data) async {
     if (_characteristic == null) {
       throw Exception('Chưa kết nối');
@@ -331,14 +335,14 @@ class BluetoothService {
     );
   }
 
-  /// Xóa buffer
+  // Xóa buffer
   void clearBuffer() {
     _receivedPoints.clear();
     _dataBuffer = '';
     _pointsCountController.add(0);
   }
 
-  /// Dispose
+  // Dispose
   void dispose() {
     _scanSubscription?.cancel();
     _connectionSubscription?.cancel();
@@ -349,3 +353,5 @@ class BluetoothService {
     _pointsCountController.close();
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,5 +1,10 @@
+// @file       history_route.dart
+// @brief      Data model for History Route.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:latlong2/latlong.dart';
 
+/* Public classes ----------------------------------------------------- */
 class HistoryRouteRecord {
   final String id;
   final String vehicleId;
@@ -39,3 +44,5 @@ class HistoryRouteRecord {
     return '${_fmt(startAt)} đến ${_fmt(end)}';
   }
 }
+
+/* End of file -------------------------------------------------------- */

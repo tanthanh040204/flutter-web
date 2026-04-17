@@ -1,5 +1,10 @@
+// @file       vehicle.dart
+// @brief      Data model for Vehicle.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:latlong2/latlong.dart';
 
+/* Public classes ----------------------------------------------------- */
 class Vehicle {
   final String id;
   final String name;
@@ -57,3 +62,5 @@ class Vehicle {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

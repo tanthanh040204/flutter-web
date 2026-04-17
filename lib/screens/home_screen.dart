@@ -1,3 +1,7 @@
+// @file       home_screen.dart
+// @brief      Screen UI for Home.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,10 +17,7 @@ import 'bluetooth_page.dart';
 import 'fota_page.dart';
 import 'package:latlong2/latlong.dart';
 
-/// ============================================
-/// HOME SCREEN - Màn hình chính (Redesigned)
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<MapWidgetState> _mapKey = GlobalKey();
   StreamSubscription? _realtimeSubscription;
@@ -128,19 +130,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icons.system_update,
                   color: isConnected ? null : AppColors.gray400,
                 ),
-                tooltip: isConnected ? 'FOTA Update' : 'Kết nối BLE trước',
+                tooltip: isConnected ? 'FOTA Update' : 'Connect to BLE first',
                 onPressed: isConnected
                     ? () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const FotaPage(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const FotaPage()),
                         );
                       }
                     : () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Vui lòng kết nối Bluetooth trước'),
+                            content: Text('Please connect to Bluetooth device first'),
                             backgroundColor: AppColors.warning,
                           ),
                         );
@@ -170,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, routeProvider, child) {
               return IconButton(
                 icon: const Icon(Icons.zoom_out_map),
-                tooltip: 'Fit toàn bộ route',
+                tooltip: 'Fit entire route',
                 onPressed: routeProvider.hasRoute
                     ? () => _mapKey.currentState?.fitToRoute()
                     : null,
@@ -184,15 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
           // Map (full screen)
           MapWidget(key: _mapKey),
           // Info overlay
-          const Positioned.fill(
-            child: InfoOverlay(),
-          ),
+          const Positioned.fill(child: InfoOverlay()),
           // FAB for quick actions
-          Positioned(
-            right: 16,
-            bottom: 100,
-            child: _buildQuickActionsFAB(),
-          ),
+          Positioned(right: 16, bottom: 100, child: _buildQuickActionsFAB()),
         ],
       ),
     );
@@ -206,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Toggle streaming - chỉ cho phép khi đã kết nối BT
+            // Toggle streaming - enable only when Bluetooth is connected
             FloatingActionButton.small(
               heroTag: 'streaming',
               onPressed: isConnected
@@ -228,8 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: !isConnected
                   ? AppColors.gray500
                   : streamingProvider.isStreaming
-                      ? AppColors.danger
-                      : AppColors.primary,
+                  ? AppColors.danger
+                  : AppColors.primary,
               child: Icon(
                 streamingProvider.isStreaming ? Icons.stop : Icons.play_arrow,
               ),
@@ -260,3 +254,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -6,8 +6,8 @@ import '../models/trip.dart';
 import '../models/daily_stat.dart';
 import '../services/firebase_repo.dart';
 
-/// Mock lịch sử 30 ngày gần nhất.
-/// Sau này thay bằng API/BLE/DB: chỉ cần set list trips và notifyListeners().
+// Mock lịch sử 30 ngày gần nhất.
+// Sau này thay bằng API/BLE/DB: chỉ cần set list trips và notifyListeners().
 class TripProvider extends ChangeNotifier {
   final List<Trip> _trips = [];
 

@@ -1,3 +1,7 @@
+// @file       map_widget.dart
+// @brief      Widget for Map.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,10 +13,7 @@ import '../models/route_point.dart';
 import '../providers/route_provider.dart';
 import '../utils/geo_utils.dart';
 
-/// ============================================
-/// MAP WIDGET - Hiển thị bản đồ và route
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class MapWidget extends StatefulWidget {
   const MapWidget({super.key});
 
@@ -35,7 +36,7 @@ class MapWidgetState extends State<MapWidget> {
     super.dispose();
   }
 
-  /// Public method: Fit camera to show all route points
+  // Public method: Fit camera to show all route points
   void fitToRoute() {
     final routeProvider = context.read<RouteProvider>();
     if (routeProvider.hasRoute) {
@@ -43,12 +44,12 @@ class MapWidgetState extends State<MapWidget> {
     }
   }
 
-  /// Public method: Center map on a specific location
+  // Public method: Center map on a specific location
   void centerOn(LatLng location, {double? zoom}) {
     _mapController.move(location, zoom ?? _mapController.camera.zoom);
   }
 
-  /// Public method: Move to location with animation
+  // Public method: Move to location with animation
   void animateTo(LatLng location, {double? zoom}) {
     _mapController.move(location, zoom ?? _mapController.camera.zoom);
   }
@@ -92,15 +93,11 @@ class MapWidgetState extends State<MapWidget> {
 
             // Markers
             if (routeProvider.hasRoute && routeProvider.showMarkers)
-              MarkerLayer(
-                markers: _buildMarkers(routeProvider.points),
-              ),
+              MarkerLayer(markers: _buildMarkers(routeProvider.points)),
 
             // Attribution
             const RichAttributionWidget(
-              attributions: [
-                TextSourceAttribution(MapConfig.attribution),
-              ],
+              attributions: [TextSourceAttribution(MapConfig.attribution)],
             ),
           ],
         );
@@ -123,10 +120,7 @@ class MapWidgetState extends State<MapWidget> {
     final bounds = GeoUtils.calculateBounds(points);
     if (bounds != null) {
       _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(50),
-        ),
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
       );
     }
   }
@@ -137,12 +131,14 @@ class MapWidgetState extends State<MapWidget> {
     final markers = <Marker>[];
 
     // Start marker
-    markers.add(_buildMarker(
-      points.first,
-      AppColors.startMarker,
-      MarkerConfig.startEndSize,
-      Icons.play_arrow,
-    ));
+    markers.add(
+      _buildMarker(
+        points.first,
+        AppColors.startMarker,
+        MarkerConfig.startEndSize,
+        Icons.play_arrow,
+      ),
+    );
 
     // Middle markers (limit to avoid performance issues)
     if (points.length > 2) {
@@ -151,23 +147,27 @@ class MapWidgetState extends State<MapWidget> {
           : 1;
 
       for (int i = 1; i < points.length - 1; i += step) {
-        markers.add(_buildMarker(
-          points[i],
-          AppColors.normalMarker,
-          MarkerConfig.normalSize,
-          null,
-        ));
+        markers.add(
+          _buildMarker(
+            points[i],
+            AppColors.normalMarker,
+            MarkerConfig.normalSize,
+            null,
+          ),
+        );
       }
     }
 
     // End marker
     if (points.length > 1) {
-      markers.add(_buildMarker(
-        points.last,
-        AppColors.endMarker,
-        MarkerConfig.startEndSize,
-        Icons.flag,
-      ));
+      markers.add(
+        _buildMarker(
+          points.last,
+          AppColors.endMarker,
+          MarkerConfig.startEndSize,
+          Icons.flag,
+        ),
+      );
     }
 
     return markers;
@@ -202,11 +202,7 @@ class MapWidgetState extends State<MapWidget> {
             ],
           ),
           child: icon != null
-              ? Icon(
-                  icon,
-                  color: AppColors.white,
-                  size: size * 0.6,
-                )
+              ? Icon(icon, color: AppColors.white, size: size * 0.6)
               : null,
         ),
       ),
@@ -239,3 +235,5 @@ class MapWidgetState extends State<MapWidget> {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,3 +1,7 @@
+// @file       route_info_panel.dart
+// @brief      Widget for Route Info Panel.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,10 +11,7 @@ import '../providers/route_provider.dart';
 import '../utils/geo_utils.dart';
 import '../utils/date_utils.dart';
 
-/// ============================================
-/// ROUTE INFO PANEL - Hiển thị thông tin route
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class RouteInfoPanel extends StatelessWidget {
   const RouteInfoPanel({super.key});
 
@@ -31,7 +32,7 @@ class RouteInfoPanel extends StatelessWidget {
                     Icon(Icons.info_outline, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text(
-                      'Thông Tin Lộ Trình',
+                      'Route Information',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -43,22 +44,22 @@ class RouteInfoPanel extends StatelessWidget {
 
                 // Info items
                 _buildInfoItem(
-                  'Tổng điểm',
+                  'Total Points',
                   '${routeProvider.pointCount}',
                   Icons.location_on,
                 ),
                 _buildInfoItem(
-                  'Khoảng cách',
+                  'Distance',
                   GeoUtils.formatDistance(routeProvider.totalDistance),
                   Icons.straighten,
                 ),
                 _buildInfoItem(
-                  'Thời gian bắt đầu',
+                  'Start Time',
                   AppDateUtils.formatDateTime(routeProvider.startTime),
                   Icons.play_arrow,
                 ),
                 _buildInfoItem(
-                  'Thời gian kết thúc',
+                  'End Time',
                   AppDateUtils.formatDateTime(routeProvider.endTime),
                   Icons.flag,
                 ),
@@ -92,12 +93,11 @@ class RouteInfoPanel extends StatelessWidget {
               style: const TextStyle(color: AppColors.gray500),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

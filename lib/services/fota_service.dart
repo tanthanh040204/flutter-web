@@ -1,13 +1,13 @@
+// @file       fota_service.dart
+// @brief      Service for FOTA.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../config/app_constants.dart';
 
-/// ============================================
-/// FOTA SERVICE - Firmware Over-The-Air Update
-/// ============================================
-
-/// Trạng thái FOTA
+/* Enums -------------------------------------------------------------- */
 enum FotaState {
   idle,
   connecting,
@@ -20,10 +20,11 @@ enum FotaState {
   error,
 }
 
-/// Kết quả ACK
+// ACK results
 enum AckResult { ack, nack, timeout, error }
 
-/// Timeout cấu hình (giây) - giống bootloader_usb
+// Configuration timeouts (seconds) - similar to bootloader_usb
+/* Public classes ----------------------------------------------------- */
 class FotaConfig {
   static const double appSelectionTimeout = 30.0;
   static const double ackTimeoutDefault = 30.0;
@@ -63,27 +64,27 @@ class FotaService {
 
   bool get isConnected => _device != null && _characteristic != null;
 
-  /// Log helper
+  // Log helper
   void _log(String message) {
     final timestamp = DateTime.now().toString().substring(11, 19);
     _logController.add('[$timestamp] $message');
   }
 
-  /// Update state
+  // Update state
   void _setState(FotaState state) {
     _currentState = state;
     _stateController.add(state);
   }
 
-  /// Khởi tạo với device đã kết nối
+  // Khởi tạo với device đã kết nối
   Future<bool> initWithConnectedDevice(BluetoothDevice device) async {
     try {
       _device = device;
-      _log('[FOTA] Đang khởi tạo với device: ${device.remoteId}');
+      _log('[FOTA] Initializing with device: ${device.remoteId}');
 
       // Discover services
       final services = await device.discoverServices();
-      _log('[FOTA] Tìm thấy ${services.length} services');
+      _log('[FOTA] Found ${services.length} services');
 
       // Tìm characteristic FFE1
       for (final service in services) {
@@ -95,7 +96,7 @@ class FotaService {
             if (charUuid == BluetoothConfig.characteristicUuid.toLowerCase() ||
                 charUuid.endsWith('ffe1')) {
               _characteristic = char;
-              _log('[FOTA] Tìm thấy characteristic: ${char.uuid}');
+              _log('[FOTA] Found characteristic: ${char.uuid}');
               break;
             }
           }
@@ -103,7 +104,7 @@ class FotaService {
       }
 
       if (_characteristic == null) {
-        _log('[ERROR] Không tìm thấy characteristic FFE1!');
+        _log('[ERROR] No characteristic FFE1 found!');
         return false;
       }
 
@@ -112,23 +113,23 @@ class FotaService {
       _notifySubscription = _characteristic!.onValueReceived.listen(
         _onDataReceived,
       );
-      _log('[FOTA] Subscribe notification thành công');
+      _log('[FOTA] Subscribe notification successful');
 
       return true;
     } catch (e) {
-      _log('[ERROR] Khởi tạo FOTA thất bại: $e');
+      _log('[ERROR] Initializing FOTA failed: $e');
       return false;
     }
   }
 
-  /// Xử lý data nhận được
+  // Xử lý data nhận được
   void _onDataReceived(List<int> data) {
     final decoded = String.fromCharCodes(data);
     _receiveBuffer.write(decoded);
     _log('[RX] (${data.length} bytes): $decoded');
   }
 
-  /// Đợi ACK/NACK
+  // Đợi ACK/NACK
   Future<AckResult> _waitForAck({
     double timeout = FotaConfig.ackTimeoutDefault,
   }) async {
@@ -154,7 +155,7 @@ class FotaService {
     return AckResult.timeout;
   }
 
-  /// Đợi APP_1 hoặc APP_2
+  // Đợi APP_1 hoặc APP_2
   Future<String?> _waitForAppSelection({
     double timeout = FotaConfig.appSelectionTimeout,
   }) async {
@@ -180,7 +181,7 @@ class FotaService {
     return null;
   }
 
-  /// Gửi command và đợi ACK với retry
+  // Gửi command và đợi ACK với retry
   Future<bool> _sendCommandWithAck(
     String command, {
     int retries = FotaConfig.maxRetries,
@@ -208,7 +209,7 @@ class FotaService {
     return false;
   }
 
-  /// Tính checksum (giống bootloader_usb)
+  // Tính checksum (giống bootloader_usb)
   int _calcChecksum(Uint8List data) {
     int crc = 0;
     for (final b in data) {
@@ -217,7 +218,7 @@ class FotaService {
     return crc;
   }
 
-  /// Bắt đầu quá trình update
+  // Bắt đầu quá trình update
   Future<bool> startUpdate({
     required Uint8List app1Data,
     required Uint8List app2Data,
@@ -336,7 +337,7 @@ class FotaService {
     }
   }
 
-  /// Gửi lệnh UPDATE để MCU cập nhật firmware
+  // Gửi lệnh UPDATE để MCU cập nhật firmware
   Future<bool> sendUpdateCommand() async {
     if (_characteristic == null) return false;
 
@@ -352,7 +353,7 @@ class FotaService {
     }
   }
 
-  /// Reset state
+  // Reset state
   void reset() {
     _receiveBuffer.clear();
     _setState(FotaState.idle);
@@ -360,7 +361,7 @@ class FotaService {
     _log('[INFO] FOTA state reset');
   }
 
-  /// Dispose
+  // Dispose
   void dispose() {
     _notifySubscription?.cancel();
     _stateController.close();
@@ -368,3 +369,5 @@ class FotaService {
     _logController.close();
   }
 }
+
+/* End of file -------------------------------------------------------- */

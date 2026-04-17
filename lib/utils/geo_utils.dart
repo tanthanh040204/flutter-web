@@ -1,18 +1,18 @@
+// @file       geo_utils.dart
+// @brief      Utility helpers for Geo.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:math';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../config/app_constants.dart';
 import '../models/route_point.dart';
 
-/// ============================================
-/// GEO UTILITIES - Tính toán địa lý
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class GeoUtils {
   GeoUtils._();
 
-  /// Tính khoảng cách giữa 2 điểm (Haversine formula)
-  /// Returns: khoảng cách tính bằng km
+  // Calculate distance between two lat/lng points using Haversine formula
   static double calculateDistance(
     double lat1,
     double lon1,
@@ -22,7 +22,8 @@ class GeoUtils {
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
 
-    final a = sin(dLat / 2) * sin(dLat / 2) +
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
         cos(_toRadians(lat1)) *
             cos(_toRadians(lat2)) *
             sin(dLon / 2) *
@@ -33,7 +34,7 @@ class GeoUtils {
     return GeoConfig.earthRadiusKm * c;
   }
 
-  /// Tính khoảng cách giữa 2 LatLng
+  // Calculate distance between two LatLng points
   static double calculateDistanceLatLng(LatLng point1, LatLng point2) {
     return calculateDistance(
       point1.latitude,
@@ -43,7 +44,7 @@ class GeoUtils {
     );
   }
 
-  /// Tính tổng khoảng cách của route
+  // Calculate total distance of a route
   static double calculateTotalDistance(List<RoutePoint> points) {
     if (points.length < 2) return 0;
 
@@ -59,7 +60,7 @@ class GeoUtils {
     return total;
   }
 
-  /// Tính bounds của route
+  // Calculate bounds of a route
   static LatLngBounds? calculateBounds(List<RoutePoint> points) {
     if (points.isEmpty) return null;
 
@@ -75,13 +76,10 @@ class GeoUtils {
       if (point.longitude > maxLng) maxLng = point.longitude;
     }
 
-    return LatLngBounds(
-      LatLng(minLat, minLng),
-      LatLng(maxLat, maxLng),
-    );
+    return LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
   }
 
-  /// Tính center của route
+  // Calculate center of a route
   static LatLng? calculateCenter(List<RoutePoint> points) {
     if (points.isEmpty) return null;
 
@@ -93,18 +91,15 @@ class GeoUtils {
       sumLng += point.longitude;
     }
 
-    return LatLng(
-      sumLat / points.length,
-      sumLng / points.length,
-    );
+    return LatLng(sumLat / points.length, sumLng / points.length);
   }
 
-  /// Chuyển đổi độ sang radian
+  // Convert degrees to radians
   static double _toRadians(double degrees) {
     return degrees * (pi / 180);
   }
 
-  /// Format khoảng cách
+  // Format distance
   static String formatDistance(double distanceKm) {
     if (distanceKm < 1) {
       return '${(distanceKm * 1000).toStringAsFixed(0)} m';
@@ -112,3 +107,5 @@ class GeoUtils {
     return '${distanceKm.toStringAsFixed(2)} km';
   }
 }
+
+/* End of file -------------------------------------------------------- */

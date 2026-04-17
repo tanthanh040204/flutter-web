@@ -1,9 +1,14 @@
+// @file       history_route_map_screen.dart
+// @brief      Screen UI for History Route Map.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/history_route.dart';
 
+/* Public classes ----------------------------------------------------- */
 class HistoryRouteMapScreen extends StatelessWidget {
   final HistoryRouteRecord route;
 
@@ -60,3 +65,5 @@ class HistoryRouteMapScreen extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

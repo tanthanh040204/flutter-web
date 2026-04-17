@@ -1,9 +1,14 @@
+// @file       maintenance_screen.dart
+// @brief      Screen UI for Maintenance.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/fleet_provider.dart';
 import '../providers/maintenance_provider.dart';
 
+/* Public classes ----------------------------------------------------- */
 class MaintenanceScreen extends StatelessWidget {
   const MaintenanceScreen({super.key});
 
@@ -16,7 +21,7 @@ class MaintenanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bảo dưỡng'),
+        title: const Text('Maintenance'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -85,7 +90,7 @@ class MaintenanceScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          'Cần bảo dưỡng',
+                          'Need maintenance',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                           ),
@@ -115,7 +120,7 @@ class MaintenanceScreen extends StatelessWidget {
                         onPressed: () =>
                             _showEditCycleKm(context, it.id, it.cycleKm),
                         icon: const Icon(Icons.edit),
-                        label: const Text('Sửa chu kỳ'),
+                        label: const Text('Edit Cycle'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -127,11 +132,11 @@ class MaintenanceScreen extends StatelessWidget {
                               .markServiced(v.id, it.id);
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Đã cập nhật: ${it.name}')),
+                            SnackBar(content: Text('Updated: ${it.name}')),
                           );
                         },
                         icon: const Icon(Icons.check),
-                        label: const Text('Đã thay'),
+                        label: const Text('Mark as Serviced'),
                       ),
                     ),
                   ],
@@ -154,17 +159,17 @@ class MaintenanceScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Thêm hạng mục bảo dưỡng'),
+        title: const Text('Add Maintenance Item'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtl,
-              decoration: const InputDecoration(labelText: 'Tên (vd: Thay lốp)'),
+              decoration: const InputDecoration(labelText: 'Name (e.g., Tire Replacement)'),
             ),
             TextField(
               controller: kmCtl,
-              decoration: const InputDecoration(labelText: 'Chu kỳ (km)'),
+              decoration: const InputDecoration(labelText: 'Cycle (km)'),
               keyboardType: TextInputType.number,
             ),
           ],
@@ -172,11 +177,11 @@ class MaintenanceScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Thêm'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -208,20 +213,20 @@ class MaintenanceScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sửa chu kỳ (km)'),
+        title: const Text('Edit Cycle (km)'),
         content: TextField(
           controller: kmCtl,
-          decoration: const InputDecoration(labelText: 'Chu kỳ (km)'),
+          decoration: const InputDecoration(labelText: 'Cycle (km)'),
           keyboardType: TextInputType.number,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Lưu'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -239,3 +244,5 @@ class MaintenanceScreen extends StatelessWidget {
         );
   }
 }
+
+/* End of file -------------------------------------------------------- */

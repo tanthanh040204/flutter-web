@@ -1,3 +1,7 @@
+// @file       maintenance_provider.dart
+// @brief      State provider for Maintenance.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +10,7 @@ import '../models/maintenance_item.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_repo.dart';
 
+/* Public classes ----------------------------------------------------- */
 class MaintenanceProvider extends ChangeNotifier {
   final Map<String, List<MaintenanceItem>> _byVehicle = {};
   final Map<String, StreamSubscription<List<MaintenanceItem>>> _subs = {};
@@ -157,3 +162,5 @@ class MaintenanceProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

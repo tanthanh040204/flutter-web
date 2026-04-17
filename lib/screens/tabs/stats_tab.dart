@@ -1,3 +1,7 @@
+// @file       stats_tab.dart
+// @brief      Tab UI for Stats.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +11,7 @@ import '../../widgets/simple_bar_chart.dart';
 import '../../widgets/vehicle_picker.dart';
 import '../maintenance_screen.dart';
 
+/* Public classes ----------------------------------------------------- */
 class StatsTab extends StatefulWidget {
   const StatsTab({super.key});
 
@@ -14,6 +19,7 @@ class StatsTab extends StatefulWidget {
   State<StatsTab> createState() => _StatsTabState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _StatsTabState extends State<StatsTab> {
   int days = 7;
 
@@ -31,7 +37,7 @@ class _StatsTabState extends State<StatsTab> {
 
     if (v == null) {
       return const Scaffold(
-        body: Center(child: Text('Chưa có xe nào trong Firebase.')),
+        body: Center(child: Text('No vehicle selected in Firebase.')),
       );
     }
 
@@ -44,7 +50,7 @@ class _StatsTabState extends State<StatsTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông số'),
+        title: const Text('Stats'),
         actions: [
           const VehiclePicker(),
           const SizedBox(width: 8),
@@ -52,8 +58,8 @@ class _StatsTabState extends State<StatsTab> {
             child: DropdownButton<int>(
               value: days,
               items: const [
-                DropdownMenuItem(value: 7, child: Text('7 ngày')),
-                DropdownMenuItem(value: 30, child: Text('30 ngày')),
+                DropdownMenuItem(value: 7, child: Text('7 days')),
+                DropdownMenuItem(value: 30, child: Text('30 days')),
               ],
               onChanged: (v) => setState(() => days = v ?? 7),
             ),
@@ -72,8 +78,8 @@ class _StatsTabState extends State<StatsTab> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.build),
-            title: const Text('Bảo dưỡng'),
-            subtitle: Text('Pin ${v.batteryPercent}%'),
+            title: const Text('Maintenance'),
+            subtitle: Text('Battery ${v.batteryPercent}%'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
@@ -81,22 +87,22 @@ class _StatsTabState extends State<StatsTab> {
           ),
           const Divider(),
           _MetricRow(
-            leftTitle: 'Tổng quãng đường',
+            leftTitle: 'Total Distance',
             leftValue: '${v.totalKm.toStringAsFixed(1)} km',
-            rightTitle: 'Số ngày có chạy',
-            rightValue: '$runningDays ngày',
+            rightTitle: 'Days with Activity',
+            rightValue: '$runningDays days',
           ),
           const SizedBox(height: 10),
           _MetricRow(
-            leftTitle: 'Pin hiện tại',
+            leftTitle: 'Current Battery',
             leftValue: '${v.batteryPercent} %',
-            rightTitle: 'Toạ độ cuối',
+            rightTitle: 'Last Location',
             rightValue:
                 '${v.lastLocation.latitude.toStringAsFixed(4)}, ${v.lastLocation.longitude.toStringAsFixed(4)}',
           ),
           const SizedBox(height: 16),
           const Text(
-            'Biểu đồ quãng đường',
+            'Distance Chart',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
@@ -109,16 +115,16 @@ class _StatsTabState extends State<StatsTab> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Chi tiết theo ngày',
+            'Daily Details',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           if (runningDays == 0)
             const ListTile(
               dense: true,
-              title: Text('Chưa có lịch sử quãng đường theo ngày'),
+              title: Text('No daily distance history available'),
               subtitle: Text(
-                'Khi app/web nhận totalKm, Firebase sẽ tự lưu lại dữ liệu trong tối đa 30 ngày.',
+                'When the app/web receives totalKm, Firebase will automatically save the data for up to 30 days.',
               ),
             )
           else
@@ -128,7 +134,7 @@ class _StatsTabState extends State<StatsTab> {
                 dense: true,
                 title: Text(dayText),
                 subtitle: Text(
-                  'Quãng đường trong ngày: ${s.distanceKm.toStringAsFixed(1)} km',
+                  'Distance for the day: ${s.distanceKm.toStringAsFixed(1)} km',
                 ),
               );
             }),
@@ -208,3 +214,5 @@ class _MetricCard extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

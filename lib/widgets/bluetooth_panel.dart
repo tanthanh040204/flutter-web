@@ -1,3 +1,7 @@
+// @file       bluetooth_panel.dart
+// @brief      Widget for Bluetooth Panel.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,10 +11,7 @@ import '../models/bluetooth_device_info.dart';
 import '../providers/bluetooth_provider.dart';
 import '../providers/route_provider.dart';
 
-/// ============================================
-/// BLUETOOTH PANEL - UI kết nối Bluetooth
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class BluetoothPanel extends StatelessWidget {
   const BluetoothPanel({super.key});
 
@@ -85,22 +86,22 @@ class BluetoothPanel extends StatelessWidget {
       case AppBluetoothConnectionState.connected:
         statusColor = AppColors.btConnected;
         statusText =
-            'Đã kết nối: ${btProvider.connectedDevice?.displayName ?? ""}';
+            'Connected: ${btProvider.connectedDevice?.displayName ?? ""}';
         statusIcon = Icons.bluetooth_connected;
         break;
       case AppBluetoothConnectionState.connecting:
         statusColor = AppColors.btScanning;
-        statusText = 'Đang kết nối...';
+        statusText = 'Connecting...';
         statusIcon = Icons.bluetooth_searching;
         break;
       case AppBluetoothConnectionState.disconnecting:
         statusColor = AppColors.btScanning;
-        statusText = 'Đang ngắt kết nối...';
+        statusText = 'Disconnecting...';
         statusIcon = Icons.bluetooth_disabled;
         break;
       default:
         statusColor = AppColors.btDisconnected;
-        statusText = 'Chưa kết nối';
+        statusText = 'Not connected';
         statusIcon = Icons.bluetooth_disabled;
     }
 
@@ -159,19 +160,18 @@ class BluetoothPanel extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.search),
-            label: Text(btProvider.isScanning ? 'Đang scan...' : 'Scan'),
+            label: Text(btProvider.isScanning ? 'Scanning...' : 'Scan'),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed:
-                btProvider.isConnected ? () => btProvider.disconnect() : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-            ),
+            onPressed: btProvider.isConnected
+                ? () => btProvider.disconnect()
+                : null,
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             icon: const Icon(Icons.bluetooth_disabled),
-            label: const Text('Ngắt'),
+            label: const Text('Disconnect'),
           ),
         ),
       ],
@@ -198,8 +198,9 @@ class BluetoothPanel extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.chevron_right),
-            onTap:
-                device.isConnecting ? null : () => btProvider.connect(device),
+            onTap: device.isConnecting
+                ? null
+                : () => btProvider.connect(device),
           );
         },
       ),
@@ -207,13 +208,15 @@ class BluetoothPanel extends StatelessWidget {
   }
 
   Widget _buildReceivedInfo(
-      BuildContext context, BluetoothProvider btProvider) {
+    BuildContext context,
+    BluetoothProvider btProvider,
+  ) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Điểm nhận được:'),
+            const Text('Received points:'),
             Text(
               '${btProvider.receivedPointsCount}',
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -239,7 +242,7 @@ class BluetoothPanel extends StatelessWidget {
                     ? () => btProvider.clearBuffer()
                     : null,
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Xóa'),
+                label: const Text('Clear'),
               ),
             ),
           ],
@@ -252,7 +255,7 @@ class BluetoothPanel extends StatelessWidget {
               dense: true,
               contentPadding: EdgeInsets.zero,
               title: const Text('Realtime mode'),
-              subtitle: const Text('Vẽ ngay khi nhận'),
+              subtitle: const Text('Draw immediately when receiving'),
               value: routeProvider.realtimeMode,
               onChanged: (value) => routeProvider.setRealtimeMode(value),
             );
@@ -263,16 +266,18 @@ class BluetoothPanel extends StatelessWidget {
   }
 
   Future<void> _startScan(
-      BuildContext context, BluetoothProvider btProvider) async {
+    BuildContext context,
+    BluetoothProvider btProvider,
+  ) async {
     final isAvailable = await btProvider.checkBluetoothAvailable();
     if (!isAvailable) {
-      _showSnackBar(context, 'Thiết bị không hỗ trợ Bluetooth');
+      _showSnackBar(context, 'Device does not support Bluetooth');
       return;
     }
 
     final isOn = await btProvider.checkBluetoothOn();
     if (!isOn) {
-      _showSnackBar(context, 'Vui lòng bật Bluetooth');
+      _showSnackBar(context, 'Please turn on Bluetooth');
       return;
     }
 
@@ -283,7 +288,9 @@ class BluetoothPanel extends StatelessWidget {
     final routeProvider = context.read<RouteProvider>();
     routeProvider.setPoints(btProvider.receivedPoints);
     _showSnackBar(
-        context, 'Đã upload ${btProvider.receivedPointsCount} điểm lên bản đồ');
+      context,
+      'Uploaded ${btProvider.receivedPointsCount} points to the map',
+    );
   }
 
   void _showSnackBar(BuildContext context, String message) {
@@ -295,3 +302,5 @@ class BluetoothPanel extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

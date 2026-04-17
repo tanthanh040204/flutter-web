@@ -1,3 +1,7 @@
+// @file       bluetooth_provider.dart
+// @brief      State provider for Bluetooth.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -5,10 +9,7 @@ import '../models/bluetooth_device_info.dart';
 import '../models/route_point.dart';
 import '../services/bluetooth_service.dart' as app_bt;
 
-/// ============================================
-/// BLUETOOTH PROVIDER - State management cho BT
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class BluetoothProvider extends ChangeNotifier {
   final app_bt.BluetoothService _btService = app_bt.BluetoothService();
 
@@ -71,17 +72,17 @@ class BluetoothProvider extends ChangeNotifier {
     });
   }
 
-  /// Kiểm tra Bluetooth khả dụng
+  // Check if Bluetooth is available on the device
   Future<bool> checkBluetoothAvailable() async {
     return await _btService.isBluetoothAvailable();
   }
 
-  /// Kiểm tra Bluetooth đang bật
+  // Check if Bluetooth is turned on
   Future<bool> checkBluetoothOn() async {
     return await _btService.isBluetoothOn();
   }
 
-  /// Bắt đầu scan
+  // Start scanning for devices
   Future<void> startScan() async {
     _clearError();
     _isScanning = true;
@@ -98,14 +99,14 @@ class BluetoothProvider extends ChangeNotifier {
     }
   }
 
-  /// Dừng scan
+  // Stop scanning
   Future<void> stopScan() async {
     await _btService.stopScan();
     _isScanning = false;
     notifyListeners();
   }
 
-  /// Kết nối thiết bị
+  // Connect to a device
   Future<void> connect(BluetoothDeviceInfo device) async {
     _clearError();
 
@@ -127,26 +128,26 @@ class BluetoothProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Ngắt kết nối
+  // Disconnect from device
   Future<void> disconnect() async {
     await _btService.disconnect();
     _connectedDevice = null;
     notifyListeners();
   }
 
-  /// Xóa buffer data
+  // Delete all received points
   void clearBuffer() {
     _btService.clearBuffer();
     _receivedPointsCount = 0;
     notifyListeners();
   }
 
-  /// Gửi dữ liệu
+  // Send data to the connected device
   Future<void> sendData(String data) async {
     try {
       await _btService.sendData(data);
     } catch (e) {
-      _setError('Gửi thất bại: ${e.toString()}');
+      _setError('Failed to send data: ${e.toString()}');
     }
   }
 
@@ -168,3 +169,5 @@ class BluetoothProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,6 +1,11 @@
+// @file       trip.dart
+// @brief      Data model for Trip.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:math';
 import 'package:latlong2/latlong.dart';
 
+/* Public classes ----------------------------------------------------- */
 class TripPoint {
   final DateTime time;
   final LatLng latLng;
@@ -69,3 +74,5 @@ class Trip {
 
   static double _degToRad(double d) => d * (pi / 180.0);
 }
+
+/* End of file -------------------------------------------------------- */

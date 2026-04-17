@@ -1,3 +1,7 @@
+// @file       file_service.dart
+// @brief      Service for File.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
@@ -5,14 +9,11 @@ import 'package:flutter/services.dart';
 import '../config/app_constants.dart';
 import '../models/route_point.dart';
 
-/// ============================================
-/// FILE SERVICE - Đọc và parse file dữ liệu
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class FileService {
   FileService._();
 
-  /// Chọn và đọc file từ device (web-safe)
+  // Choose and read file from device (web-safe)
   static Future<List<RoutePoint>> pickAndReadFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -28,19 +29,22 @@ class FileService {
 
     if (file.size > FileConfig.maxFileSizeBytes) {
       throw Exception(
-          'File quá lớn (max ${FileConfig.maxFileSizeBytes ~/ 1024 ~/ 1024}MB)');
+        'File quá lớn (max ${FileConfig.maxFileSizeBytes ~/ 1024 ~/ 1024}MB)',
+      );
     }
 
     final bytes = file.bytes;
     if (bytes == null) {
-      throw Exception('Không thể đọc file. Hãy bật withData hoặc chọn lại file.');
+      throw Exception(
+        'Không thể đọc file. Hãy bật withData hoặc chọn lại file.',
+      );
     }
 
     final content = utf8.decode(bytes);
     return parseContent(content, file.extension ?? '');
   }
 
-  /// Đọc file từ assets
+  // Load file from assets
   static Future<List<RoutePoint>> loadFromAssets(String path) async {
     try {
       final content = await rootBundle.loadString(path);
@@ -80,7 +84,8 @@ class FileService {
     if (data is List) {
       pointsList = data;
     } else if (data is Map) {
-      pointsList = data['points'] ??
+      pointsList =
+          data['points'] ??
           data['route'] ??
           data['coordinates'] ??
           data['path'] ??
@@ -92,7 +97,7 @@ class FileService {
       if (data['type'] == 'Feature') {
         return _parseGeoJson(<String, dynamic>{
           'type': 'FeatureCollection',
-          'features': [data]
+          'features': [data],
         });
       }
     } else {
@@ -117,17 +122,21 @@ class FileService {
       final coords = geometry['coordinates'];
 
       if (type == 'Point') {
-        points.add(RoutePoint(
-          latitude: (coords[1] as num).toDouble(),
-          longitude: (coords[0] as num).toDouble(),
-          name: properties['name'] as String?,
-        ));
+        points.add(
+          RoutePoint(
+            latitude: (coords[1] as num).toDouble(),
+            longitude: (coords[0] as num).toDouble(),
+            name: properties['name'] as String?,
+          ),
+        );
       } else if (type == 'LineString') {
         for (final coord in coords) {
-          points.add(RoutePoint(
-            latitude: (coord[1] as num).toDouble(),
-            longitude: (coord[0] as num).toDouble(),
-          ));
+          points.add(
+            RoutePoint(
+              latitude: (coord[1] as num).toDouble(),
+              longitude: (coord[0] as num).toDouble(),
+            ),
+          );
         }
       }
     }
@@ -138,20 +147,25 @@ class FileService {
   static List<RoutePoint> parseCsv(String content) {
     final lines = content.trim().split('\n');
     if (lines.length < 2) {
-      throw FormatException('CSV file rỗng hoặc không hợp lệ');
+      throw FormatException('CSV file is empty or missing header');
     }
 
-    final headers =
-        lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();
+    final headers = lines.first
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .toList();
 
-    final latIndex =
-        headers.indexWhere((h) => ['lat', 'latitude', 'y'].contains(h));
-    final lngIndex =
-        headers.indexWhere((h) => ['lng', 'lon', 'longitude', 'x'].contains(h));
+    final latIndex = headers.indexWhere(
+      (h) => ['lat', 'latitude', 'y'].contains(h),
+    );
+    final lngIndex = headers.indexWhere(
+      (h) => ['lng', 'lon', 'longitude', 'x'].contains(h),
+    );
 
     if (latIndex == -1 || lngIndex == -1) {
       throw FormatException(
-          'CSV phải có cột lat/latitude và lng/lon/longitude');
+        'CSV file must have lat/latitude and lng/lon/longitude columns',
+      );
     }
 
     final points = <RoutePoint>[];
@@ -192,9 +206,11 @@ class FileService {
     final validPoints = points.where((p) => p.isValid).toList();
 
     if (validPoints.isEmpty) {
-      throw Exception('Không có điểm tọa độ hợp lệ trong file');
+      throw Exception('No valid coordinates found in the file');
     }
 
     return validPoints;
   }
 }
+
+/* End of file -------------------------------------------------------- */

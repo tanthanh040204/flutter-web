@@ -1,3 +1,7 @@
+// @file       info_overlay.dart
+// @brief      Widget for Info Overlay.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,10 +10,7 @@ import '../providers/bluetooth_provider.dart';
 import '../providers/route_provider.dart';
 import '../providers/streaming_provider.dart';
 
-/// ============================================
-/// INFO OVERLAY - Hiển thị thông tin trên map
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class InfoOverlay extends StatelessWidget {
   const InfoOverlay({super.key});
 
@@ -50,7 +51,8 @@ class InfoOverlay extends StatelessWidget {
   }
 }
 
-/// Connection status chip
+// Connection status chip
+/* Private classes ---------------------------------------------------- */
 class _ConnectionChip extends StatelessWidget {
   final BluetoothProvider btProvider;
 
@@ -84,8 +86,8 @@ class _ConnectionChip extends StatelessWidget {
               color: isConnected
                   ? AppColors.btConnected
                   : isScanning
-                      ? AppColors.btScanning
-                      : AppColors.btDisconnected,
+                  ? AppColors.btScanning
+                  : AppColors.btDisconnected,
               shape: BoxShape.circle,
             ),
           ),
@@ -94,8 +96,8 @@ class _ConnectionChip extends StatelessWidget {
             isConnected
                 ? Icons.bluetooth_connected
                 : isScanning
-                    ? Icons.bluetooth_searching
-                    : Icons.bluetooth_disabled,
+                ? Icons.bluetooth_searching
+                : Icons.bluetooth_disabled,
             size: 16,
             color: isConnected ? AppColors.btConnected : AppColors.gray600,
           ),
@@ -104,8 +106,8 @@ class _ConnectionChip extends StatelessWidget {
             isConnected
                 ? 'BT: ${btProvider.connectedDevice?.name ?? "MCU"}'
                 : isScanning
-                    ? 'Scanning...'
-                    : 'Offline',
+                ? 'Scanning...'
+                : 'Offline',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -136,7 +138,7 @@ class _ConnectionChip extends StatelessWidget {
   }
 }
 
-/// Route info chip
+// Route info chip
 class _RouteInfoChip extends StatelessWidget {
   final RouteProvider routeProvider;
 
@@ -169,26 +171,16 @@ class _RouteInfoChip extends StatelessWidget {
             distance >= 1
                 ? '${distance.toStringAsFixed(2)} km'
                 : '${(distance * 1000).toStringAsFixed(0)} m',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           ),
           const SizedBox(width: 8),
-          Container(
-            width: 1,
-            height: 12,
-            color: AppColors.gray300,
-          ),
+          Container(width: 1, height: 12, color: AppColors.gray300),
           const SizedBox(width: 8),
           Icon(Icons.location_on, size: 14, color: AppColors.gray600),
           const SizedBox(width: 4),
           Text(
             '$pointCount',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -196,7 +188,7 @@ class _RouteInfoChip extends StatelessWidget {
   }
 }
 
-/// Streaming panel (shows current position, speed, etc.)
+// Streaming panel (shows current position, speed, etc.)
 class _StreamingPanel extends StatelessWidget {
   final StreamingProvider streamingProvider;
 
@@ -277,7 +269,7 @@ class _StreamingPanel extends StatelessWidget {
                     ? '${currentPoint!.speed!.toStringAsFixed(1)}'
                     : '--',
                 unit: 'km/h',
-                label: 'Tốc độ',
+                label: 'Speed',
               ),
               _StreamingStat(
                 icon: Icons.terrain,
@@ -285,7 +277,7 @@ class _StreamingPanel extends StatelessWidget {
                     ? '${currentPoint!.altitude!.toStringAsFixed(0)}'
                     : '--',
                 unit: 'm',
-                label: 'Độ cao',
+                label: 'Altitude',
               ),
               _StreamingStat(
                 icon: Icons.explore,
@@ -293,7 +285,7 @@ class _StreamingPanel extends StatelessWidget {
                     ? '${currentPoint!.heading!.toStringAsFixed(0)}°'
                     : '--',
                 unit: '',
-                label: 'Hướng',
+                label: 'Heading',
               ),
               _StreamingStat(
                 icon: Icons.gps_fixed,
@@ -301,7 +293,7 @@ class _StreamingPanel extends StatelessWidget {
                     ? '±${currentPoint!.accuracy!.toStringAsFixed(0)}'
                     : '--',
                 unit: 'm',
-                label: 'Độ chính xác',
+                label: 'Accuracy',
               ),
             ],
           ),
@@ -317,8 +309,11 @@ class _StreamingPanel extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.my_location,
-                      size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.my_location,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -404,18 +399,14 @@ class _StreamingStat extends StatelessWidget {
                 ),
               ),
               if (unit.isNotEmpty)
-                TextSpan(
-                  text: ' $unit',
-                  style: const TextStyle(fontSize: 10),
-                ),
+                TextSpan(text: ' $unit', style: const TextStyle(fontSize: 10)),
             ],
           ),
         ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: AppColors.gray600),
-        ),
+        Text(label, style: TextStyle(fontSize: 10, color: AppColors.gray600)),
       ],
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

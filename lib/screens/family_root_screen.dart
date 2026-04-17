@@ -1,3 +1,7 @@
+// @file       family_root_screen.dart
+// @brief      Screen UI for Family Root.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 
 import 'tabs/control_tab.dart';
@@ -7,6 +11,7 @@ import 'tabs/history_tab.dart';
 import 'tabs/notifications_tab.dart';
 import 'tabs/more_tab.dart';
 
+/* Public classes ----------------------------------------------------- */
 class FamilyRootScreen extends StatefulWidget {
   const FamilyRootScreen({super.key});
 
@@ -14,6 +19,7 @@ class FamilyRootScreen extends StatefulWidget {
   State<FamilyRootScreen> createState() => _FamilyRootScreenState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _FamilyRootScreenState extends State<FamilyRootScreen> {
   int index = 0;
 
@@ -35,14 +41,16 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
         onTap: (i) => setState(() => index = i),
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Điều khiển'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Thông số'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Địa điểm'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Thông báo'),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Khác'),
+          BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Controls'),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Location'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
+          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
         ],
       ),
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

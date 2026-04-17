@@ -1,3 +1,7 @@
+// @file       file_upload_panel.dart
+// @brief      Widget for File Upload Panel.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,10 +9,7 @@ import '../config/app_constants.dart';
 import '../config/app_theme.dart';
 import '../providers/route_provider.dart';
 
-/// ============================================
-/// FILE UPLOAD PANEL - UI tải file
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class FileUploadPanel extends StatelessWidget {
   const FileUploadPanel({super.key});
 
@@ -29,7 +30,7 @@ class FileUploadPanel extends StatelessWidget {
                     Icon(Icons.folder_open, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text(
-                      'Tải File Dữ Liệu',
+                      'Upload Data File',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -47,7 +48,7 @@ class FileUploadPanel extends StatelessWidget {
                         ? null
                         : () => routeProvider.loadFromFilePicker(),
                     icon: const Icon(Icons.upload_file),
-                    label: const Text('Chọn file (.json, .csv, .txt)'),
+                    label: const Text('Select File (.json, .csv, .txt)'),
                   ),
                 ),
                 const SizedBox(height: UIConfig.paddingSmall),
@@ -71,8 +72,8 @@ class FileUploadPanel extends StatelessWidget {
                         : const Icon(Icons.location_on),
                     label: Text(
                       routeProvider.isLoading
-                          ? 'Đang tải...'
-                          : 'Tải dữ liệu mẫu',
+                          ? 'Loading...'
+                          : 'Load Sample Data',
                     ),
                   ),
                 ),
@@ -94,3 +95,5 @@ class FileUploadPanel extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

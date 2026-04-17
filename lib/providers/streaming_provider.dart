@@ -1,10 +1,11 @@
+// @file       streaming_provider.dart
+// @brief      State provider for Streaming.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/foundation.dart';
 import '../models/route_point.dart';
 
-/// ============================================
-/// STREAMING PROVIDER - Quản lý streaming realtime
-/// ============================================
-
+/* Public classes ----------------------------------------------------- */
 class StreamingProvider extends ChangeNotifier {
   // Current streaming data
   RoutePoint? _currentPoint;
@@ -48,7 +49,7 @@ class StreamingProvider extends ChangeNotifier {
 
   Duration? get streamingDuration => streamDuration;
 
-  /// Start streaming session
+  // Start streaming session
   void startStreaming() {
     _isStreaming = true;
     _streamStartTime = DateTime.now();
@@ -56,13 +57,13 @@ class StreamingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stop streaming session
+  // Stop streaming session
   void stopStreaming() {
     _isStreaming = false;
     notifyListeners();
   }
 
-  /// Update with new point from Bluetooth
+  // Update with new point from Bluetooth
   void updateCurrentPoint(RoutePoint point) {
     final previousPoint = _currentPoint;
     _currentPoint = point;
@@ -82,7 +83,7 @@ class StreamingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update speed statistics
+  // Update speed statistics
   void _updateSpeedStats(double speed) {
     // Update max
     if (speed > _maxSpeed) {
@@ -101,14 +102,15 @@ class StreamingProvider extends ChangeNotifier {
     }
   }
 
-  /// Calculate distance between two points (Haversine)
+  // Calculate distance between two points (Haversine)
   double _calculateDistance(RoutePoint p1, RoutePoint p2) {
     const double earthRadius = 6371.0; // km
 
     final dLat = _toRadians(p2.latitude - p1.latitude);
     final dLng = _toRadians(p2.longitude - p1.longitude);
 
-    final a = _sin(dLat / 2) * _sin(dLat / 2) +
+    final a =
+        _sin(dLat / 2) * _sin(dLat / 2) +
         _cos(_toRadians(p1.latitude)) *
             _cos(_toRadians(p2.latitude)) *
             _sin(dLng / 2) *
@@ -174,7 +176,7 @@ class StreamingProvider extends ChangeNotifier {
     return result;
   }
 
-  /// Reset all stats
+  // Reset all stats
   void _resetStats() {
     _maxSpeed = 0;
     _avgSpeed = 0;
@@ -184,14 +186,14 @@ class StreamingProvider extends ChangeNotifier {
     _streamedPoints.clear();
   }
 
-  /// Clear streamed points
+  // Clear streamed points
   void clearStreamedPoints() {
     _streamedPoints.clear();
     _resetStats();
     notifyListeners();
   }
 
-  /// Clear all data
+  // Clear all data
   void clearAll() {
     _currentPoint = null;
     _isStreaming = false;
@@ -200,3 +202,5 @@ class StreamingProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+/* End of file -------------------------------------------------------- */

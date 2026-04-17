@@ -1,3 +1,7 @@
+// @file       control_tab.dart
+// @brief      Tab UI for Control.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -5,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/fleet_provider.dart';
 
+/* Public classes ----------------------------------------------------- */
 class ControlTab extends StatelessWidget {
   const ControlTab({super.key});
 
@@ -15,10 +20,10 @@ class ControlTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Điều khiển'),
+        title: const Text('Control'),
         actions: [
           IconButton(
-            tooltip: 'Thêm xe',
+            tooltip: 'Add new vehicle',
             icon: const Icon(Icons.add),
             onPressed: fleet.isAddingVehicle
                 ? null
@@ -48,7 +53,7 @@ class ControlTab extends StatelessWidget {
                     Expanded(
                       child: _SensorCard(
                         icon: Icons.thermostat,
-                        title: 'Nhiệt độ',
+                        title: 'Temperature',
                         value: fleet.selectedTemp == null
                             ? '--'
                             : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
@@ -58,7 +63,7 @@ class ControlTab extends StatelessWidget {
                     Expanded(
                       child: _SensorCard(
                         icon: Icons.water_drop,
-                        title: 'Độ ẩm',
+                        title: 'Humidity',
                         value: fleet.selectedHum == null
                             ? '--'
                             : '${fleet.selectedHum!.toStringAsFixed(1)} %',
@@ -68,7 +73,7 @@ class ControlTab extends StatelessWidget {
                     Expanded(
                       child: _SensorCard(
                         icon: Icons.air,
-                        title: 'Nồng độ bụi',
+                        title: 'Dust value',
                         value: fleet.selectedDust == null
                             ? '--'
                             : '${fleet.selectedDust!.toStringAsFixed(1)}',
@@ -78,7 +83,7 @@ class ControlTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Điều khiển nhanh',
+                  'Quick Control',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 10),
@@ -89,7 +94,7 @@ class ControlTab extends StatelessWidget {
                         icon: v.isRunning
                             ? Icons.pause_circle
                             : Icons.play_circle,
-                        label: v.isRunning ? 'Dừng xe' : 'Chạy xe',
+                        label: v.isRunning ? 'Pause' : 'Start',
                         active: v.isRunning,
                         onTap: () => fleet.setRunning(!v.isRunning),
                       ),
@@ -98,11 +103,11 @@ class ControlTab extends StatelessWidget {
                     Expanded(
                       child: _SquareButton(
                         icon: Icons.edit,
-                        label: 'Đổi tên',
+                        label: 'Edit Name',
                         onTap: () async {
                           final name = await _askVehicleName(
                             context,
-                            title: 'Đổi tên xe',
+                            title: 'Edit Vehicle Name',
                             initial: v.name,
                           );
                           if (name != null && name.trim().isNotEmpty) {
@@ -126,36 +131,36 @@ class ControlTab extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Thêm xe'),
+        title: const Text('Add New Vehicle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtl,
-              decoration: const InputDecoration(labelText: 'Tên xe'),
+              decoration: const InputDecoration(labelText: 'Vehicle Name'),
             ),
             TextField(
               controller: odoCtl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Tổng km hiện tại (ODO)',
+                labelText: 'Total km (ODO)',
               ),
             ),
             TextField(
               controller: batCtl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Pin (%)'),
+              decoration: const InputDecoration(labelText: 'Battery (%)'),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Thêm'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -178,14 +183,14 @@ class ControlTab extends StatelessWidget {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã thêm xe và đồng bộ lên Firebase.')),
+          const SnackBar(content: Text('Vehicle added and synced to Firebase.')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Không thể thêm xe: $e')));
+        ).showSnackBar(SnackBar(content: Text('Cannot add vehicle: $e')));
       }
     }
   }
@@ -202,16 +207,16 @@ class ControlTab extends StatelessWidget {
         title: Text(title),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Tên xe'),
+          decoration: const InputDecoration(labelText: 'Vehicle Name'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Huỷ'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Lưu'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -219,6 +224,7 @@ class ControlTab extends StatelessWidget {
   }
 }
 
+/* Private classes ---------------------------------------------------- */
 class _EmptyState extends StatelessWidget {
   final bool isSyncing;
   final String? error;
@@ -228,8 +234,8 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = isSyncing
-        ? 'Đang đồng bộ danh sách xe từ Firebase...'
-        : 'Chưa có xe nào để hiển thị.';
+        ? 'Adding new vehicle...'
+        : 'No vehicles to display.';
 
     return Center(
       child: Padding(
@@ -675,3 +681,5 @@ class _SquareButton extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

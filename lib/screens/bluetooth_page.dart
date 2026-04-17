@@ -1,3 +1,7 @@
+// @file       bluetooth_page.dart
+// @brief      Screen UI for Bluetooth.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,12 +14,10 @@ import '../providers/route_provider.dart';
 import '../providers/streaming_provider.dart';
 import '../services/bluetooth_service.dart';
 
-/// ============================================
-/// BLUETOOTH PAGE - Trang kết nối Bluetooth
-/// ============================================
-
+/* Typedef / Function types ------------------------------------------ */
 typedef UploadCallback = void Function();
 
+/* Public classes ----------------------------------------------------- */
 class BluetoothPage extends StatefulWidget {
   final UploadCallback? onUploadToMap;
   const BluetoothPage({super.key, this.onUploadToMap});
@@ -24,6 +26,7 @@ class BluetoothPage extends StatefulWidget {
   State<BluetoothPage> createState() => _BluetoothPageState();
 }
 
+/* Private classes ---------------------------------------------------- */
 class _BluetoothPageState extends State<BluetoothPage> {
   final List<String> _rawDataLog = [];
   final List<String> _debugLog = [];
@@ -108,7 +111,8 @@ class _BluetoothPageState extends State<BluetoothPage> {
         actions: [
           IconButton(
             icon: Icon(
-                _showDebugPanel ? Icons.bug_report : Icons.bug_report_outlined),
+              _showDebugPanel ? Icons.bug_report : Icons.bug_report_outlined,
+            ),
             onPressed: () => setState(() => _showDebugPanel = !_showDebugPanel),
             tooltip: 'Toggle Debug Panel',
           ),
@@ -163,8 +167,10 @@ class _BluetoothPageState extends State<BluetoothPage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
-                            color: AppColors.danger),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppColors.danger,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -211,8 +217,10 @@ class _BluetoothPageState extends State<BluetoothPage> {
                 ),
                 TextButton(
                   onPressed: () => setState(() => _debugLog.clear()),
-                  child: const Text('Clear',
-                      style: TextStyle(color: Colors.orange)),
+                  child: const Text(
+                    'Clear',
+                    style: TextStyle(color: Colors.orange),
+                  ),
                 ),
               ],
             ),
@@ -277,8 +285,10 @@ class _BluetoothPageState extends State<BluetoothPage> {
                 ),
                 TextButton(
                   onPressed: () => setState(() => _rawDataLog.clear()),
-                  child:
-                      const Text('Clear', style: TextStyle(color: Colors.red)),
+                  child: const Text(
+                    'Clear',
+                    style: TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
             ),
@@ -334,22 +344,22 @@ class _BluetoothPageState extends State<BluetoothPage> {
       case AppBluetoothConnectionState.connected:
         statusColor = AppColors.btConnected;
         statusText =
-            'Đã kết nối: ${provider.connectedDevice?.displayName ?? ""}';
+            'Connected: ${provider.connectedDevice?.displayName ?? ""}';
         statusIcon = Icons.bluetooth_connected;
         break;
       case AppBluetoothConnectionState.connecting:
         statusColor = AppColors.btScanning;
-        statusText = 'Đang kết nối...';
+        statusText = 'Connecting...';
         statusIcon = Icons.bluetooth_searching;
         break;
       case AppBluetoothConnectionState.disconnecting:
         statusColor = AppColors.btScanning;
-        statusText = 'Đang ngắt kết nối...';
+        statusText = 'Disconnecting...';
         statusIcon = Icons.bluetooth_disabled;
         break;
       default:
         statusColor = AppColors.btDisconnected;
-        statusText = 'Chưa kết nối';
+        statusText = 'Not connected';
         statusIcon = Icons.bluetooth_disabled;
     }
 
@@ -424,20 +434,21 @@ class _BluetoothPageState extends State<BluetoothPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.search),
-            label: Text(provider.isScanning ? 'Đang scan...' : 'Scan thiết bị'),
+            label: Text(provider.isScanning ? 'Scanning...' : 'Scan Devices'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed:
-                provider.isConnected ? () => provider.disconnect() : null,
+            onPressed: provider.isConnected
+                ? () => provider.disconnect()
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             icon: const Icon(Icons.bluetooth_disabled),
-            label: const Text('Ngắt kết nối'),
+            label: const Text('Disconnect'),
           ),
         ),
       ],
@@ -461,18 +472,15 @@ class _BluetoothPageState extends State<BluetoothPage> {
               const SizedBox(height: 12),
               Text(
                 provider.isScanning
-                    ? 'Đang tìm thiết bị...'
-                    : 'Chưa có thiết bị',
+                    ? 'Scanning for devices...'
+                    : 'No devices found',
                 style: TextStyle(color: AppColors.gray600),
               ),
               if (!provider.isScanning) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Nhấn "Scan thiết bị" để bắt đầu tìm kiếm',
-                  style: TextStyle(
-                    color: AppColors.gray500,
-                    fontSize: 12,
-                  ),
+                  'Press "Scan Devices" to start searching',
+                  style: TextStyle(color: AppColors.gray500, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -497,7 +505,9 @@ class _BluetoothPageState extends State<BluetoothPage> {
   }
 
   Widget _buildReceivedDataCard(
-      BuildContext context, BluetoothProvider provider) {
+    BuildContext context,
+    BluetoothProvider provider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -505,7 +515,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Dữ liệu nhận được',
+              'Received Data',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -515,7 +525,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
                 _StatColumn(
                   icon: Icons.location_on,
                   value: '${provider.receivedPointsCount}',
-                  label: 'Điểm',
+                  label: 'Points',
                 ),
               ],
             ),
@@ -525,8 +535,8 @@ class _BluetoothPageState extends State<BluetoothPage> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      final streamingProvider =
-                          context.read<StreamingProvider>();
+                      final streamingProvider = context
+                          .read<StreamingProvider>();
                       final routeProvider = context.read<RouteProvider>();
                       final isStreaming = streamingProvider.isStreaming;
                       final points = isStreaming
@@ -536,7 +546,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
                         routeProvider.setPoints(points);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Đã upload ${points.length} điểm'),
+                            content: Text('Uploaded ${points.length} points'),
                           ),
                         );
                         if (isStreaming && widget.onUploadToMap != null) {
@@ -545,7 +555,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
                       }
                     },
                     icon: const Icon(Icons.upload),
-                    label: const Text('Upload lên Map'),
+                    label: const Text('Upload to Map'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -558,7 +568,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
                       foregroundColor: AppColors.danger,
                     ),
                     icon: const Icon(Icons.delete_outline),
-                    label: const Text('Xóa buffer'),
+                    label: const Text('Clear Buffer'),
                   ),
                 ),
               ],
@@ -570,14 +580,16 @@ class _BluetoothPageState extends State<BluetoothPage> {
   }
 
   Future<void> _startScan(
-      BuildContext context, BluetoothProvider provider) async {
+    BuildContext context,
+    BluetoothProvider provider,
+  ) async {
     // Request permissions first (Android 12+)
     final permissions = await _requestBluetoothPermissions();
     if (!permissions) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cần cấp quyền Bluetooth và Location để scan'),
+            content: Text('Bluetooth permissions are required to scan for devices.'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -589,7 +601,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
     if (!isAvailable) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Thiết bị không hỗ trợ Bluetooth')),
+          const SnackBar(content: Text('Device does not support Bluetooth')),
         );
       }
       return;
@@ -598,9 +610,9 @@ class _BluetoothPageState extends State<BluetoothPage> {
     final isOn = await provider.checkBluetoothOn();
     if (!isOn) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vui lòng bật Bluetooth')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please turn on Bluetooth')));
       }
       return;
     }
@@ -608,7 +620,7 @@ class _BluetoothPageState extends State<BluetoothPage> {
     await provider.startScan();
   }
 
-  /// Request Bluetooth permissions for Android 12+
+  // Request Bluetooth permissions for Android 12+
   Future<bool> _requestBluetoothPermissions() async {
     // Android 12+ requires these permissions
     Map<Permission, PermissionStatus> statuses = await [
@@ -650,7 +662,8 @@ class _DeviceTile extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         subtitle: Text(
-            'RSSI: ${device.rssi ?? "N/A"} dBm • ${device.signalStrength}'),
+          'RSSI: ${device.rssi ?? "N/A"} dBm • ${device.signalStrength}',
+        ),
         trailing: device.isConnecting
             ? const SizedBox(
                 width: 24,
@@ -683,20 +696,13 @@ class _StatColumn extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.gray500,
-            fontSize: 12,
-          ),
-        ),
+        Text(label, style: TextStyle(color: AppColors.gray500, fontSize: 12)),
       ],
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */
