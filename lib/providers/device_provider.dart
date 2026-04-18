@@ -26,9 +26,12 @@ class DeviceNotification {
 // DeviceProvider manages real-time state of all MQTT-connected devices.
 // Data flow:
 //   MqttService.dataMessages  → _onDataMessage() → DeviceState.routePoints
-//   MqttService.notifications → _onNotification() → DeviceState.lockState
-// Lock/Unlock flow:
-//   UI calls sendInlock(id) → publish 'LOCK' or 'UNLOCK' → wait for 'OK' on /noti (30 s timeout)
+//   MqttService.notifications → _onNotification() → lockState (STATE_* / OK)
+// Online/offline:
+//   Only KEEPALIVE on /noti sets online + lastKeepalive; if last keepalive > 60 s → offline
+// Lock / unlock / resume:
+//   UI: locked → UNLOCK, active → LOCK, pause → UNLOCK (resume); wait for OK on /noti (30 s)
+// Device-initiated via /noti: STATE_ACTIVE, STATE_LOCK, STATE_PAUSE (do not affect online)
 class DeviceProvider extends ChangeNotifier {
   // ---- Device registry ----
   final Map<String, DeviceState> _devices = {};
@@ -203,10 +206,23 @@ class DeviceProvider extends ChangeNotifier {
       _pendingLocks[deviceId]!.completer.complete(false);
     }
 
-    // Toggle: active/pause → locked, locked → active
-    final targetState = current.lockState == DeviceLockState.locked
-        ? DeviceLockState.active
-        : DeviceLockState.locked;
+    // locked → UNLOCK→active; pause → UNLOCK→resume (active); active → LOCK→locked
+    late final DeviceLockState targetState;
+    late final String command;
+    switch (current.lockState) {
+      case DeviceLockState.locked:
+        targetState = DeviceLockState.active;
+        command = 'UNLOCK';
+        break;
+      case DeviceLockState.pause:
+        targetState = DeviceLockState.active;
+        command = 'UNLOCK';
+        break;
+      case DeviceLockState.active:
+        targetState = DeviceLockState.locked;
+        command = 'LOCK';
+        break;
+    }
 
     final completer = Completer<bool>();
     final timer = Timer(const Duration(seconds: 30), () {
@@ -223,8 +239,6 @@ class DeviceProvider extends ChangeNotifier {
 
     notifyListeners();
 
-    // Button "Unlock" → send 'UNLOCK' (locked→active), Button "Lock" → send 'LOCK' (active→locked)
-    final command = targetState == DeviceLockState.active ? 'UNLOCK' : 'LOCK';
     final sent = mqtt.publish(deviceId, command);
     if (!sent) {
       _pendingLocks.remove(deviceId);
@@ -283,8 +297,8 @@ class DeviceProvider extends ChangeNotifier {
       }
     }
 
+    // Data messages do not affect online/offline — only KEEPALIVE does
     _devices[deviceId] = current.copyWith(
-      online: true,
       lastSeen: now,
       latest: data,
       routePoints: nextPoints,
@@ -305,36 +319,32 @@ class DeviceProvider extends ChangeNotifier {
     // Append raw noti to debug log
     _appendLog(_rawNotiLog, deviceId, _fmtTime(now), message);
 
+    final token = message.trim().toUpperCase();
+
     DeviceState next;
-    switch (message) {
+    switch (token) {
       case 'KEEPALIVE':
-        final wasOnline = current.online;
+        // Only KEEPALIVE drives online; lock state unchanged
         next = current.copyWith(
           online: true,
           lastSeen: now,
           lastKeepalive: now,
-          // Restore to active only if device was previously offline
-          lockState: wasOnline ? null : DeviceLockState.active,
         );
         break;
 
       case 'OK':
-        // Acknowledgment for UNLOCK command
+        // Ack for pending LOCK / UNLOCK (resume uses same UNLOCK path)
         final pending = _pendingLocks.remove(deviceId);
         if (pending != null) {
           pending.timer.cancel();
           if (pending.targetState == DeviceLockState.locked) {
-            // Locking: clear route on confirmed lock
             next = current.copyWith(
-              online: true,
               lastSeen: now,
               lockState: DeviceLockState.locked,
               routePoints: [],
             );
           } else {
-            // Unlocking: start fresh route
             next = current.copyWith(
-              online: true,
               lastSeen: now,
               lockState: DeviceLockState.active,
               routePoints: [],
@@ -342,25 +352,28 @@ class DeviceProvider extends ChangeNotifier {
           }
           if (!pending.completer.isCompleted) pending.completer.complete(true);
         } else {
-          next = current.copyWith(online: true, lastSeen: now);
+          next = current.copyWith(lastSeen: now);
         }
         break;
 
-      case 'USER LOCK':
-        // Vehicle locked externally — clear route
+      case 'STATE_ACTIVE':
+        next = current.copyWith(
+          lockState: DeviceLockState.active,
+          lastSeen: now,
+        );
+        break;
+
+      case 'STATE_LOCK':
         next = current.copyWith(
           lockState: DeviceLockState.locked,
-          online: true,
           lastSeen: now,
           routePoints: [],
         );
         break;
 
-      case 'PAUSE':
-        // Renter temporarily paused the vehicle
+      case 'STATE_PAUSE':
         next = current.copyWith(
           lockState: DeviceLockState.pause,
-          online: true,
           lastSeen: now,
         );
         break;
@@ -394,16 +407,24 @@ class DeviceProvider extends ChangeNotifier {
     final now = DateTime.now();
     bool changed = false;
 
+    final timeoutMs = FeatureConfig.keepaliveTimeoutMs;
+
     for (final id in _devices.keys) {
       final s = _devices[id]!;
+      final lastKa = s.lastKeepalive;
+
+      // Online is only valid with a keepalive timestamp; repair stale flags
+      if (lastKa == null) {
+        if (s.online) {
+          _devices[id] = s.copyWith(online: false);
+          changed = true;
+        }
+        continue;
+      }
+
       if (!s.online) continue;
 
-      // Use lastSeen (updated by both data and KEEPALIVE) so data messages
-      // also reset the offline timer, not just KEEPALIVE alone.
-      final lastSeen = s.lastSeen;
-      if (lastSeen == null) continue;
-
-      if (now.difference(lastSeen).inMilliseconds > FeatureConfig.keepaliveTimeoutMs) {
+      if (now.difference(lastKa).inMilliseconds > timeoutMs) {
         _devices[id] = s.copyWith(online: false);
         changed = true;
       }

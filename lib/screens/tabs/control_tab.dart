@@ -98,7 +98,7 @@ class ControlTab extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    // UNLOCK button — sends command to vehicle and waits for OK (30 s)
+                    // Lock / Unlock / Resume — LOCK or UNLOCK from device state; waits for OK (30 s)
                     Expanded(child: _InlockButton(vehicleId: v.id)),
                     const SizedBox(width: 10),
                     Expanded(
@@ -740,7 +740,7 @@ class _LockStateBadge extends StatelessWidget {
   }
 }
 
-// UNLOCK button — sends 'UNLOCK' via DeviceProvider and waits for OK (30 s timeout).
+// Lock / Unlock / Resume — DeviceProvider.sendInlock maps state → LOCK or UNLOCK; waits for OK (30 s).
 class _InlockButton extends StatefulWidget {
   final String vehicleId;
   const _InlockButton({required this.vehicleId});
@@ -788,17 +788,28 @@ class _InlockButtonState extends State<_InlockButton> {
     final isPending = deviceProvider.isPendingLock(widget.vehicleId);
 
     final isLocked = lockState == DeviceLockState.locked;
+    final isPause = lockState == DeviceLockState.pause;
     final icon = _loading || isPending
         ? Icons.hourglass_top
-        : (isLocked ? Icons.lock_open : Icons.lock);
+        : (isLocked
+            ? Icons.lock_open
+            : isPause
+                ? Icons.play_circle_outline
+                : Icons.lock);
     final label = _loading || isPending
         ? 'Waiting…'
-        : (isLocked ? 'Unlock' : 'Lock');
+        : (isLocked
+            ? 'Unlock'
+            : isPause
+                ? 'Resume'
+                : 'Lock');
 
-    final bg = isLocked
+    final bg = (isLocked || isPause)
         ? Colors.orange.withValues(alpha: 0.15)
         : Colors.red.withValues(alpha: 0.12);
-    final fg = isLocked ? Colors.orange.shade700 : Colors.red.shade600;
+    final fg = (isLocked || isPause)
+        ? Colors.orange.shade700
+        : Colors.red.shade600;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
