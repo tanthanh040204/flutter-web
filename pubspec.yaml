@@ -1,5 +1,5 @@
-name: first_flutter_project
-description: A new Flutter project.
+name: flutter_tracking_manager_web
+description: A Flutter application for tracking management on the web, using by manager.
 publish_to: none
 version: 1.0.0+1
 environment:
