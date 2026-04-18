@@ -44,6 +44,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
       final ids = vehicles.map((e) => e.id).toList();
       tripProvider.bindVehicles(ids);
       maintenanceProvider.bindVehicles(vehicles);
+      // Ensure all Firebase vehicles are registered in DeviceProvider
+      for (final id in ids) {
+        deviceProvider.addDevice(id);
+      }
     }
 
     _fleetListener = syncAll;

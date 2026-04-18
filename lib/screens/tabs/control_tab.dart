@@ -5,8 +5,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/device_state.dart';
+import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
@@ -17,6 +20,10 @@ class ControlTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
     final v = fleet.selectedOrNull;
+
+    // Real-time device state for lock status and online indicator
+    final deviceProvider = context.watch<DeviceProvider>();
+    final device = v != null ? deviceProvider.deviceById(v.id) : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -46,6 +53,8 @@ class ControlTab extends StatelessWidget {
                   vehicleName: v.name,
                   odoKm: v.totalKm,
                   batteryPercent: v.batteryPercent,
+                  online: device?.online ?? false,
+                  lockState: device?.lockState,
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -89,16 +98,8 @@ class ControlTab extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: _SquareButton(
-                        icon: v.isRunning
-                            ? Icons.pause_circle
-                            : Icons.play_circle,
-                        label: v.isRunning ? 'Pause' : 'Start',
-                        active: v.isRunning,
-                        onTap: () => fleet.setRunning(!v.isRunning),
-                      ),
-                    ),
+                    // UNLOCK button — sends command to vehicle and waits for OK (30 s)
+                    Expanded(child: _InlockButton(vehicleId: v.id)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _SquareButton(
@@ -123,10 +124,9 @@ class ControlTab extends StatelessWidget {
     );
   }
 
+  // Dialog accepts 3-digit vehicle number; ID becomes haq-trk-xxx.
   static Future<void> _showAddVehicleDialog(BuildContext context) async {
-    final nameCtl = TextEditingController();
-    final odoCtl = TextEditingController(text: '0');
-    final batCtl = TextEditingController(text: '80');
+    final numCtl = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -134,22 +134,23 @@ class ControlTab extends StatelessWidget {
         title: const Text('Add New Vehicle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: nameCtl,
-              decoration: const InputDecoration(labelText: 'Vehicle Name'),
+            const Text(
+              'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
+            const SizedBox(height: 12),
             TextField(
-              controller: odoCtl,
+              controller: numCtl,
               keyboardType: TextInputType.number,
+              maxLength: 3,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
-                labelText: 'Total km (ODO)',
+                labelText: 'Vehicle Number (e.g. 001)',
+                prefixText: 'haq-trk-',
+                border: OutlineInputBorder(),
               ),
-            ),
-            TextField(
-              controller: batCtl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Battery (%)'),
             ),
           ],
         ),
@@ -168,22 +169,15 @@ class ControlTab extends StatelessWidget {
 
     if (ok != true) return;
 
-    final name = nameCtl.text.trim();
-    if (name.isEmpty) return;
-
-    final odo = double.tryParse(odoCtl.text.trim()) ?? 0;
-    final bat = int.tryParse(batCtl.text.trim()) ?? 80;
+    final number = numCtl.text.trim().padLeft(3, '0');
+    if (number.isEmpty || number.length != 3) return;
 
     try {
-      await context.read<FleetProvider>().addVehicle(
-        name: name,
-        totalKm: odo,
-        batteryPercent: bat,
-      );
+      await context.read<FleetProvider>().addVehicle(vehicleNumber: number);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vehicle added and synced to Firebase.')),
+          SnackBar(content: Text('Added haq-trk-$number to Firebase.')),
         );
       }
     } catch (e) {
@@ -319,11 +313,15 @@ class _HeroCard extends StatelessWidget {
   final String vehicleName;
   final double odoKm;
   final int batteryPercent;
+  final bool online;
+  final DeviceLockState? lockState;
 
   const _HeroCard({
     required this.vehicleName,
     required this.odoKm,
     required this.batteryPercent,
+    this.online = false,
+    this.lockState,
   });
 
   @override
@@ -380,6 +378,34 @@ class _HeroCard extends StatelessWidget {
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // Online/Offline dot
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: online
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            online ? 'Online' : 'Offline',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (lockState != null) ...[
+                            const SizedBox(width: 10),
+                            _LockStateBadge(state: lockState!),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -670,6 +696,131 @@ class _SquareButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 30, color: fg),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Small badge showing Active / Locked / Pause state.
+class _LockStateBadge extends StatelessWidget {
+  final DeviceLockState state;
+  const _LockStateBadge({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (state) {
+      DeviceLockState.active => ('Active', Colors.greenAccent),
+      DeviceLockState.locked => ('Locked', Colors.redAccent),
+      DeviceLockState.pause => ('Pause', Colors.orangeAccent),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// UNLOCK button — sends 'UNLOCK' via DeviceProvider and waits for OK (30 s timeout).
+class _InlockButton extends StatefulWidget {
+  final String vehicleId;
+  const _InlockButton({required this.vehicleId});
+
+  @override
+  State<_InlockButton> createState() => _InlockButtonState();
+}
+
+class _InlockButtonState extends State<_InlockButton> {
+  bool _loading = false;
+
+  Future<void> _onTap() async {
+    final deviceProvider = context.read<DeviceProvider>();
+    final device = deviceProvider.deviceById(widget.vehicleId);
+    if (device == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Device not found in MQTT registry.')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final ok = await deviceProvider.sendInlock(widget.vehicleId);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Command acknowledged by device.'
+              : 'No response — timeout (30 s).',
+        ),
+        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deviceProvider = context.watch<DeviceProvider>();
+    final device = deviceProvider.deviceById(widget.vehicleId);
+    final lockState = device?.lockState ?? DeviceLockState.locked;
+    final isPending = deviceProvider.isPendingLock(widget.vehicleId);
+
+    final isLocked = lockState == DeviceLockState.locked;
+    final icon = _loading || isPending
+        ? Icons.hourglass_top
+        : (isLocked ? Icons.lock_open : Icons.lock);
+    final label = _loading || isPending
+        ? 'Waiting…'
+        : (isLocked ? 'Unlock' : 'Lock');
+
+    final bg = isLocked
+        ? Colors.orange.withValues(alpha: 0.15)
+        : Colors.red.withValues(alpha: 0.12);
+    final fg = isLocked ? Colors.orange.shade700 : Colors.red.shade600;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: (_loading || isPending) ? null : _onTap,
+      child: Container(
+        height: 82,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: bg,
+          border: Border.all(color: fg.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_loading || isPending)
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: fg),
+              )
+            else
+              Icon(icon, size: 30, color: fg),
             const SizedBox(height: 8),
             Text(
               label,

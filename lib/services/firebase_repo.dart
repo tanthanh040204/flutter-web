@@ -479,19 +479,22 @@ class FirebaseRepo {
     }
   }
 
+  // Create a vehicle with an explicit ID (format: haq-trk-xxx).
   Future<String> createVehicle({
-    required String name,
+    required String vehicleId,
     int batteryPercent = 80,
     double totalKm = 0,
     LatLng? lastLocation,
   }) async {
-    final nextId = await getNextVehicleId();
+    final safeId = vehicleId.trim();
+    if (safeId.isEmpty) throw ArgumentError('vehicleId cannot be empty');
+
     final location = lastLocation ?? const LatLng(21.0287, 105.8522);
 
     await saveVehicle(
       Vehicle(
-        id: nextId,
-        name: name,
+        id: safeId,
+        name: safeId,
         batteryPercent: batteryPercent.clamp(0, 100).toInt(),
         isLocked: true,
         isRunning: false,
@@ -504,34 +507,19 @@ class FirebaseRepo {
       ),
     );
 
-    await ensureDefaultMaintenanceItems(nextId);
-    return nextId;
+    await ensureDefaultMaintenanceItems(safeId);
+    return safeId;
   }
 
-  Future<String> getNextVehicleId() async {
+  // Delete a vehicle document and its sub-collections are pruned over time by TTL.
+  Future<void> deleteVehicle(String vehicleId) async {
     final vehicles = _vehicles;
     if (vehicles == null) {
-      return 'V${_nextVehicleNumber(_localVehicles.keys) + 1}';
+      _localVehicles.remove(vehicleId);
+      _emitLocalVehicles();
+      return;
     }
-
-    try {
-      final snap = await vehicles.get();
-      return 'V${_nextVehicleNumber(snap.docs.map((d) => d.id)) + 1}';
-    } catch (_) {
-      return 'V${_nextVehicleNumber(_localVehicles.keys) + 1}';
-    }
-  }
-
-  int _nextVehicleNumber(Iterable<String> ids) {
-    int maxNumber = 0;
-    for (final rawId in ids) {
-      final id = rawId.trim().toUpperCase();
-      final match = RegExp(r'^V(\d+)$').firstMatch(id);
-      if (match == null) continue;
-      final number = int.tryParse(match.group(1) ?? '0') ?? 0;
-      if (number > maxNumber) maxNumber = number;
-    }
-    return maxNumber;
+    await vehicles.doc(vehicleId).delete();
   }
 
   Stream<List<Vehicle>> watchVehicles() {
@@ -761,9 +749,14 @@ class FirebaseRepo {
   }
 
   int _vehicleSortKey(String id) {
-    final match = RegExp(r'^(?:V|v)(\d+)$').firstMatch(id.trim());
-    if (match == null) return 1 << 30;
-    return int.tryParse(match.group(1) ?? '') ?? (1 << 30);
+    final s = id.trim();
+    // haq-trk-001 format
+    final matchNew = RegExp(r'^haq-trk-(\d+)$').firstMatch(s);
+    if (matchNew != null) return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
+    // Legacy V1/V2 format
+    final matchOld = RegExp(r'^(?:V|v)(\d+)$').firstMatch(s);
+    if (matchOld != null) return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
+    return 1 << 30;
   }
 
   String? _asString(dynamic value) {

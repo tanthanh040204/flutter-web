@@ -2,6 +2,8 @@
 // @brief      Tab UI for More.
 
 /* Imports ------------------------------------------------------------ */
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +42,13 @@ class _MoreTabState extends State<MoreTab> {
   final _mqttMessageCtrl = TextEditingController();
   final List<_SentEntry> _sentLog = [];
 
+  // ---- MQTT live data/noti log (populated in initState) ----
+  final List<_LogEntry> _dataLog = [];
+  final List<_LogEntry> _notiLog = [];
+  StreamSubscription<MqttDataMessage>? _dataSub;
+  StreamSubscription<MqttNotiMessage>? _notiSub;
+  bool _logsInited = false;
+
   bool _hideCurrent = true;
   bool _hideNew = true;
   bool _hideConfirm = true;
@@ -48,7 +57,43 @@ class _MoreTabState extends State<MoreTab> {
   bool _isSavingEmployee = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _logsInited) return;
+      _logsInited = true;
+      final mqtt = context.read<MqttService>();
+
+      _dataSub = mqtt.dataMessages.listen((msg) {
+        if (!mounted) return;
+        setState(() {
+          _dataLog.insert(0, _LogEntry(
+            deviceId: msg.deviceId,
+            text: msg.raw,
+            time: DateTime.now(),
+          ));
+          if (_dataLog.length > 60) _dataLog.removeLast();
+        });
+      });
+
+      _notiSub = mqtt.notifications.listen((msg) {
+        if (!mounted) return;
+        setState(() {
+          _notiLog.insert(0, _LogEntry(
+            deviceId: msg.deviceId,
+            text: msg.message,
+            time: DateTime.now(),
+          ));
+          if (_notiLog.length > 60) _notiLog.removeLast();
+        });
+      });
+    });
+  }
+
+  @override
   void dispose() {
+    _dataSub?.cancel();
+    _notiSub?.cancel();
     _currentPasswordCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -751,7 +796,17 @@ class _MoreTabState extends State<MoreTab> {
 
   Widget _buildMqttTab() {
     final deviceProvider = context.watch<DeviceProvider>();
+    final fleet = context.watch<FleetProvider>();
     final notiList = deviceProvider.notifications;
+    final selectedId = fleet.selectedOrNull?.id;
+    final filteredData = _dataLog
+        .where((e) => selectedId == null || e.deviceId == selectedId)
+        .take(20)
+        .toList();
+    final filteredNoti = _notiLog
+        .where((e) => selectedId == null || e.deviceId == selectedId)
+        .take(20)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -915,6 +970,115 @@ class _MoreTabState extends State<MoreTab> {
               ),
             ),
         ],
+
+        // ---- Live /data log ----
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const Text(
+              'Live Data Log (/data)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => setState(() => _dataLog.clear()),
+              icon: const Icon(Icons.clear_all, size: 16),
+              label: const Text('Clear', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (filteredData.isEmpty) ...[
+          const Text(
+            'No data received yet.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ] else ...[
+          for (final entry in filteredData)
+            Card(
+              margin: const EdgeInsets.only(bottom: 4),
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.data_object, size: 18),
+                title: Text(
+                  entry.text,
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${entry.deviceId}  •  ${_fmtTime(entry.time)}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy, size: 15),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: entry.text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+
+        // ---- Live /noti log ----
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const Text(
+              'Live Noti Log (/noti)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => setState(() => _notiLog.clear()),
+              icon: const Icon(Icons.clear_all, size: 16),
+              label: const Text('Clear', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (filteredNoti.isEmpty) ...[
+          const Text(
+            'No notifications received yet.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ] else ...[
+          for (final entry in filteredNoti)
+            Card(
+              margin: const EdgeInsets.only(bottom: 4),
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.notifications_outlined, size: 18),
+                title: Text(
+                  entry.text,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: Text(
+                  '${entry.deviceId}  •  ${_fmtTime(entry.time)}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy, size: 15),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: entry.text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -1056,6 +1220,18 @@ class _SentLogTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LogEntry {
+  final String deviceId;
+  final String text;
+  final DateTime time;
+
+  const _LogEntry({
+    required this.deviceId,
+    required this.text,
+    required this.time,
+  });
 }
 
 /* End of file -------------------------------------------------------- */

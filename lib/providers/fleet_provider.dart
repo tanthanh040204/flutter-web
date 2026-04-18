@@ -57,30 +57,21 @@ class FleetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addVehicle({
-    required String name,
-    int batteryPercent = 80,
-    double totalKm = 0,
-    LatLng? lastLocation,
-  }) async {
+  // Add vehicle with 3-digit number — creates ID haq-trk-xxx in Firebase.
+  Future<void> addVehicle({required String vehicleNumber}) async {
     if (_isAddingVehicle) return;
+
+    final vehicleId = 'haq-trk-$vehicleNumber';
 
     _isAddingVehicle = true;
     _lastError = null;
     notifyListeners();
 
     try {
-      final newId = await FirebaseRepo.instance.createVehicle(
-        name: name,
-        batteryPercent: batteryPercent,
-        totalKm: totalKm,
-        lastLocation: lastLocation,
-      );
+      await FirebaseRepo.instance.createVehicle(vehicleId: vehicleId);
 
-      final newIndex = _vehicles.indexWhere((v) => v.id == newId);
-      if (newIndex >= 0) {
-        _selectedIndex = newIndex;
-      }
+      final newIndex = _vehicles.indexWhere((v) => v.id == vehicleId);
+      if (newIndex >= 0) _selectedIndex = newIndex;
     } catch (e) {
       _lastError = e.toString();
       rethrow;
@@ -88,6 +79,19 @@ class FleetProvider extends ChangeNotifier {
       _isAddingVehicle = false;
       notifyListeners();
     }
+  }
+
+  Future<void> deleteVehicle(String vehicleId) async {
+    await FirebaseRepo.instance.deleteVehicle(vehicleId);
+
+    final index = _vehicles.indexWhere((v) => v.id == vehicleId);
+    if (index < 0) return;
+
+    _vehicles.removeAt(index);
+    if (_selectedIndex >= _vehicles.length) {
+      _selectedIndex = _vehicles.isEmpty ? 0 : _vehicles.length - 1;
+    }
+    notifyListeners();
   }
 
   Future<void> renameSelected(String name) async {
@@ -192,6 +196,11 @@ class FleetProvider extends ChangeNotifier {
           ..clear()
           ..addAll(remote);
 
+        // Auto-subscribe MQTT topics for all vehicles from Firebase
+        for (final v in _vehicles) {
+          _mqttService?.subscribeDevice(v.id);
+        }
+
         if (_vehicles.isEmpty) {
           _selectedIndex = 0;
         } else {
@@ -214,6 +223,11 @@ class FleetProvider extends ChangeNotifier {
   void bindToMqtt(MqttService service) {
     _mqttService = service;
     _mqttSub?.cancel();
+
+    // Subscribe topics for vehicles already loaded from Firebase
+    for (final v in _vehicles) {
+      service.subscribeDevice(v.id);
+    }
 
     _mqttSub = service.vehicleStates.listen(
       (message) {
@@ -257,50 +271,55 @@ class FleetProvider extends ChangeNotifier {
 
     _vehicles[index] = next;
     notifyListeners();
+
+    // Persist latest sensor/location data to Firebase for all devices
+    FirebaseRepo.instance.saveVehicle(next).catchError((e) {
+      debugPrint('[FleetProvider] Firebase save error: $e');
+    });
   }
 
-  Future<void> sendSetLock(bool locked) async {
+  void sendSetLock(bool locked) {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': locked ? 'lock' : 'unlock',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> sendSetRunning(bool running) async {
+  void sendSetRunning(bool running) {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': running ? 'start' : 'stop',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> requestHorn() async {
+  void requestHorn() {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': 'horn',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> requestFindVehicle() async {
+  void requestFindVehicle() {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': 'find_vehicle',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,

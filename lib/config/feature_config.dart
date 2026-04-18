@@ -57,7 +57,7 @@ class FeatureConfig {
   // Timeout
   static const int offlineTimeoutMs = 30000;
   // Device keepalive timeout (ms)
-  static const int keepaliveTimeoutMs = 45000;
+  static const int keepaliveTimeoutMs = 60000;
   // Interval for checking offline devices (ms)
   static const int offlineCheckIntervalMs = 5000;
 }

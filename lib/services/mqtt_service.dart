@@ -180,15 +180,16 @@ class MqttService {
     _isConnected = false;
   }
 
-  // Subscribe device topics for data and notifications
+  // Subscribe device topics for data and notifications.
+  // No-op for topics already subscribed — safe to call repeatedly.
   void subscribeDevice(String deviceId) {
     final topics = [
       '$deviceId${FeatureConfig.topicDataSuffix}',
       '$deviceId${FeatureConfig.topicNotiSuffix}',
     ];
     for (final topic in topics) {
-      _subscribedTopics.add(topic);
-      if (_isConnected && _client != null) {
+      final isNew = _subscribedTopics.add(topic);
+      if (isNew && _isConnected && _client != null) {
         _client!.subscribe(topic, MqttQos.atMostOnce);
         if (FeatureConfig.debugMqttLog) {
           debugPrint('[MQTT] Subscribed: $topic');

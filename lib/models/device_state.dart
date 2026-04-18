@@ -57,7 +57,8 @@ class RoutePoint {
 }
 
 /* Enums -------------------------------------------------------------- */
-enum DeviceLockState { active, locked }
+// active = rented and running, locked = not rented, pause = rented but temporarily locked by renter
+enum DeviceLockState { active, locked, pause }
 class DeviceState {
   final String id;
   final String color;

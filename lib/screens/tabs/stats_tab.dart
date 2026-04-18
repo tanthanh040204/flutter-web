@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/simple_bar_chart.dart';
@@ -27,6 +28,48 @@ class _StatsTabState extends State<StatsTab> {
     if (km < 70) return Colors.green;
     if (km <= 95) return Colors.orange;
     return Colors.red;
+  }
+
+  Future<void> _confirmDeleteVehicle(
+    BuildContext context,
+    FleetProvider fleet,
+    Vehicle v,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Vehicle'),
+        content: Text('Delete "${v.name}" (${v.id})? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    try {
+      await fleet.deleteVehicle(v.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${v.id} deleted.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -53,7 +96,7 @@ class _StatsTabState extends State<StatsTab> {
         title: const Text('Stats'),
         actions: [
           const VehiclePicker(),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: days,
@@ -64,7 +107,14 @@ class _StatsTabState extends State<StatsTab> {
               onChanged: (v) => setState(() => days = v ?? 7),
             ),
           ),
-          const SizedBox(width: 12),
+          // Delete the currently selected vehicle
+          IconButton(
+            tooltip: 'Delete selected vehicle',
+            icon: const Icon(Icons.delete_outline),
+            color: Colors.red.shade400,
+            onPressed: () => _confirmDeleteVehicle(context, fleet, v),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: ListView(
