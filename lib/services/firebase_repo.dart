@@ -465,6 +465,7 @@ class FirebaseRepo {
         'temp': v.temp,
         'hum': v.hum,
         'dust': v.dust,
+        'velocityKmh': v.velocityKmh,
         'lastLocation': {
           'lat': v.lastLocation.latitude,
           'lon': v.lastLocation.longitude,
@@ -502,6 +503,7 @@ class FirebaseRepo {
         temp: 0,
         hum: 0,
         dust: 0,
+        velocityKmh: 0,
         lastLocation: location,
         updatedAt: DateTime.now(),
       ),
@@ -743,6 +745,7 @@ class FirebaseRepo {
       temp: _asDouble(m['temp']) ?? 0.0,
       hum: _asDouble(m['hum']) ?? 0.0,
       dust: _asDouble(m['dust']) ?? 0.0,
+      velocityKmh: _asDouble(m['velocityKmh']) ?? 0.0,
       lastLocation: LatLng(lat, lon),
       updatedAt: updatedAt,
     );

@@ -25,6 +25,15 @@ class ControlTab extends StatelessWidget {
     final deviceProvider = context.watch<DeviceProvider>();
     final device = v != null ? deviceProvider.deviceById(v.id) : null;
 
+    final tripM = device?.latest?.distanceM;
+    final controlTripKmStr = tripM == null
+        ? '--'
+        : '${(tripM / 1000.0).toStringAsFixed(2)} km';
+    final velLive = fleet.selectedVelocityKmh;
+    final controlSpeedStr = velLive == null
+        ? '--'
+        : '${velLive.toStringAsFixed(1)} km/h';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Control'),
@@ -57,36 +66,60 @@ class ControlTab extends StatelessWidget {
                   lockState: device?.lockState,
                 ),
                 const SizedBox(height: 14),
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.thermostat,
-                        title: 'Temperature',
-                        value: fleet.selectedTemp == null
-                            ? '--'
-                            : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.thermostat,
+                            title: 'Temperature',
+                            value: fleet.selectedTemp == null
+                                ? '--'
+                                : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.water_drop,
+                            title: 'Humidity',
+                            value: fleet.selectedHum == null
+                                ? '--'
+                                : '${fleet.selectedHum!.toStringAsFixed(1)} %',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.air,
+                            title: 'Dust value',
+                            value: fleet.selectedDust == null
+                                ? '--'
+                                : fleet.selectedDust!.toStringAsFixed(1),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.water_drop,
-                        title: 'Humidity',
-                        value: fleet.selectedHum == null
-                            ? '--'
-                            : '${fleet.selectedHum!.toStringAsFixed(1)} %',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.air,
-                        title: 'Dust value',
-                        value: fleet.selectedDust == null
-                            ? '--'
-                            : '${fleet.selectedDust!.toStringAsFixed(1)}',
-                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.speed,
+                            title: 'Speed',
+                            value: controlSpeedStr,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.route,
+                            title: 'Trip distance',
+                            value: controlTripKmStr,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

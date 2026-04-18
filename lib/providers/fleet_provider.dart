@@ -50,6 +50,7 @@ class FleetProvider extends ChangeNotifier {
   double? get selectedTemp => selectedOrNull?.temp;
   double? get selectedHum => selectedOrNull?.hum;
   double? get selectedDust => selectedOrNull?.dust;
+  double? get selectedVelocityKmh => selectedOrNull?.velocityKmh;
 
   void selectVehicle(int index) {
     if (index < 0 || index >= _vehicles.length) return;
@@ -261,7 +262,21 @@ class FleetProvider extends ChangeNotifier {
       ).clamp(0, 100).toInt(),
       isLocked: _toBool(data['isLocked'], current.isLocked),
       isRunning: _toBool(data['isRunning'], current.isRunning),
-      totalKm: _toDouble(data['totalKm'], current.totalKm),
+      totalKm: data.containsKey('totalKm')
+          ? _toDouble(data['totalKm'], current.totalKm)
+          : current.totalKm,
+      temp: data.containsKey('temp')
+          ? _toDouble(data['temp'], current.temp)
+          : current.temp,
+      hum: data.containsKey('hum')
+          ? _toDouble(data['hum'], current.hum)
+          : current.hum,
+      dust: data.containsKey('dust')
+          ? _toDouble(data['dust'], current.dust)
+          : current.dust,
+      velocityKmh: data.containsKey('velocityKmh')
+          ? _toDouble(data['velocityKmh'], current.velocityKmh)
+          : current.velocityKmh,
       lastLocation: LatLng(
         _toDouble(data['lat'], current.lastLocation.latitude),
         _toDouble(data['lon'], current.lastLocation.longitude),

@@ -17,6 +17,8 @@ class Vehicle {
   final double temp;
   final double hum;
   final double dust;
+  /// Live speed from last MQTT /data (km/h); not persisted as critical odometer data.
+  final double velocityKmh;
 
   final LatLng lastLocation;
   final DateTime updatedAt;
@@ -31,6 +33,7 @@ class Vehicle {
     this.temp = 0,
     this.hum = 0,
     this.dust = 0,
+    this.velocityKmh = 0,
     required this.lastLocation,
     required this.updatedAt,
   });
@@ -44,6 +47,7 @@ class Vehicle {
     double? temp,
     double? hum,
     double? dust,
+    double? velocityKmh,
     LatLng? lastLocation,
     DateTime? updatedAt,
   }) {
@@ -57,6 +61,7 @@ class Vehicle {
       temp: temp ?? this.temp,
       hum: hum ?? this.hum,
       dust: dust ?? this.dust,
+      velocityKmh: velocityKmh ?? this.velocityKmh,
       lastLocation: lastLocation ?? this.lastLocation,
       updatedAt: updatedAt ?? this.updatedAt,
     );

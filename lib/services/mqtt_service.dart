@@ -316,22 +316,26 @@ class MqttService {
       );
 
       // Backward-compat: map MCU data → MqttVehicleState cho FleetProvider
+      final vKmh = parsed.velocityKmh ??
+          (parsed.velocityMs != null ? parsed.velocityMs! * 3.6 : null);
+      final payload = <String, dynamic>{
+        'id': deviceId,
+        'batteryPercent': (parsed.battery ?? 0).toInt(),
+        'lat': parsed.lat ?? 0.0,
+        'lon': parsed.lng ?? 0.0,
+        'isLocked': false,
+        'isRunning': (vKmh ?? 0) > 0,
+      };
+      if (parsed.distanceM != null) {
+        payload['totalKm'] = parsed.distanceM! / 1000.0;
+      }
+      if (parsed.temp != null) payload['temp'] = parsed.temp;
+      if (parsed.hum != null) payload['hum'] = parsed.hum;
+      if (parsed.dust != null) payload['dust'] = parsed.dust;
+      if (vKmh != null) payload['velocityKmh'] = vKmh;
+
       _vehicleStateController.add(
-        MqttVehicleState(
-          topic: topic,
-          payload: {
-            'id': deviceId,
-            'batteryPercent': (parsed.battery ?? 0).toInt(),
-            'lat': parsed.lat ?? 0.0,
-            'lon': parsed.lng ?? 0.0,
-            'totalKm': (parsed.distanceM ?? 0) / 1000.0,
-            'isLocked': false,
-            'isRunning': (parsed.velocityKmh ?? 0) > 0,
-            'temp': parsed.temp ?? 0.0,
-            'hum': parsed.hum ?? 0.0,
-            'dust': parsed.dust ?? 0.0,
-          },
-        ),
+        MqttVehicleState(topic: topic, payload: payload),
       );
     } else if (topic.endsWith(notiSuffix)) {
       // ---- NOTI message ----

@@ -139,9 +139,14 @@ class DataParser {
       lng: lng,
       timestamp: timestamp,
       battery: toD(json['battery']),
-      velocityMs: toD(json['velocity_ms']),
-      velocityKmh: toD(json['velocity_kmh']),
-      distanceM: toD(json['distance_m']),
+      velocityMs: toD(json['velocity_ms']) ?? toD(json['speed_ms']),
+      velocityKmh: toD(json['velocity_kmh']) ??
+          toD(json['speed_kmh']) ??
+          toD(json['speed']),
+      distanceM: toD(json['distance_m']) ??
+          toD(json['distance']) ??
+          toD(json['dist_m']) ??
+          toD(json['odo_m']),
       directionDeg: directionDeg,
       directionStr: directionStr,
       dust: toD(json['dust']),
