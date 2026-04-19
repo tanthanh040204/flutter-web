@@ -12,6 +12,7 @@ import 'providers/auth_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/fleet_provider.dart';
 import 'providers/maintenance_provider.dart';
+import 'providers/rental_provider.dart';
 import 'providers/trip_provider.dart';
 import 'screens/app_bootstrap.dart';
 import 'services/mqtt_service.dart';
@@ -50,6 +51,7 @@ class RouteTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FleetProvider()),
         ChangeNotifierProvider(create: (_) => TripProvider()),
         ChangeNotifierProvider(create: (_) => MaintenanceProvider()),
+        ChangeNotifierProvider(create: (_) => RentalProvider()),
       ],
       child: MaterialApp(
         title: 'Route Tracker',
