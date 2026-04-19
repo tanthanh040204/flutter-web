@@ -19,6 +19,7 @@ class DeviceData {
   final double? temp; // C
   final double? hum; // %
 
+  // Debug fields (not from device, but useful for development)
   // ---- Fusion – Accelerometer ----
   final double? accRx;
   final double? accRy;

@@ -57,7 +57,7 @@ class MqttVehicleState {
 //                → dataMessages stream → DeviceProvider
 //                → notifications stream → DeviceProvider
 //
-// Topics MCU (khớp với web):
+// Topics MCU and web:
 //   <deviceId>/data  – subscription (subscribe)
 //   <deviceId>/noti  – notification  (subscribe)
 //   <deviceId>/cmd   – control command (publish)
@@ -65,7 +65,7 @@ class MqttService {
   MqttClient? _client;
   bool _isConnected = false;
 
-  // Tập topics đã subscribe (để re-sub sau reconnect)
+  // Set of currently subscribed topics to avoid duplicate subscriptions, re-subscribe on reconnect.
   final Set<String> _subscribedTopics = {};
 
   // ---- Streams ----
@@ -77,20 +77,17 @@ class MqttService {
   final _vehicleStateController =
       StreamController<MqttVehicleState>.broadcast();
 
-  // Stream parsed data
+  // Stream parsed data, notifications, and connection state to listeners (providers).
   Stream<MqttDataMessage> get dataMessages => _dataController.stream;
-
-  // Stream notification từ <deviceId>/noti
   Stream<MqttNotiMessage> get notifications => _notiController.stream;
-
-  // Stream state
   Stream<bool> get connectionState => _connectionController.stream;
 
-  // Backward-compat: stream vehicle state (dùng bởi FleetProvider)
+  // Backward-compat: stream vehicle state (use by FleetProvider)
   Stream<MqttVehicleState> get vehicleStates => _vehicleStateController.stream;
 
   bool get isConnected => _isConnected;
 
+  /* Public functions --------------------------------------------------- */
   // Connect to MQTT broker with configured settings.
   Future<void> connect() async {
     if (_isConnected && _client != null) return;
@@ -212,7 +209,7 @@ class MqttService {
     }
   }
 
-  // Backward-compat: subscribe tất cả device mặc định từ FeatureConfig.
+  // Backward-compat: subscribe all devices from FeatureConfig.
   Future<void> subscribeFleetState() async {
     for (final id in FeatureConfig.defaultDevices) {
       subscribeDevice(id);
@@ -316,7 +313,8 @@ class MqttService {
       );
 
       // Backward-compat: map MCU data → MqttVehicleState cho FleetProvider
-      final vKmh = parsed.velocityKmh ??
+      final vKmh =
+          parsed.velocityKmh ??
           (parsed.velocityMs != null ? parsed.velocityMs! * 3.6 : null);
       final payload = <String, dynamic>{
         'id': deviceId,
