@@ -21,6 +21,12 @@ class FeatureConfig {
   static const String topicNotiSuffix = '/noti';
   // Command topic: web -> device
   static const String topicCmdSuffix = '/cmd';
+  // Rental request topic: mobile app -> web
+  static const String topicAppWebSuffix = '/app_web';
+  // Rental response topic: web -> mobile app
+  static const String topicWebAppSuffix = '/web_app';
+  // Token request topic: external system -> web (credit tokens to a user)
+  static const String tokenRequestTopic = 'Q7M4K2P/request';
 
   // Client ID prefix for MQTT connection
   static const String mqttClientIdPrefix = 'flutter-haq-';

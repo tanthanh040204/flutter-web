@@ -36,6 +36,20 @@ class MqttNotiMessage {
   const MqttNotiMessage({required this.deviceId, required this.message});
 }
 
+// Message from mobile app via topic <bikeId>/app_web
+class MqttRentalRequestMessage {
+  final String bikeId;
+  final String raw;
+
+  const MqttRentalRequestMessage({required this.bikeId, required this.raw});
+}
+
+// Message from topic Q7M4K2P/request — add tokens to a user account.
+class MqttTokenRequestMessage {
+  final String raw;
+  const MqttTokenRequestMessage({required this.raw});
+}
+
 // Backward-compat: vehicle state từ bridge server (vehicles/+/state)
 class MqttVehicleState {
   final String topic;
@@ -72,6 +86,10 @@ class MqttService {
   final _dataController = StreamController<MqttDataMessage>.broadcast();
   final _notiController = StreamController<MqttNotiMessage>.broadcast();
   final _connectionController = StreamController<bool>.broadcast();
+  final _rentalRequestController =
+      StreamController<MqttRentalRequestMessage>.broadcast();
+  final _tokenRequestController =
+      StreamController<MqttTokenRequestMessage>.broadcast();
 
   // Backward-compat stream cho FleetProvider
   final _vehicleStateController =
@@ -81,6 +99,14 @@ class MqttService {
   Stream<MqttDataMessage> get dataMessages => _dataController.stream;
   Stream<MqttNotiMessage> get notifications => _notiController.stream;
   Stream<bool> get connectionState => _connectionController.stream;
+
+  // Messages from mobile app via topic <bikeId>/app_web
+  Stream<MqttRentalRequestMessage> get rentalRequests =>
+      _rentalRequestController.stream;
+
+  // Messages from topic Q7M4K2P/request — add tokens to user accounts
+  Stream<MqttTokenRequestMessage> get tokenRequests =>
+      _tokenRequestController.stream;
 
   // Backward-compat: stream vehicle state (use by FleetProvider)
   Stream<MqttVehicleState> get vehicleStates => _vehicleStateController.stream;
@@ -170,6 +196,19 @@ class MqttService {
     }
 
     _client!.updates!.listen(_onMessage);
+
+    // Subscribe to the token request topic
+    _subscribeRaw(FeatureConfig.tokenRequestTopic);
+  }
+
+  void _subscribeRaw(String topic) {
+    final isNew = _subscribedTopics.add(topic);
+    if (isNew && _isConnected && _client != null) {
+      _client!.subscribe(topic, MqttQos.atMostOnce);
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint('[MQTT] Subscribed: $topic');
+      }
+    }
   }
 
   void disconnect() {
@@ -183,6 +222,7 @@ class MqttService {
     final topics = [
       '$deviceId${FeatureConfig.topicDataSuffix}',
       '$deviceId${FeatureConfig.topicNotiSuffix}',
+      '$deviceId${FeatureConfig.topicAppWebSuffix}',
     ];
     for (final topic in topics) {
       final isNew = _subscribedTopics.add(topic);
@@ -237,6 +277,12 @@ class MqttService {
     return publish(vehicleId, jsonEncode(payload));
   }
 
+  // Publish response to mobile app via topic <bikeId>/app_web
+  bool publishToApp(String bikeId, String message) {
+    final topic = '$bikeId${FeatureConfig.topicWebAppSuffix}';
+    return publishRaw(topic, message);
+  }
+
   // Publish to topic
   bool publishRaw(String topic, String message) {
     if (!_isConnected || _client == null) {
@@ -256,6 +302,8 @@ class MqttService {
     _dataController.close();
     _notiController.close();
     _connectionController.close();
+    _rentalRequestController.close();
+    _tokenRequestController.close();
     _vehicleStateController.close();
   }
 
@@ -301,6 +349,22 @@ class MqttService {
   void _handleMessage(String topic, String raw) {
     final dataSuffix = FeatureConfig.topicDataSuffix;
     final notiSuffix = FeatureConfig.topicNotiSuffix;
+    final appWebSuffix = FeatureConfig.topicAppWebSuffix;
+
+    if (topic == FeatureConfig.tokenRequestTopic) {
+      // ---- TOKEN REQUEST ----
+      _tokenRequestController.add(MqttTokenRequestMessage(raw: raw.trim()));
+      return;
+    }
+
+    if (topic.endsWith(appWebSuffix)) {
+      // ---- RENTAL REQUEST from mobile app ----
+      final bikeId = topic.substring(0, topic.length - appWebSuffix.length);
+      _rentalRequestController.add(
+        MqttRentalRequestMessage(bikeId: bikeId, raw: raw.trim()),
+      );
+      return;
+    }
 
     if (topic.endsWith(dataSuffix)) {
       // ---- DATA message ----

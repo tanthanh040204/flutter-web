@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/device_provider.dart';
 import '../providers/fleet_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/rental_provider.dart';
 import '../providers/trip_provider.dart';
 import '../services/mqtt_service.dart';
 import 'family_root_screen.dart';
@@ -62,7 +63,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
       }
 
       if (FeatureConfig.enableMqtt) {
-        _initMqtt(mqtt, fleet, deviceProvider);
+        _initMqtt(mqtt, fleet, deviceProvider, context.read<RentalProvider>());
       }
 
       syncAll();
@@ -75,6 +76,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
     MqttService mqtt,
     FleetProvider fleet,
     DeviceProvider deviceProvider,
+    RentalProvider rentalProvider,
   ) async {
     try {
       await mqtt.connect();
@@ -84,6 +86,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
       // Bind FleetProvider backward-compat (vehicleStates stream)
       fleet.bindToMqtt(mqtt);
+
+      // Bind RentalProvider để xử lý START_RENTAL từ mobile app
+      rentalProvider.bindToMqtt(mqtt);
 
       // subscribeFleetState() nay subscribe topics của defaultDevices
       await mqtt.subscribeFleetState();
