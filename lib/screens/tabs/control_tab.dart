@@ -773,7 +773,7 @@ class _LockStateBadge extends StatelessWidget {
   }
 }
 
-// Lock / Unlock / Resume — DeviceProvider.sendInlock maps state → LOCK or UNLOCK; waits for OK (30 s).
+// Lock / Unlock / Resume — DeviceProvider.sendUnlock maps state → LOCK or UNLOCK; waits for OK (30 s).
 class _InlockButton extends StatefulWidget {
   final String vehicleId;
   const _InlockButton({required this.vehicleId});
@@ -796,7 +796,7 @@ class _InlockButtonState extends State<_InlockButton> {
     }
 
     setState(() => _loading = true);
-    final ok = await deviceProvider.sendInlock(widget.vehicleId);
+    final ok = await deviceProvider.sendUnlock(widget.vehicleId);
     if (!mounted) return;
     setState(() => _loading = false);
 
@@ -825,17 +825,17 @@ class _InlockButtonState extends State<_InlockButton> {
     final icon = _loading || isPending
         ? Icons.hourglass_top
         : (isLocked
-            ? Icons.lock_open
-            : isPause
-                ? Icons.play_circle_outline
-                : Icons.lock);
+              ? Icons.lock_open
+              : isPause
+              ? Icons.play_circle_outline
+              : Icons.lock);
     final label = _loading || isPending
         ? 'Waiting…'
         : (isLocked
-            ? 'Unlock'
-            : isPause
-                ? 'Resume'
-                : 'Lock');
+              ? 'Unlock'
+              : isPause
+              ? 'Resume'
+              : 'Lock');
 
     final bg = (isLocked || isPause)
         ? Colors.orange.withValues(alpha: 0.15)

@@ -193,7 +193,7 @@ class DeviceProvider extends ChangeNotifier {
 
   // Send LOCK or UNLOCK command and wait for OK response (max 30 s).
   // Returns true if OK received, false on timeout or error.
-  Future<bool> sendInlock(String deviceId) async {
+  Future<bool> sendUnlock(String deviceId) async {
     final mqtt = _mqttService;
     if (mqtt == null || !_mqttConnected) return false;
 

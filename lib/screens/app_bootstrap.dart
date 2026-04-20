@@ -87,10 +87,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
       // Bind FleetProvider backward-compat (vehicleStates stream)
       fleet.bindToMqtt(mqtt);
 
-      // Bind RentalProvider để xử lý START_RENTAL từ mobile app
-      rentalProvider.bindToMqtt(mqtt);
+      // Bind RentalProvider handle rental: start, stop, add tokens, etc.
+      rentalProvider.bindToMqtt(mqtt, deviceProvider);
 
-      // subscribeFleetState() nay subscribe topics của defaultDevices
+      // subscribeFleetState() subscribe topics của defaultDevices
       await mqtt.subscribeFleetState();
     } catch (e) {
       debugPrint('[AppBootstrap] MQTT init failed: $e');
