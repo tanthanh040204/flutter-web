@@ -66,6 +66,11 @@ class FeatureConfig {
   static const int keepaliveTimeoutMs = 60000;
   // Interval for checking offline devices (ms)
   static const int offlineCheckIntervalMs = 5000;
+
+  // Renta;l service
+  static const int rentalBlockDurationsMinutes = 30;
+  static const int minTokenToRent = 10000; // 10,000 tokens = 30 minutes rental
+  static const int outOfZonePenaltyTokens = 5000;
 }
 
 /* End of file -------------------------------------------------------- */
