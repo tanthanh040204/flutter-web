@@ -144,14 +144,42 @@ class RentalProvider extends ChangeNotifier {
       _handleAppPause(bikeId, raw.substring('PAUSE='.length).trim());
     } else if (raw.startsWith('RESUME=')) {
       _handleResume(bikeId, raw.substring('RESUME='.length).trim());
+    } else if (raw.startsWith('STOP_RENTAL=')) {
+      _handleStop(bikeId, raw.substring('STOP_RENTAL='.length).trim());
     }
   }
 
   // ---- Noti from device (via bike_id/noti) ---------------------------
 
   void _onNotiMessage(MqttNotiMessage msg) {
-    if (msg.message.trim().toUpperCase() == 'NOTI_PAUSE') {
-      _handleDevicePause(msg.deviceId);
+    final token = msg.message.trim().toUpperCase();
+    final bikeId = msg.deviceId;
+    if (token == 'NOTI_PAUSE') {
+      _handleDevicePause(bikeId);
+    } else if (token == 'STOP_RENTAL') {
+      final rental = _activeRentals[bikeId];
+      if (rental != null) _handleStop(bikeId, rental.userId);
+    }
+  }
+
+  // ---- Stop rental (user-initiated, checks GPS) ----------------------
+
+  Future<void> _handleStop(String bikeId, String userId) async {
+    final mqtt = _mqtt;
+    if (mqtt == null) return;
+
+    final rental = _activeRentals[bikeId];
+    if (rental == null || rental.userId != userId) {
+      mqtt.publishToApp(bikeId, 'STOP_RENTAL_FAIL=$userId');
+      return;
+    }
+
+    if (_isInValidParkingArea(bikeId)) {
+      await _endRental(bikeId, userId, status: 'OK');
+    } else {
+      mqtt.publishToApp(bikeId, 'STOP_RENTAL_FAIL=$userId');
+      mqtt.publish(bikeId, 'STOP_RENTAL_FAIL');
+      debugPrint('[Rental] STOP_RENTAL_FAIL bikeId=$bikeId userId=$userId — outside parking zone');
     }
   }
 
