@@ -117,19 +117,22 @@ class RentalProvider extends ChangeNotifier {
 
     final userId = parts[0].trim();
     final amount = int.tryParse(parts[1].trim());
-    if (amount == null || amount <= 0) return;
+
+    if (amount == null || amount <= 0) {
+      mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_ERROR=ERR_INVALID_AMOUNT');
+      debugPrint('[Token] ERR_INVALID_AMOUNT: userId=$userId raw=${parts[1]}');
+      return;
+    }
 
     if (!_userIds.contains(userId)) {
+      mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_ERROR=ERR_USER_NOT_FOUND');
       debugPrint('[Token] ERR_USER_NOT_FOUND: $userId');
       return;
     }
 
     _userTokens[userId] = (_userTokens[userId] ?? 0) + amount;
     notifyListeners();
-    mqtt?.publishRaw(
-      '$userId/response',
-      'ADD_TOKEN_SUCCESS=${_userTokens[userId]}',
-    );
+    mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_SUCCESS=${_userTokens[userId]}');
     debugPrint('[Token] +$amount → $userId (total: ${_userTokens[userId]})');
   }
 
