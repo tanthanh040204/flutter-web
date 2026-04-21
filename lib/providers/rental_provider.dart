@@ -119,20 +119,29 @@ class RentalProvider extends ChangeNotifier {
     final amount = int.tryParse(parts[1].trim());
 
     if (amount == null || amount <= 0) {
-      mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_ERROR=ERR_INVALID_AMOUNT');
+      mqtt?.publishRaw(
+        '$userId/response',
+        'RESP_ADD_TOKEN_ERROR=ERR_INVALID_AMOUNT',
+      );
       debugPrint('[Token] ERR_INVALID_AMOUNT: userId=$userId raw=${parts[1]}');
       return;
     }
 
     if (!_userIds.contains(userId)) {
-      mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_ERROR=ERR_USER_NOT_FOUND');
+      mqtt?.publishRaw(
+        '$userId/response',
+        'RESP_ADD_TOKEN_ERROR=ERR_USER_NOT_FOUND',
+      );
       debugPrint('[Token] ERR_USER_NOT_FOUND: $userId');
       return;
     }
 
     _userTokens[userId] = (_userTokens[userId] ?? 0) + amount;
     notifyListeners();
-    mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_SUCCESS=${_userTokens[userId]}');
+    mqtt?.publishRaw(
+      '$userId/response',
+      'RESP_ADD_TOKEN_SUCCESS=${_userTokens[userId]}',
+    );
     debugPrint('[Token] +$amount → $userId (total: ${_userTokens[userId]})');
   }
 
@@ -178,11 +187,14 @@ class RentalProvider extends ChangeNotifier {
     }
 
     if (_isInValidParkingArea(bikeId)) {
+      mqtt.publish(bikeId, 'STOP_RENTAL_SUCCESS');
       await _endRental(bikeId, userId, status: 'OK');
     } else {
       mqtt.publishToApp(bikeId, 'STOP_RENTAL_FAIL=$userId');
       mqtt.publish(bikeId, 'STOP_RENTAL_FAIL');
-      debugPrint('[Rental] STOP_RENTAL_FAIL bikeId=$bikeId userId=$userId — outside parking zone');
+      debugPrint(
+        '[Rental] STOP_RENTAL_FAIL bikeId=$bikeId userId=$userId — outside parking zone',
+      );
     }
   }
 
@@ -491,16 +503,16 @@ class RentalProvider extends ChangeNotifier {
 
   // Center coordinates of each parking zone.
   static const List<({double lat, double lng})> _parkingZoneCenters = [
-    (lat: 10.762622, lng: 106.660172), // Bãi xe A - Quận 3
-    (lat: 10.773461, lng: 106.698055), // Bãi xe B - Quận Bình Thạnh
-    (lat: 10.780000, lng: 106.680000), // Bãi xe C - Quận Phú Nhuận
+    (lat: 10.853205, lng: 106.782647), // 9/2g 904 street, Hiep Phu
+    (lat: 10.849908, lng: 106.771621), // UTE university, district 9
+    (lat: 10.846085, lng: 106.797446), // UTE D2, Le Van Viet street
   ];
 
   // Radius (metres) for each zone — same index as _parkingZoneCenters.
   static const List<double> _parkingZoneRadii = [
-    50.0, // Bãi xe A
-    80.0, // Bãi xe B
-    60.0, // Bãi xe C
+    50.0, // Parking zone A
+    80.0, // Parking zone B
+    60.0, // Parking zone C
   ];
 
   // Returns true if the bike's latest GPS is within any parking zone.
@@ -515,6 +527,10 @@ class RentalProvider extends ChangeNotifier {
           radius) {
         return true;
       }
+      debugPrint(
+        '[Rental] GPS check bikeId=$bikeId zone=${String.fromCharCode(65 + i)} '
+        'distance=${_haversineMeters(data.lat!, data.lng!, zone.lat, zone.lng).toStringAsFixed(1)}m',
+      );
     }
     return false;
   }
