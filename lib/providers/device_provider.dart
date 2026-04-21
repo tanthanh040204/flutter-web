@@ -372,6 +372,7 @@ class DeviceProvider extends ChangeNotifier {
         break;
 
       case 'STATE_PAUSE':
+      case 'NOTI_PAUSE':
         next = current.copyWith(
           lockState: DeviceLockState.pause,
           lastSeen: now,
