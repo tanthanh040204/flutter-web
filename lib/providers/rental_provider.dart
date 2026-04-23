@@ -38,7 +38,8 @@ class RentalProvider extends ChangeNotifier {
   // ---- Add user_id entries here manually ----
   final List<String> _userIds = [
     'user_1234567890',
-    // 'user_0987654321',
+    'user_1132298001',
+    'user_0987654321',
   ];
 
   // bikeId → 30-min block timer
