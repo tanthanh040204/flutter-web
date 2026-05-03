@@ -1,0 +1,21 @@
+QUAN TRỌNG:
+Project này đọc dữ liệu xe ở path Firestore:
+vehicles / V1
+vehicles / V2
+...
+
+KHÔNG đọc ở cấu trúc cũ:
+V1 / V1
+V2 / V1
+
+Ví dụ document đúng:
+Collection: vehicles
+Document: V1
+Fields:
+- name
+- batteryPercent
+- isLocked
+- isRunning
+- totalKm
+- lastLocation.lat
+- lastLocation.lon

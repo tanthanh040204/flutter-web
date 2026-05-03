@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "123455912744",
+    "firebase_url": "https://datn-2026-86599-default-rtdb.firebaseio.com",
+    "project_id": "datn-2026-86599",
+    "storage_bucket": "datn-2026-86599.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123455912744:android:e0e06e4bae5c99ae572e1d",
+        "android_client_info": {
+          "package_name": "com.example.first_flutter_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjeOGFZ-NeUB5D1-0yepV7ZanNaSFX0lQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123455912744:android:1bd0a463e635edce572e1d",
+        "android_client_info": {
+          "package_name": "com.routetracker.route_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjeOGFZ-NeUB5D1-0yepV7ZanNaSFX0lQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
