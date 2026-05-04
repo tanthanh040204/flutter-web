@@ -13,6 +13,7 @@ class DeviceData {
   final double? velocityMs; // m/s
   final double? velocityKmh; // km/h
   final double? distanceM; // m
+  final double? totalKm; // cumulative odometer (km), persisted across power cycles
   final double? directionDeg; // degrees (0-360)
   final String? directionStr; // "NE", "SE", …
   final double? dust; // µg/m³
@@ -58,6 +59,7 @@ class DeviceData {
     this.velocityMs,
     this.velocityKmh,
     this.distanceM,
+    this.totalKm,
     this.directionDeg,
     this.directionStr,
     this.dust,

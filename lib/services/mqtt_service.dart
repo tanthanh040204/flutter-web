@@ -388,8 +388,8 @@ class MqttService {
         'isLocked': false,
         'isRunning': (vKmh ?? 0) > 0,
       };
-      if (parsed.distanceM != null) {
-        payload['totalKm'] = parsed.distanceM! / 1000.0;
+      if (parsed.totalKm != null) {
+        payload['totalKm'] = parsed.totalKm;
       }
       if (parsed.temp != null) payload['temp'] = parsed.temp;
       if (parsed.hum != null) payload['hum'] = parsed.hum;

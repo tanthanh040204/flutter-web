@@ -147,6 +147,7 @@ class DataParser {
           toD(json['distance']) ??
           toD(json['dist_m']) ??
           toD(json['odo_m']),
+      totalKm: toD(json['totalKm']) ?? toD(json['total_km']),
       directionDeg: directionDeg,
       directionStr: directionStr,
       dust: toD(json['dust']),

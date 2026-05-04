@@ -18,6 +18,13 @@ class FleetProvider extends ChangeNotifier {
   StreamSubscription<List<Vehicle>>? _vehiclesSub;
   MqttService? _mqttService;
   StreamSubscription<MqttVehicleState>? _mqttSub;
+  StreamSubscription<MqttNotiMessage>? _notiSub;
+
+  // Last seen totalKm per vehicle — used to compute delta for maintenance
+  final Map<String, double> _lastSeenTotalKm = {};
+
+  // Vehicles awaiting OK ack for CLEAR_TOTAL_DISTANCE
+  final Set<String> _pendingClearTotal = {};
 
   int _selectedIndex = 0;
   bool _isSyncing = false;
@@ -224,6 +231,7 @@ class FleetProvider extends ChangeNotifier {
   void bindToMqtt(MqttService service) {
     _mqttService = service;
     _mqttSub?.cancel();
+    _notiSub?.cancel();
 
     // Subscribe topics for vehicles already loaded from Firebase
     for (final v in _vehicles) {
@@ -239,6 +247,47 @@ class FleetProvider extends ChangeNotifier {
         notifyListeners();
       },
     );
+
+    _notiSub = service.notifications.listen(_onNoti);
+  }
+
+  // Broadcast CLEAR_TOTAL_DISTANCE to every vehicle's /cmd topic. Each device
+  // is added to a pending set; when the device replies "OK" on /noti, that
+  // vehicle's totalKm is reset to 0 (see _onNoti).
+  bool clearTotalDistance() {
+    final mqtt = _mqttService;
+    if (mqtt == null || _vehicles.isEmpty) return false;
+
+    var sent = false;
+    for (final v in _vehicles) {
+      if (mqtt.publish(v.id, 'CLEAR_TOTAL_DISTANCE')) {
+        _pendingClearTotal.add(v.id);
+        sent = true;
+      }
+    }
+    if (sent) notifyListeners();
+    return sent;
+  }
+
+  void _onNoti(MqttNotiMessage msg) {
+    final token = msg.message.trim().toUpperCase();
+    if (token != 'OK') return;
+    if (!_pendingClearTotal.remove(msg.deviceId)) return;
+
+    final index = _vehicles.indexWhere((v) => v.id == msg.deviceId);
+    if (index < 0) return;
+
+    _lastSeenTotalKm[msg.deviceId] = 0;
+    final reset = _vehicles[index].copyWith(
+      totalKm: 0,
+      updatedAt: DateTime.now(),
+    );
+    _vehicles[index] = reset;
+    notifyListeners();
+
+    FirebaseRepo.instance.saveVehicle(reset).catchError((e) {
+      debugPrint('[FleetProvider] saveVehicle after clear error: $e');
+    });
   }
 
   void applyMqttState(Map<String, dynamic> data) {
@@ -255,6 +304,26 @@ class FleetProvider extends ChangeNotifier {
 
     final current = _vehicles[index];
 
+    // ---- totalKm + maintenance accrual ----
+    double nextTotalKm = current.totalKm;
+    if (data.containsKey('totalKm')) {
+      nextTotalKm = _toDouble(data['totalKm'], current.totalKm);
+
+      // Seed baseline on first sighting; thereafter only positive deltas count.
+      // A drop in totalKm means the device was reset (CLEAR_TOTAL_DISTANCE) —
+      // re-seed without crediting maintenance.
+      final last = _lastSeenTotalKm[id];
+      if (last != null && nextTotalKm > last) {
+        final deltaKm = nextTotalKm - last;
+        FirebaseRepo.instance
+            .incrementMaintenanceByDistance(id, deltaKm)
+            .catchError((e) {
+          debugPrint('[FleetProvider] incrementMaintenance error: $e');
+        });
+      }
+      _lastSeenTotalKm[id] = nextTotalKm;
+    }
+
     final next = current.copyWith(
       batteryPercent: _toInt(
         data['batteryPercent'],
@@ -262,9 +331,7 @@ class FleetProvider extends ChangeNotifier {
       ).clamp(0, 100).toInt(),
       isLocked: _toBool(data['isLocked'], current.isLocked),
       isRunning: _toBool(data['isRunning'], current.isRunning),
-      totalKm: data.containsKey('totalKm')
-          ? _toDouble(data['totalKm'], current.totalKm)
-          : current.totalKm,
+      totalKm: nextTotalKm,
       temp: data.containsKey('temp')
           ? _toDouble(data['temp'], current.temp)
           : current.temp,
@@ -365,6 +432,7 @@ class FleetProvider extends ChangeNotifier {
   void dispose() {
     _vehiclesSub?.cancel();
     _mqttSub?.cancel();
+    _notiSub?.cancel();
     super.dispose();
   }
 }

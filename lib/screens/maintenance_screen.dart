@@ -24,6 +24,11 @@ class MaintenanceScreen extends StatelessWidget {
         title: const Text('Maintenance'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.restart_alt),
+            tooltip: 'Reset total distance on all devices',
+            onPressed: () => _confirmClearTotalDistance(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showAddItem(context),
           ),
@@ -145,6 +150,41 @@ class MaintenanceScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _confirmClearTotalDistance(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reset total distance?'),
+        content: const Text(
+          'CLEAR_TOTAL_DISTANCE will be sent to every device. Each device\'s '
+          'total km will reset to 0 once it acknowledges with OK.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+
+    final sent = context.read<FleetProvider>().clearTotalDistance();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(sent
+            ? 'CLEAR_TOTAL_DISTANCE sent. Waiting for OK from devices...'
+            : 'Could not send command (MQTT not connected or no devices).'),
       ),
     );
   }
