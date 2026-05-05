@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'tabs/control_tab.dart';
 import 'tabs/stats_tab.dart';
 import 'tabs/location_tab.dart';
+import 'tabs/stations_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/notifications_tab.dart';
 import 'tabs/more_tab.dart';
@@ -29,6 +30,7 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
       ControlTab(),
       StatsTab(),
       LocationTab(),
+      StationsTab(),
       HistoryTab(),
       NotificationsTab(),
       MoreTab(),
@@ -44,6 +46,7 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Controls'),
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Location'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_parking), label: 'Stations'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
           BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
