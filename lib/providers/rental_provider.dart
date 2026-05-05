@@ -7,6 +7,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import '../config/feature_config.dart';
+import '../models/parking_zone.dart';
+import '../models/rental_user.dart';
+import '../services/firebase_repo.dart';
 import 'device_provider.dart';
 import '../services/mqtt_service.dart';
 
@@ -35,12 +38,25 @@ class ActiveRental {
 
 /* Public classes ----------------------------------------------------- */
 class RentalProvider extends ChangeNotifier {
-  // ---- Add user_id entries here manually ----
   final List<String> _userIds = [
     'user_1234567890',
     'user_1132298001',
     'user_0987654321',
   ];
+  final List<({double lat, double lng})> _zoneCenters = [
+    (lat: 10.853205, lng: 106.782647),
+    (lat: 10.849908, lng: 106.771621),
+    (lat: 10.846085, lng: 106.797446),
+  ];
+  final List<double> _zoneRadii = [50.0, 80.0, 60.0];
+  final List<String> _zoneNames = [
+    '9/2g 904 street, Hiep Phu',
+    'UTE university, district 9',
+    'UTE D2, Le Van Viet street',
+  ];
+
+  StreamSubscription<List<ParkingZone>>? _zonesSub;
+  StreamSubscription<List<RentalUser>>? _usersSub;
 
   // bikeId → 30-min block timer
   final Map<String, Timer> _blockTimers = {};
@@ -108,6 +124,50 @@ class RentalProvider extends ChangeNotifier {
     _notiSub = mqtt.notifications.listen(_onNotiMessage);
   }
 
+  void bindToFirebase() {
+    _zonesSub?.cancel();
+    _zonesSub = FirebaseRepo.instance.watchParkingZones().listen(
+      _onZonesUpdated,
+    );
+    _usersSub?.cancel();
+    _usersSub = FirebaseRepo.instance.watchRentalUsers().listen(
+      _onRentalUsersUpdated,
+    );
+  }
+
+  void _onZonesUpdated(List<ParkingZone> zones) {
+    if (zones.isEmpty) return;
+    _zoneCenters
+      ..clear()
+      ..addAll(zones.map((z) => (lat: z.lat, lng: z.lng)));
+    _zoneRadii
+      ..clear()
+      ..addAll(zones.map((z) => z.radiusMeters));
+    _zoneNames
+      ..clear()
+      ..addAll(zones.map((z) => z.name));
+    debugPrint('[Rental] parking zones synced from Firestore: ${zones.length}');
+    notifyListeners();
+  }
+
+  void _onRentalUsersUpdated(List<RentalUser> users) {
+    if (users.isEmpty) return;
+    _userIds
+      ..clear()
+      ..addAll(users.map((u) => u.userId));
+    for (final u in users) {
+      _userTokens[u.userId] = u.tokens;
+    }
+    debugPrint('[Rental] rental users synced from Firestore: ${users.length}');
+    notifyListeners();
+  }
+
+  void _persistTokens(String userId) {
+    final tokens = _userTokens[userId] ?? 0;
+    // Fire-and-forget; offline mode silently no-ops inside FirebaseRepo.
+    unawaited(FirebaseRepo.instance.setRentalUserTokens(userId, tokens));
+  }
+
   // ---- Token requests ------------------------------------------------
 
   void _onTokenRequest(MqttTokenRequestMessage msg) {
@@ -138,6 +198,7 @@ class RentalProvider extends ChangeNotifier {
     }
 
     _userTokens[userId] = (_userTokens[userId] ?? 0) + amount;
+    _persistTokens(userId);
     notifyListeners();
     mqtt?.publishRaw(
       '$userId/response',
@@ -228,6 +289,7 @@ class RentalProvider extends ChangeNotifier {
 
     // Deduct first block deposit and mark in-progress
     _userTokens[userId] = balance - FeatureConfig.minTokenToRent;
+    _persistTokens(userId);
     _inProgressBikes.add(bikeId);
     notifyListeners();
 
@@ -237,6 +299,7 @@ class RentalProvider extends ChangeNotifier {
     if (!success) {
       _userTokens[userId] =
           (_userTokens[userId] ?? 0) + FeatureConfig.minTokenToRent;
+      _persistTokens(userId);
       notifyListeners();
       mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_UNLOCK_TIMEOUT');
       return;
@@ -286,6 +349,7 @@ class RentalProvider extends ChangeNotifier {
     if (balance >= rate * 2) {
       // Enough for this block + at least one more — deduct and continue
       _userTokens[userId] = balance - rate;
+      _persistTokens(userId);
       final r = _activeRentals[bikeId]!;
       _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
       notifyListeners();
@@ -295,6 +359,7 @@ class RentalProvider extends ChangeNotifier {
     } else if (balance >= rate) {
       // Last affordable block — deduct and warn
       _userTokens[userId] = balance - rate;
+      _persistTokens(userId);
       final r = _activeRentals[bikeId]!;
       _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
       notifyListeners();
@@ -502,28 +567,19 @@ class RentalProvider extends ChangeNotifier {
 
   // ---- Parking zones -------------------------------------------------
 
-  // Center coordinates of each parking zone.
-  static const List<({double lat, double lng})> _parkingZoneCenters = [
-    (lat: 10.853205, lng: 106.782647), // 9/2g 904 street, Hiep Phu
-    (lat: 10.849908, lng: 106.771621), // UTE university, district 9
-    (lat: 10.846085, lng: 106.797446), // UTE D2, Le Van Viet street
-  ];
-
-  // Radius (metres) for each zone — same index as _parkingZoneCenters.
-  static const List<double> _parkingZoneRadii = [
-    50.0, // Parking zone A
-    80.0, // Parking zone B
-    60.0, // Parking zone C
-  ];
+  List<({double lat, double lng})> get parkingZoneCenters =>
+      List.unmodifiable(_zoneCenters);
+  List<double> get parkingZoneRadii => List.unmodifiable(_zoneRadii);
+  List<String> get parkingZoneNames => List.unmodifiable(_zoneNames);
 
   // Returns true if the bike's latest GPS is within any parking zone.
   bool _isInValidParkingArea(String bikeId) {
     final data = _deviceProvider?.deviceById(bikeId)?.latest;
     if (data == null || !data.hasGps) return false;
 
-    for (var i = 0; i < _parkingZoneCenters.length; i++) {
-      final zone = _parkingZoneCenters[i];
-      final radius = _parkingZoneRadii[i];
+    for (var i = 0; i < _zoneCenters.length; i++) {
+      final zone = _zoneCenters[i];
+      final radius = _zoneRadii[i];
       if (_haversineMeters(data.lat!, data.lng!, zone.lat, zone.lng) <=
           radius) {
         return true;
@@ -578,6 +634,8 @@ class RentalProvider extends ChangeNotifier {
     _rentalSub?.cancel();
     _tokenSub?.cancel();
     _notiSub?.cancel();
+    _zonesSub?.cancel();
+    _usersSub?.cancel();
     for (final t in _blockTimers.values) {
       t.cancel();
     }

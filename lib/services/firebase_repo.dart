@@ -14,6 +14,8 @@ import '../models/employee_account.dart';
 import '../models/daily_stat.dart';
 import '../models/history_route.dart';
 import '../models/maintenance_item.dart';
+import '../models/parking_zone.dart';
+import '../models/rental_user.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
 
@@ -73,6 +75,149 @@ class FirebaseRepo {
 
   CollectionReference<Map<String, dynamic>>? get _appNotes =>
       _db?.collection('app_notes');
+
+  CollectionReference<Map<String, dynamic>>? get _parkingZones =>
+      _db?.collection('parking_zones');
+
+  CollectionReference<Map<String, dynamic>>? get _rentalUsers =>
+      _db?.collection('rental_users');
+
+  // ---- Parking zones (shared by web admin + mobile app) ----------------
+  static const List<ParkingZone> _seedParkingZones = <ParkingZone>[
+    ParkingZone(
+      id: 'PZ001',
+      name: '9/2g 904 street, Hiep Phu',
+      lat: 10.853205,
+      lng: 106.782647,
+      radiusMeters: 50.0,
+    ),
+    ParkingZone(
+      id: 'PZ002',
+      name: 'UTE university, district 9',
+      lat: 10.849908,
+      lng: 106.771621,
+      radiusMeters: 80.0,
+    ),
+    ParkingZone(
+      id: 'PZ003',
+      name: 'UTE D2, Le Van Viet street',
+      lat: 10.846085,
+      lng: 106.797446,
+      radiusMeters: 60.0,
+    ),
+  ];
+
+  Future<void> _ensureSeedParkingZones() async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+
+    final snap = await zones.limit(1).get();
+    if (snap.docs.isNotEmpty) return;
+
+    for (final zone in _seedParkingZones) {
+      await zones.doc(zone.id).set({
+        ...zone.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Stream<List<ParkingZone>> watchParkingZones() {
+    final zones = _parkingZones;
+    if (zones == null) {
+      return Stream.value(List<ParkingZone>.from(_seedParkingZones));
+    }
+
+    Future.microtask(_ensureSeedParkingZones);
+
+    return zones.snapshots().map((snap) {
+      final list = snap.docs
+          .map((doc) => ParkingZone.fromMap(doc.id, doc.data()))
+          .where((z) => z.isActive)
+          .toList();
+      list.sort((a, b) => a.id.compareTo(b.id));
+      return list;
+    });
+  }
+
+  Future<void> upsertParkingZone(ParkingZone zone) async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+    await zones.doc(zone.id).set({
+      ...zone.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteParkingZone(String zoneId) async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+    await zones.doc(zoneId).delete();
+  }
+
+  // ---- Rental users (shared by web admin + mobile app) -----------------
+  static const List<RentalUser> _seedRentalUsers = <RentalUser>[
+    RentalUser(userId: 'user_1234567890', tokens: 0),
+    RentalUser(userId: 'user_1132298001', tokens: 0),
+    RentalUser(userId: 'user_0987654321', tokens: 0),
+  ];
+
+  Future<void> _ensureSeedRentalUsers() async {
+    final users = _rentalUsers;
+    if (users == null) return;
+
+    final snap = await users.limit(1).get();
+    if (snap.docs.isNotEmpty) return;
+
+    for (final user in _seedRentalUsers) {
+      await users.doc(user.userId).set({
+        ...user.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Stream<List<RentalUser>> watchRentalUsers() {
+    final users = _rentalUsers;
+    if (users == null) {
+      return Stream.value(List<RentalUser>.from(_seedRentalUsers));
+    }
+
+    Future.microtask(_ensureSeedRentalUsers);
+
+    return users.snapshots().map((snap) {
+      final list = snap.docs
+          .map((doc) => RentalUser.fromMap(doc.id, doc.data()))
+          .toList();
+      list.sort((a, b) => a.userId.compareTo(b.userId));
+      return list;
+    });
+  }
+
+  Future<void> upsertRentalUser(RentalUser user) async {
+    final users = _rentalUsers;
+    if (users == null) return;
+    await users.doc(user.userId).set({
+      ...user.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setRentalUserTokens(String userId, int tokens) async {
+    final users = _rentalUsers;
+    if (users == null) return;
+    await users.doc(userId).set({
+      'userId': userId,
+      'tokens': tokens < 0 ? 0 : tokens,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteRentalUser(String userId) async {
+    final users = _rentalUsers;
+    if (users == null) return;
+    await users.doc(userId).delete();
+  }
 
   List<Vehicle> _sortedLocalVehicles() {
     final list = _localVehicles.values.toList();
