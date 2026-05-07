@@ -28,7 +28,7 @@ class MqttDataMessage {
   });
 }
 
-// Notification từ topic  <deviceId>/noti
+// Notification from topic <deviceId>/noti
 class MqttNotiMessage {
   final String deviceId;
   final String message;
@@ -50,7 +50,7 @@ class MqttTokenRequestMessage {
   const MqttTokenRequestMessage({required this.raw});
 }
 
-// Backward-compat: vehicle state từ bridge server (vehicles/+/state)
+// Backward-compat: vehicle state from bridge server (vehicles/+/state)
 class MqttVehicleState {
   final String topic;
   final Map<String, dynamic> payload;

@@ -7,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
+import '../utils/date_utils.dart';
 
 /* Public classes ----------------------------------------------------- */
 class TripDetailScreen extends StatelessWidget {
@@ -82,7 +83,7 @@ class _Summary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${_fmtDate(trip.startTime)}  •  ${_fmtTime(trip.startTime)} → ${_fmtTime(trip.endTime)}',
+            '${AppDateUtils.formatDate(trip.startTime)}  •  ${AppDateUtils.formatShortTime(trip.startTime)} → ${AppDateUtils.formatShortTime(trip.endTime)}',
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
@@ -93,8 +94,6 @@ class _Summary extends StatelessWidget {
     );
   }
 
-  static String _fmtTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  static String _fmtDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
 }
 
 class _SpeedChips extends StatelessWidget {

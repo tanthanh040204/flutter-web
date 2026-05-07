@@ -251,9 +251,6 @@ class FleetProvider extends ChangeNotifier {
     _notiSub = service.notifications.listen(_onNoti);
   }
 
-  // Broadcast CLEAR_TOTAL_DISTANCE to every vehicle's /cmd topic. Each device
-  // is added to a pending set; when the device replies "OK" on /noti, that
-  // vehicle's totalKm is reset to 0 (see _onNoti).
   bool clearTotalDistance() {
     final mqtt = _mqttService;
     if (mqtt == null || _vehicles.isEmpty) return false;
@@ -309,9 +306,6 @@ class FleetProvider extends ChangeNotifier {
     if (data.containsKey('totalKm')) {
       nextTotalKm = _toDouble(data['totalKm'], current.totalKm);
 
-      // Seed baseline on first sighting; thereafter only positive deltas count.
-      // A drop in totalKm means the device was reset (CLEAR_TOTAL_DISTANCE) —
-      // re-seed without crediting maintenance.
       final last = _lastSeenTotalKm[id];
       if (last != null && nextTotalKm > last) {
         final deltaKm = nextTotalKm - last;

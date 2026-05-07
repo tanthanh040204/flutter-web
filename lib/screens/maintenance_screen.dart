@@ -37,7 +37,7 @@ class MaintenanceScreen extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final it = items[i];
           final due = it.isDue;
@@ -105,13 +105,13 @@ class MaintenanceScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Chu kỳ: ${it.cycleKm.toStringAsFixed(0)} km',
+                  'Cycle: ${it.cycleKm.toStringAsFixed(0)} km',
                   style: TextStyle(
                     color: due ? Theme.of(context).colorScheme.error : null,
                   ),
                 ),
                 Text(
-                  'Đã đi: ${it.maintanceKm.toStringAsFixed(0)} km',
+                  'Travelled: ${it.maintanceKm.toStringAsFixed(0)} km',
                   style: TextStyle(
                     color: due ? Theme.of(context).colorScheme.error : null,
                     fontWeight: due ? FontWeight.w700 : FontWeight.w400,
@@ -191,6 +191,7 @@ class MaintenanceScreen extends StatelessWidget {
 
   Future<void> _showAddItem(BuildContext context) async {
     final fleet = context.read<FleetProvider>();
+    final maintenance = context.read<MaintenanceProvider>();
     final v = fleet.selected;
 
     final nameCtl = TextEditingController();
@@ -233,7 +234,7 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? 0;
     if (name.isEmpty || cycleKm <= 0) return;
 
-    await context.read<MaintenanceProvider>().addItem(
+    await maintenance.addItem(
           v.id,
           name: name,
           cycleKm: cycleKm,
@@ -246,6 +247,7 @@ class MaintenanceScreen extends StatelessWidget {
     double current,
   ) async {
     final fleet = context.read<FleetProvider>();
+    final maintenance = context.read<MaintenanceProvider>();
     final v = fleet.selected;
 
     final kmCtl = TextEditingController(text: current.toStringAsFixed(0));
@@ -277,7 +279,7 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? current;
     if (cycleKm <= 0) return;
 
-    await context.read<MaintenanceProvider>().updateCycleKm(
+    await maintenance.updateCycleKm(
           v.id,
           itemId,
           cycleKm,

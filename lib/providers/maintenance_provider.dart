@@ -61,28 +61,9 @@ class MaintenanceProvider extends ChangeNotifier {
 
     _creatingDefaults.add(vehicleId);
     try {
-      final defaults = <MaintenanceItem>[
-        const MaintenanceItem(
-          id: 'oil',
-          name: 'Thay nhớt',
-          maintanceKm: 0,
-          cycleKm: 2000,
-        ),
-        const MaintenanceItem(
-          id: 'brake',
-          name: 'Tra/Thay nhớt thắng',
-          maintanceKm: 0,
-          cycleKm: 4000,
-        ),
-        const MaintenanceItem(
-          id: 'battery',
-          name: 'Kiểm tra/Thay pin',
-          maintanceKm: 0,
-          cycleKm: 12000,
-        ),
-      ];
-
-      _byVehicle[vehicleId] = defaults;
+      _byVehicle[vehicleId] = List<MaintenanceItem>.from(
+        MaintenanceItem.defaultSeed,
+      );
       notifyListeners();
 
       await FirebaseRepo.instance.ensureDefaultMaintenanceItems(vehicleId);
@@ -147,7 +128,7 @@ class MaintenanceProvider extends ChangeNotifier {
 
     for (final it in list) {
       if (it.isDue) {
-        msgs.add('Đã đến lúc bảo dưỡng cho "${it.name}"');
+        msgs.add('Maintenance due for "${it.name}"');
       }
     }
     return msgs;

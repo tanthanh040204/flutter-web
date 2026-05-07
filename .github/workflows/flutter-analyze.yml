@@ -1,0 +1,38 @@
+name: Flutter analyze
+
+on:
+  push:
+    branches: [main, master, feature/server]
+  pull_request:
+    branches: [main, master, feature/server]
+
+jobs:
+  analyze:
+    name: flutter analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter & Dart versions
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting (non-blocking)
+        run: dart format --output=none --set-exit-if-changed lib/ || true
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Run tests
+        run: flutter test --reporter=expanded

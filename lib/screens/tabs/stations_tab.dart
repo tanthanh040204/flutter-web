@@ -32,14 +32,14 @@ class StationsTab extends StatelessWidget {
             : _kFallbackCenter;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Trạm xe')),
+          appBar: AppBar(title: const Text('Stations')),
           body: zones.isEmpty
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
-                      'Chưa có trạm nào. Thêm document trong Firestore '
-                      'collection "parking_zones" để hiển thị.',
+                      'No stations yet. Add a document under Firestore '
+                      'collection "parking_zones" to display one.',
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -106,7 +106,7 @@ class StationsTab extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '${zone.lat.toStringAsFixed(6)}, ${zone.lng.toStringAsFixed(6)}'
-                ' · bán kính ${zone.radiusMeters.toStringAsFixed(0)} m',
+                ' · radius ${zone.radiusMeters.toStringAsFixed(0)} m',
                 style: const TextStyle(fontSize: 13, color: Colors.black45),
               ),
               const SizedBox(height: 14),
@@ -115,7 +115,7 @@ class StationsTab extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () => _openInMaps(zone),
                   icon: const Icon(Icons.map_outlined),
-                  label: const Text('Mở Google Maps'),
+                  label: const Text('Open in Google Maps'),
                 ),
               ),
             ],

@@ -50,7 +50,7 @@ class SimpleBarChart extends StatelessWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                       ),
                       child: Stack(
                         alignment: Alignment.bottomCenter,

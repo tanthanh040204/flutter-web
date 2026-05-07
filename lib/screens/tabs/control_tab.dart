@@ -1,4 +1,4 @@
-// @file       control_tab.dart
+﻿// @file       control_tab.dart
 // @brief      Tab UI for Control.
 
 /* Imports ------------------------------------------------------------ */
@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../models/device_state.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../utils/date_utils.dart';
 
 /* Public classes ----------------------------------------------------- */
 class ControlTab extends StatelessWidget {
@@ -160,6 +161,7 @@ class ControlTab extends StatelessWidget {
   // Dialog accepts 3-digit vehicle number; ID becomes haq-trk-xxx.
   static Future<void> _showAddVehicleDialog(BuildContext context) async {
     final numCtl = TextEditingController();
+    final fleet = context.read<FleetProvider>();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -206,7 +208,7 @@ class ControlTab extends StatelessWidget {
     if (number.isEmpty || number.length != 3) return;
 
     try {
-      await context.read<FleetProvider>().addVehicle(vehicleNumber: number);
+      await fleet.addVehicle(vehicleNumber: number);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -298,9 +300,9 @@ class _InlineError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.08),
+        color: Colors.red.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withOpacity(0.2)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -374,11 +376,11 @@ class _HeroCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [primary.withOpacity(0.98), primary.withOpacity(0.58)],
+              colors: [primary.withValues(alpha: 0.98), primary.withValues(alpha: 0.58)],
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
+                color: Colors.black.withValues(alpha: 0.10),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -430,7 +432,7 @@ class _HeroCard extends StatelessWidget {
                           Text(
                             online ? 'Online' : 'Offline',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
+                              color: Colors.white.withValues(alpha: 0.85),
                               fontSize: 12,
                             ),
                           ),
@@ -442,9 +444,9 @@ class _HeroCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Tổng: ${odoKm.toStringAsFixed(1)} km',
+                        'Total: ${odoKm.toStringAsFixed(1)} km',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.92),
+                          color: Colors.white.withValues(alpha: 0.92),
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -492,7 +494,7 @@ class _GlowCircle extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withOpacity(opacity),
+        color: Colors.white.withValues(alpha: opacity),
       ),
     );
   }
@@ -524,12 +526,10 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
     super.dispose();
   }
 
-  String _two(int n) => n.toString().padLeft(2, '0');
-
   @override
   Widget build(BuildContext context) {
-    final date = '${_two(_now.day)}/${_two(_now.month)}/${_now.year}';
-    final time = '${_two(_now.hour)}:${_two(_now.minute)}:${_two(_now.second)}';
+    final date = AppDateUtils.formatDate(_now);
+    final time = AppDateUtils.formatTime(_now);
 
     return Container(
       decoration: BoxDecoration(
@@ -538,14 +538,14 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white.withOpacity(0.16),
-            Colors.white.withOpacity(0.09),
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.09),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1.2),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -558,7 +558,7 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
             Text(
               date,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.96),
+                color: Colors.white.withValues(alpha: 0.96),
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
@@ -568,7 +568,7 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
             Text(
               time,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.98),
+                color: Colors.white.withValues(alpha: 0.98),
                 fontSize: 44,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.4,
@@ -596,17 +596,17 @@ class _VehicleLogoBadge extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(0.10),
-            Colors.white.withOpacity(0.03),
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.03),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Center(
         child: Icon(
           Icons.electric_scooter,
           size: 98,
-          color: Colors.white.withOpacity(0.92),
+          color: Colors.white.withValues(alpha: 0.92),
         ),
       ),
     );
@@ -624,8 +624,8 @@ class _BatteryPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: Colors.white.withOpacity(0.12),
-        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        color: Colors.white.withValues(alpha: 0.12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -697,23 +697,18 @@ class _SquareButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
 
   const _SquareButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = Colors.green;
-    final bg = active
-        ? activeColor.withOpacity(0.14)
-        : Theme.of(context).colorScheme.surface;
-    final border = active ? activeColor.withOpacity(0.40) : Colors.transparent;
-    final fg = active ? activeColor : Theme.of(context).colorScheme.onSurface;
+    final bg = Theme.of(context).colorScheme.surface;
+    final border = Colors.transparent;
+    final fg = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -835,7 +830,7 @@ class _InlockButtonState extends State<_InlockButton> {
               ? 'Unlock'
               : isPause
               ? 'Resume'
-              : 'Lock');
+                : 'Lock');
 
     final bg = (isLocked || isPause)
         ? Colors.orange.withValues(alpha: 0.15)

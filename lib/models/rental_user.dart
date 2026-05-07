@@ -50,6 +50,16 @@ class RentalUser {
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
   }
+
+  // Default seed list — used by `FirebaseRepo` to seed the `rental_users`
+  // collection on first run, and by `RentalProvider` as the offline /
+  // pre-stream fallback. Keep in sync by always referencing this constant
+  // rather than duplicating literals.
+  static const List<RentalUser> defaultSeed = <RentalUser>[
+    RentalUser(userId: 'user_1234567890', tokens: 0),
+    RentalUser(userId: 'user_1132298001', tokens: 0),
+    RentalUser(userId: 'user_0987654321', tokens: 0),
+  ];
 }
 
 /* End of file -------------------------------------------------------- */

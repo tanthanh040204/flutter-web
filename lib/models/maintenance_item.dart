@@ -50,6 +50,30 @@ class MaintenanceItem {
       cycleKm: asDouble(map['cycleKm'] ?? map['intervalKm']),
     );
   }
+
+  // Default seed list — used by both `MaintenanceProvider.ensureDefaults`
+  // and `FirebaseRepo.ensureDefaultMaintenanceItems`. Keep them in sync
+  // by always referencing this constant rather than duplicating literals.
+  static const List<MaintenanceItem> defaultSeed = <MaintenanceItem>[
+    MaintenanceItem(
+      id: 'oil',
+      name: 'Oil change',
+      maintanceKm: 0,
+      cycleKm: 2000,
+    ),
+    MaintenanceItem(
+      id: 'brake',
+      name: 'Brake fluid service',
+      maintanceKm: 0,
+      cycleKm: 4000,
+    ),
+    MaintenanceItem(
+      id: 'battery',
+      name: 'Battery check / replacement',
+      maintanceKm: 0,
+      cycleKm: 12000,
+    ),
+  ];
 }
 
 /* End of file -------------------------------------------------------- */

@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import '../config/feature_config.dart';
 import '../models/device_state.dart';
 import '../services/mqtt_service.dart';
+import '../utils/date_utils.dart';
 
 /* Public classes ----------------------------------------------------- */
 class DeviceNotification {
@@ -225,11 +226,14 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     final completer = Completer<bool>();
-    final timer = Timer(const Duration(seconds: 30), () {
-      _pendingLocks.remove(deviceId);
-      if (!completer.isCompleted) completer.complete(false);
-      notifyListeners();
-    });
+    final timer = Timer(
+      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
+      () {
+        _pendingLocks.remove(deviceId);
+        if (!completer.isCompleted) completer.complete(false);
+        notifyListeners();
+      },
+    );
 
     _pendingLocks[deviceId] = _PendingLock(
       targetState: targetState,
@@ -277,7 +281,7 @@ class DeviceProvider extends ChangeNotifier {
     final now = DateTime.now();
 
     // Append raw data to debug log
-    _appendLog(_rawDataLog, deviceId, _fmtTime(now), msg.raw);
+    _appendLog(_rawDataLog, deviceId, AppDateUtils.formatTime(now), msg.raw);
 
     List<RoutePoint> nextPoints = List.of(current.routePoints);
 
@@ -317,7 +321,7 @@ class DeviceProvider extends ChangeNotifier {
     final now = DateTime.now();
 
     // Append raw noti to debug log
-    _appendLog(_rawNotiLog, deviceId, _fmtTime(now), message);
+    _appendLog(_rawNotiLog, deviceId, AppDateUtils.formatTime(now), message);
 
     final token = message.trim().toUpperCase();
 
@@ -443,13 +447,6 @@ class DeviceProvider extends ChangeNotifier {
     final log = logMap.putIfAbsent(deviceId, () => []);
     log.add('[$time] $text');
     if (log.length > _maxLogLines) log.removeAt(0);
-  }
-
-  static String _fmtTime(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    final s = dt.second.toString().padLeft(2, '0');
-    return '$h:$m:$s';
   }
 
   static bool _isValidCoord(double lat, double lng) =>

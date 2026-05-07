@@ -39,9 +39,9 @@ class HistoryRouteRecord {
   String get buttonLabel {
     final end = endAt;
     if (end == null) {
-      return '${_fmt(startAt)} đến đang nhận dữ liệu';
+      return '${_fmt(startAt)} → receiving data';
     }
-    return '${_fmt(startAt)} đến ${_fmt(end)}';
+    return '${_fmt(startAt)} → ${_fmt(end)}';
   }
 }
 

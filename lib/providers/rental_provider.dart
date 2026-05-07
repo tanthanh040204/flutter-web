@@ -38,22 +38,20 @@ class ActiveRental {
 
 /* Public classes ----------------------------------------------------- */
 class RentalProvider extends ChangeNotifier {
-  final List<String> _userIds = [
-    'user_1234567890',
-    'user_1132298001',
-    'user_0987654321',
-  ];
-  final List<({double lat, double lng})> _zoneCenters = [
-    (lat: 10.853205, lng: 106.782647),
-    (lat: 10.849908, lng: 106.771621),
-    (lat: 10.846085, lng: 106.797446),
-  ];
-  final List<double> _zoneRadii = [50.0, 80.0, 60.0];
-  final List<String> _zoneNames = [
-    '9/2g 904 street, Hiep Phu',
-    'UTE university, district 9',
-    'UTE D2, Le Van Viet street',
-  ];
+  // Mirrored from Firestore (collection: parking_zones). The default seed
+  // values are kept as a fallback so the provider still works in offline /
+  // demo mode before Firebase has streamed in any data.
+  final List<ParkingZone> _zones = List<ParkingZone>.from(
+    ParkingZone.defaultSeed,
+  );
+
+  // Mirrored from Firestore (collection: rental_users). Map shape because
+  // we mutate token balances during the rental flow. Seeded with default
+  // users so token requests still resolve before the Firestore stream
+  // delivers its first batch.
+  final Map<String, int> _userTokens = {
+    for (final u in RentalUser.defaultSeed) u.userId: u.tokens,
+  };
 
   StreamSubscription<List<ParkingZone>>? _zonesSub;
   StreamSubscription<List<RentalUser>>? _usersSub;
@@ -66,9 +64,6 @@ class RentalProvider extends ChangeNotifier {
   final Map<String, Timer> _graceCheckers = {};
   // bikeId → 1-hour pause timeout timer
   final Map<String, Timer> _pauseTimeoutTimers = {};
-
-  // userId → current token balance
-  final Map<String, int> _userTokens = {};
 
   // bikeId → active rental session
   final Map<String, ActiveRental> _activeRentals = {};
@@ -93,7 +88,6 @@ class RentalProvider extends ChangeNotifier {
         '${two(vn.hour)}:${two(vn.minute)}:${two(vn.second)}';
   }
 
-  List<String> get userIds => List.unmodifiable(_userIds);
   List<ActiveRental> get activeRentals =>
       List.unmodifiable(_activeRentals.values.toList());
 
@@ -101,17 +95,6 @@ class RentalProvider extends ChangeNotifier {
   bool isBikeRented(String bikeId) => _activeRentals.containsKey(bikeId);
   bool isBikePaused(String bikeId) => _pausedBikes.contains(bikeId);
   int tokensOf(String userId) => _userTokens[userId] ?? 0;
-
-  void addUserId(String userId) {
-    final id = userId.trim();
-    if (id.isEmpty || _userIds.contains(id)) return;
-    _userIds.add(id);
-    notifyListeners();
-  }
-
-  void removeUserId(String userId) {
-    if (_userIds.remove(userId)) notifyListeners();
-  }
 
   void bindToMqtt(MqttService mqtt, DeviceProvider deviceProvider) {
     _mqtt = mqtt;
@@ -137,24 +120,16 @@ class RentalProvider extends ChangeNotifier {
 
   void _onZonesUpdated(List<ParkingZone> zones) {
     if (zones.isEmpty) return;
-    _zoneCenters
+    _zones
       ..clear()
-      ..addAll(zones.map((z) => (lat: z.lat, lng: z.lng)));
-    _zoneRadii
-      ..clear()
-      ..addAll(zones.map((z) => z.radiusMeters));
-    _zoneNames
-      ..clear()
-      ..addAll(zones.map((z) => z.name));
+      ..addAll(zones);
     debugPrint('[Rental] parking zones synced from Firestore: ${zones.length}');
     notifyListeners();
   }
 
   void _onRentalUsersUpdated(List<RentalUser> users) {
     if (users.isEmpty) return;
-    _userIds
-      ..clear()
-      ..addAll(users.map((u) => u.userId));
+    _userTokens.clear();
     for (final u in users) {
       _userTokens[u.userId] = u.tokens;
     }
@@ -188,7 +163,7 @@ class RentalProvider extends ChangeNotifier {
       return;
     }
 
-    if (!_userIds.contains(userId)) {
+    if (!_userTokens.containsKey(userId)) {
       mqtt?.publishRaw(
         '$userId/response',
         'RESP_ADD_TOKEN_ERROR=ERR_USER_NOT_FOUND',
@@ -269,7 +244,7 @@ class RentalProvider extends ChangeNotifier {
 
     debugPrint('[Rental] START_RENTAL bikeId=$bikeId userId=$userId');
 
-    if (!_userIds.contains(userId)) {
+    if (!_userTokens.containsKey(userId)) {
       mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_USER_NOT_FOUND');
       return;
     }
@@ -465,13 +440,16 @@ class RentalProvider extends ChangeNotifier {
 
   void _startPauseTimeout(String bikeId, String userId) {
     _pauseTimeoutTimers[bikeId]?.cancel();
-    _pauseTimeoutTimers[bikeId] = Timer(const Duration(hours: 1), () async {
-      _pauseTimeoutTimers.remove(bikeId);
-      if (!_activeRentals.containsKey(bikeId)) return;
-      debugPrint('[Rental] Pause timeout bikeId=$bikeId → force end rental');
-      _pausedBikes.remove(bikeId);
-      await _endRental(bikeId, userId, status: 'ERR_TIME_LIMIT_EXCEEDED');
-    });
+    _pauseTimeoutTimers[bikeId] = Timer(
+      const Duration(hours: FeatureConfig.pauseTimeoutHours),
+      () async {
+        _pauseTimeoutTimers.remove(bikeId);
+        if (!_activeRentals.containsKey(bikeId)) return;
+        debugPrint('[Rental] Pause timeout bikeId=$bikeId → force end rental');
+        _pausedBikes.remove(bikeId);
+        await _endRental(bikeId, userId, status: 'ERR_TIME_LIMIT_EXCEEDED');
+      },
+    );
   }
 
   // ---- Out-of-balance flow -------------------------------------------
@@ -489,38 +467,44 @@ class RentalProvider extends ChangeNotifier {
       mqtt.publish(bikeId, 'WARN_OUT_OF_BALANCE');
       debugPrint('[Rental] WARN_OUT_OF_BALANCE grace started bikeId=$bikeId');
 
-      // Poll GPS every 30 s to detect when bike returns to a valid zone
+      // Poll GPS to detect when bike returns to a valid zone
       _graceCheckers[bikeId]?.cancel();
-      _graceCheckers[bikeId] = Timer.periodic(const Duration(seconds: 30), (t) {
-        if (!_activeRentals.containsKey(bikeId)) {
-          t.cancel();
-          _graceCheckers.remove(bikeId);
-          return;
-        }
-        if (_isInValidParkingArea(bikeId)) {
-          t.cancel();
-          _graceCheckers.remove(bikeId);
-          _graceTimers[bikeId]?.cancel();
-          _graceTimers.remove(bikeId);
-          _endRental(bikeId, userId, status: 'ERR_TIME_LIMIT_WARNING');
-        }
-      });
+      _graceCheckers[bikeId] = Timer.periodic(
+        const Duration(seconds: FeatureConfig.outOfBalanceGracePollSeconds),
+        (t) {
+          if (!_activeRentals.containsKey(bikeId)) {
+            t.cancel();
+            _graceCheckers.remove(bikeId);
+            return;
+          }
+          if (_isInValidParkingArea(bikeId)) {
+            t.cancel();
+            _graceCheckers.remove(bikeId);
+            _graceTimers[bikeId]?.cancel();
+            _graceTimers.remove(bikeId);
+            _endRental(bikeId, userId, status: 'ERR_TIME_LIMIT_WARNING');
+          }
+        },
+      );
 
-      // Hard 15-minute deadline
+      // Hard deadline — past this, force end rental with penalty.
       _graceTimers[bikeId]?.cancel();
-      _graceTimers[bikeId] = Timer(const Duration(minutes: 15), () {
-        _graceTimers.remove(bikeId);
-        _graceCheckers[bikeId]?.cancel();
-        _graceCheckers.remove(bikeId);
-        if (_activeRentals.containsKey(bikeId)) {
-          _endRental(
-            bikeId,
-            userId,
-            status: 'ERR_TIME_LIMIT_EXCEEDED',
-            addPenalty: true,
-          );
-        }
-      });
+      _graceTimers[bikeId] = Timer(
+        const Duration(minutes: FeatureConfig.outOfBalanceGraceMinutes),
+        () {
+          _graceTimers.remove(bikeId);
+          _graceCheckers[bikeId]?.cancel();
+          _graceCheckers.remove(bikeId);
+          if (_activeRentals.containsKey(bikeId)) {
+            _endRental(
+              bikeId,
+              userId,
+              status: 'ERR_TIME_LIMIT_EXCEEDED',
+              addPenalty: true,
+            );
+          }
+        },
+      );
     }
   }
 
@@ -567,26 +551,23 @@ class RentalProvider extends ChangeNotifier {
 
   // ---- Parking zones -------------------------------------------------
 
-  List<({double lat, double lng})> get parkingZoneCenters =>
-      List.unmodifiable(_zoneCenters);
-  List<double> get parkingZoneRadii => List.unmodifiable(_zoneRadii);
-  List<String> get parkingZoneNames => List.unmodifiable(_zoneNames);
-
   // Returns true if the bike's latest GPS is within any parking zone.
   bool _isInValidParkingArea(String bikeId) {
     final data = _deviceProvider?.deviceById(bikeId)?.latest;
     if (data == null || !data.hasGps) return false;
 
-    for (var i = 0; i < _zoneCenters.length; i++) {
-      final zone = _zoneCenters[i];
-      final radius = _zoneRadii[i];
-      if (_haversineMeters(data.lat!, data.lng!, zone.lat, zone.lng) <=
-          radius) {
-        return true;
-      }
+    for (var i = 0; i < _zones.length; i++) {
+      final zone = _zones[i];
+      final distance = _haversineMeters(
+        data.lat!,
+        data.lng!,
+        zone.lat,
+        zone.lng,
+      );
+      if (distance <= zone.radiusMeters) return true;
       debugPrint(
-        '[Rental] GPS check bikeId=$bikeId zone=${String.fromCharCode(65 + i)} '
-        'distance=${_haversineMeters(data.lat!, data.lng!, zone.lat, zone.lng).toStringAsFixed(1)}m',
+        '[Rental] GPS check bikeId=$bikeId zone=${zone.id} '
+        'distance=${distance.toStringAsFixed(1)}m',
       );
     }
     return false;

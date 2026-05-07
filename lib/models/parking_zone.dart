@@ -60,6 +60,34 @@ class ParkingZone {
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
   }
+
+  // Default seed list — used by `FirebaseRepo` to seed the `parking_zones`
+  // collection on first run, and by `RentalProvider` as the offline /
+  // pre-stream fallback. Keep in sync by always referencing this constant
+  // rather than duplicating literals.
+  static const List<ParkingZone> defaultSeed = <ParkingZone>[
+    ParkingZone(
+      id: 'PZ001',
+      name: '9/2g 904 street, Hiep Phu',
+      lat: 10.853205,
+      lng: 106.782647,
+      radiusMeters: 50.0,
+    ),
+    ParkingZone(
+      id: 'PZ002',
+      name: 'UTE university, district 9',
+      lat: 10.849908,
+      lng: 106.771621,
+      radiusMeters: 80.0,
+    ),
+    ParkingZone(
+      id: 'PZ003',
+      name: 'UTE D2, Le Van Viet street',
+      lat: 10.846085,
+      lng: 106.797446,
+      radiusMeters: 60.0,
+    ),
+  ];
 }
 
 /* End of file -------------------------------------------------------- */

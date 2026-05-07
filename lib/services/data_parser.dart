@@ -17,7 +17,7 @@ import '../models/device_data.dart';
 //
 // ============================================================
 // How to extend parser for new fields:
-//   1. TAdd field vào DeviceData.
+//   1. Add field to DeviceData.
 //   2. Add toDouble(json['key']) in _normalize().
 //   3. If format is special → parse in special function: _parseTime().
 // ============================================================
@@ -75,7 +75,7 @@ class DataParser {
     );
 
     // 2. direction: <number> <LETTERS> → "direction":"<number> <LETTERS>"
-    //    Chỉ transform khi chưa được quote
+    //    Only transform when not already quoted
     s = s.replaceAllMapped(
       RegExp(r'"direction"\s*:\s*([\d.]+)\s+([A-Z?]+)(?=[,}])'),
       (m) => '"direction":"${m.group(1)} ${m.group(2)}"',
@@ -188,7 +188,7 @@ class DataParser {
     final lat = double.tryParse(arr[0].toString());
     final lng = double.tryParse(arr[1].toString());
     if (lat == null || lng == null || lat.isNaN || lng.isNaN) return null;
-    if (lat == 0 && lng == 0) return null; // chưa có GPS fix
+    if (lat == 0 && lng == 0) return null; // no GPS fix yet
     return (lat, lng);
   }
 
@@ -203,7 +203,7 @@ class DataParser {
     return (lat, lng);
   }
 
-  // Parse "45.0 NE" hoặc "45.0" → (deg, str) | null
+  // Parse "45.0 NE" or "45.0" → (deg, str) | null
   static (double, String)? _parseDirection(String str) {
     final m = RegExp(r'^([\d.]+)\s*([A-Z?]*)$').firstMatch(str.trim());
     if (m == null) return null;
@@ -213,9 +213,9 @@ class DataParser {
   }
 
   // Parse time string → DateTime | null
-  // Support 2 format MCU:
-  //   Mới: YYYY/M/D-HH:MM:SS   (e.g. 2026/4/9-22:51:35)
-  //   Cũ:  DD/MM/YYYY-HH:MM:SS (e.g. 25/3/2026-10:30:00)
+  // Supports 2 MCU formats:
+  //   New: YYYY/M/D-HH:MM:SS   (e.g. 2026/4/9-22:51:35)
+  //   Old: DD/MM/YYYY-HH:MM:SS (e.g. 25/3/2026-10:30:00)
   // If first component > 31 then it's the year (new format).
   static DateTime? _parseTime(String str) {
     final m = RegExp(r'(\d+)/(\d+)/(\d+)-(\d+):(\d+):(\d+)').firstMatch(str);

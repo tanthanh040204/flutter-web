@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../config/feature_config.dart';
 import '../models/app_note.dart';
 import '../models/app_notification.dart';
 import '../models/employee_account.dart';
@@ -83,30 +84,6 @@ class FirebaseRepo {
       _db?.collection('rental_users');
 
   // ---- Parking zones (shared by web admin + mobile app) ----------------
-  static const List<ParkingZone> _seedParkingZones = <ParkingZone>[
-    ParkingZone(
-      id: 'PZ001',
-      name: '9/2g 904 street, Hiep Phu',
-      lat: 10.853205,
-      lng: 106.782647,
-      radiusMeters: 50.0,
-    ),
-    ParkingZone(
-      id: 'PZ002',
-      name: 'UTE university, district 9',
-      lat: 10.849908,
-      lng: 106.771621,
-      radiusMeters: 80.0,
-    ),
-    ParkingZone(
-      id: 'PZ003',
-      name: 'UTE D2, Le Van Viet street',
-      lat: 10.846085,
-      lng: 106.797446,
-      radiusMeters: 60.0,
-    ),
-  ];
-
   Future<void> _ensureSeedParkingZones() async {
     final zones = _parkingZones;
     if (zones == null) return;
@@ -114,7 +91,7 @@ class FirebaseRepo {
     final snap = await zones.limit(1).get();
     if (snap.docs.isNotEmpty) return;
 
-    for (final zone in _seedParkingZones) {
+    for (final zone in ParkingZone.defaultSeed) {
       await zones.doc(zone.id).set({
         ...zone.toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -125,7 +102,7 @@ class FirebaseRepo {
   Stream<List<ParkingZone>> watchParkingZones() {
     final zones = _parkingZones;
     if (zones == null) {
-      return Stream.value(List<ParkingZone>.from(_seedParkingZones));
+      return Stream.value(List<ParkingZone>.from(ParkingZone.defaultSeed));
     }
 
     Future.microtask(_ensureSeedParkingZones);
@@ -156,12 +133,6 @@ class FirebaseRepo {
   }
 
   // ---- Rental users (shared by web admin + mobile app) -----------------
-  static const List<RentalUser> _seedRentalUsers = <RentalUser>[
-    RentalUser(userId: 'user_1234567890', tokens: 0),
-    RentalUser(userId: 'user_1132298001', tokens: 0),
-    RentalUser(userId: 'user_0987654321', tokens: 0),
-  ];
-
   Future<void> _ensureSeedRentalUsers() async {
     final users = _rentalUsers;
     if (users == null) return;
@@ -169,7 +140,7 @@ class FirebaseRepo {
     final snap = await users.limit(1).get();
     if (snap.docs.isNotEmpty) return;
 
-    for (final user in _seedRentalUsers) {
+    for (final user in RentalUser.defaultSeed) {
       await users.doc(user.userId).set({
         ...user.toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -180,7 +151,7 @@ class FirebaseRepo {
   Stream<List<RentalUser>> watchRentalUsers() {
     final users = _rentalUsers;
     if (users == null) {
-      return Stream.value(List<RentalUser>.from(_seedRentalUsers));
+      return Stream.value(List<RentalUser>.from(RentalUser.defaultSeed));
     }
 
     Future.microtask(_ensureSeedRentalUsers);
@@ -714,7 +685,7 @@ class FirebaseRepo {
 
   Stream<List<HistoryRouteRecord>> watchHistoryRoutes(
     String vehicleId, {
-    int keepDays = 30,
+    int keepDays = FeatureConfig.historyKeepDays,
   }) {
     final vehicles = _vehicles;
     if (vehicles == null) {
@@ -762,7 +733,7 @@ class FirebaseRepo {
 
   Future<void> upsertDailyUsageFromOdo(
     Vehicle vehicle, {
-    int keepDays = 30,
+    int keepDays = FeatureConfig.historyKeepDays,
   }) async {
     final db = _db;
     final vehicles = _vehicles;
@@ -814,7 +785,10 @@ class FirebaseRepo {
     await pruneOldDailyUsage(vehicle.id, keepDays: keepDays);
   }
 
-  Future<void> pruneOldDailyUsage(String vehicleId, {int keepDays = 30}) async {
+  Future<void> pruneOldDailyUsage(
+    String vehicleId, {
+    int keepDays = FeatureConfig.historyKeepDays,
+  }) async {
     final db = _db;
     final vehicles = _vehicles;
 
@@ -970,29 +944,8 @@ class FirebaseRepo {
     final snap = await ref.limit(1).get();
     if (snap.docs.isNotEmpty) return;
 
-    final defaults = <MaintenanceItem>[
-      const MaintenanceItem(
-        id: 'oil',
-        name: 'Thay nhớt',
-        maintanceKm: 0,
-        cycleKm: 2000,
-      ),
-      const MaintenanceItem(
-        id: 'brake',
-        name: 'Tra/Thay nhớt thắng',
-        maintanceKm: 0,
-        cycleKm: 4000,
-      ),
-      const MaintenanceItem(
-        id: 'battery',
-        name: 'Kiểm tra/Thay pin',
-        maintanceKm: 0,
-        cycleKm: 12000,
-      ),
-    ];
-
     final batch = db.batch();
-    for (final item in defaults) {
+    for (final item in MaintenanceItem.defaultSeed) {
       batch.set(ref.doc(item.id), {
         'name': item.name,
         'maintanceKm': item.maintanceKm,

@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/feature_config.dart';
 import '../../models/history_route.dart';
 import '../../providers/fleet_provider.dart';
 import '../../services/firebase_repo.dart';
@@ -20,13 +21,17 @@ class HistoryTab extends StatelessWidget {
     final v = fleet.selectedOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('History (30 days)')),
+      appBar: AppBar(
+        title: const Text(
+          'History (${FeatureConfig.historyKeepDays} days)',
+        ),
+      ),
       body: v == null
           ? const Center(child: Text('No vehicle selected.'))
           : StreamBuilder<List<HistoryRouteRecord>>(
               stream: FirebaseRepo.instance.watchHistoryRoutes(
                 v.id,
-                keepDays: 30,
+                keepDays: FeatureConfig.historyKeepDays,
               ),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
@@ -43,13 +48,13 @@ class HistoryTab extends StatelessWidget {
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: routes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final route = routes[index];
 
                     return Container(
                       decoration: BoxDecoration(
-                        color: Colors.blueGrey.withOpacity(0.18),
+                        color: Colors.blueGrey.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(

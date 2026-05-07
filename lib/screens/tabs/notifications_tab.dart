@@ -9,20 +9,12 @@ import '../../models/app_notification.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../services/firebase_repo.dart';
+import '../../utils/date_utils.dart';
 import '../../widgets/vehicle_picker.dart';
 
 /* Public classes ----------------------------------------------------- */
 class NotificationsTab extends StatelessWidget {
   const NotificationsTab({super.key});
-
-  String _formatDateTime(DateTime value) {
-    final h = value.hour.toString().padLeft(2, '0');
-    final m = value.minute.toString().padLeft(2, '0');
-    final d = value.day.toString().padLeft(2, '0');
-    final mo = value.month.toString().padLeft(2, '0');
-    final y = value.year.toString();
-    return '$h:$m - $d/$mo/$y';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +58,9 @@ class NotificationsTab extends StatelessWidget {
                     child: ListTile(
                       leading: const Icon(Icons.login, color: Colors.green),
                       title: Text(item.message),
-                      subtitle: Text(_formatDateTime(item.createdAt)),
+                      subtitle: Text(
+                        AppDateUtils.formatShortDateTime(item.createdAt),
+                      ),
                       trailing: IconButton(
                         tooltip: 'Delete notification',
                         icon: const Icon(Icons.close),
