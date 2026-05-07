@@ -14,7 +14,9 @@ class AppDateUtils {
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
   static final DateFormat _timeFormat = DateFormat('HH:mm:ss');
   // Compact human label, e.g. "20:35 - 05/05/2026" — used in list rows.
-  static final DateFormat _shortDateTimeFormat = DateFormat('HH:mm - dd/MM/yyyy');
+  static final DateFormat _shortDateTimeFormat = DateFormat(
+    'HH:mm - dd/MM/yyyy',
+  );
   // Wall-clock time without seconds, e.g. "20:35".
   static final DateFormat _shortTimeFormat = DateFormat('HH:mm');
 

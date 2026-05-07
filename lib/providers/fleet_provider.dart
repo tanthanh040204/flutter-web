@@ -312,8 +312,8 @@ class FleetProvider extends ChangeNotifier {
         FirebaseRepo.instance
             .incrementMaintenanceByDistance(id, deltaKm)
             .catchError((e) {
-          debugPrint('[FleetProvider] incrementMaintenance error: $e');
-        });
+              debugPrint('[FleetProvider] incrementMaintenance error: $e');
+            });
       }
       _lastSeenTotalKm[id] = nextTotalKm;
     }

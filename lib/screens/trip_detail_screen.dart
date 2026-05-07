@@ -17,7 +17,9 @@ class TripDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final points = trip.points.map((p) => p.latLng).toList();
-    final center = points.isEmpty ? const LatLng(0, 0) : points[points.length ~/ 2];
+    final center = points.isEmpty
+        ? const LatLng(0, 0)
+        : points[points.length ~/ 2];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Trip Details')),
@@ -26,10 +28,7 @@ class TripDetailScreen extends StatelessWidget {
           _Summary(trip: trip),
           Expanded(
             child: FlutterMap(
-              options: MapOptions(
-                initialCenter: center,
-                initialZoom: 14,
-              ),
+              options: MapOptions(initialCenter: center, initialZoom: 14),
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -37,9 +36,7 @@ class TripDetailScreen extends StatelessWidget {
                 ),
                 if (points.length >= 2)
                   PolylineLayer(
-                    polylines: [
-                      Polyline(points: points, strokeWidth: 4),
-                    ],
+                    polylines: [Polyline(points: points, strokeWidth: 4)],
                   ),
                 MarkerLayer(
                   markers: [
@@ -88,12 +85,13 @@ class _Summary extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text('Distance: ${trip.distanceKm.toStringAsFixed(2)} km'),
-          Text('Average Speed: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Max: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h'),
+          Text(
+            'Average Speed: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Max: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h',
+          ),
         ],
       ),
     );
   }
-
 }
 
 class _SpeedChips extends StatelessWidget {
@@ -120,14 +118,20 @@ class _SpeedChips extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Speed (Last Points)', style: TextStyle(fontWeight: FontWeight.w800)),
+          const Text(
+            'Speed (Last Points)',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             runSpacing: 6,
             children: tail.map((p) {
-              final t = '${p.time.hour.toString().padLeft(2, '0')}:${p.time.minute.toString().padLeft(2, '0')}';
-              return Chip(label: Text('$t • ${p.speedKmh.toStringAsFixed(0)} km/h'));
+              final t =
+                  '${p.time.hour.toString().padLeft(2, '0')}:${p.time.minute.toString().padLeft(2, '0')}';
+              return Chip(
+                label: Text('$t • ${p.speedKmh.toStringAsFixed(0)} km/h'),
+              );
             }).toList(),
           ),
         ],

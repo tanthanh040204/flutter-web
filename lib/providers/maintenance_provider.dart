@@ -35,21 +35,23 @@ class MaintenanceProvider extends ChangeNotifier {
 
       if (_subs.containsKey(vehicle.id)) continue;
 
-      _subs[vehicle.id] = FirebaseRepo.instance.watchMaintenance(vehicle.id).listen(
-        (items) async {
-          if (items.isEmpty) {
-            await ensureDefaults(vehicle.id);
-            return;
-          }
-          _byVehicle[vehicle.id] = items;
-          notifyListeners();
-        },
-        onError: (_) async {
-          if (!_byVehicle.containsKey(vehicle.id)) {
-            await ensureDefaults(vehicle.id);
-          }
-        },
-      );
+      _subs[vehicle.id] = FirebaseRepo.instance
+          .watchMaintenance(vehicle.id)
+          .listen(
+            (items) async {
+              if (items.isEmpty) {
+                await ensureDefaults(vehicle.id);
+                return;
+              }
+              _byVehicle[vehicle.id] = items;
+              notifyListeners();
+            },
+            onError: (_) async {
+              if (!_byVehicle.containsKey(vehicle.id)) {
+                await ensureDefaults(vehicle.id);
+              }
+            },
+          );
     }
 
     notifyListeners();

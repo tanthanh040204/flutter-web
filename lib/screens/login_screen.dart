@@ -41,9 +41,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (!ok && auth.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.errorMessage!)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(auth.errorMessage!)));
     }
   }
 
@@ -136,7 +136,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Text('Login'),
                         ),

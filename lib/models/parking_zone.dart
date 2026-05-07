@@ -31,8 +31,8 @@ class ParkingZone {
     final updatedAt = raw is Timestamp
         ? raw.toDate()
         : raw is DateTime
-            ? raw
-            : null;
+        ? raw
+        : null;
 
     return ParkingZone(
       id: id,
@@ -47,13 +47,13 @@ class ParkingZone {
   }
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'lat': lat,
-        'lng': lng,
-        'radiusMeters': radiusMeters,
-        'address': address,
-        'isActive': isActive,
-      };
+    'name': name,
+    'lat': lat,
+    'lng': lng,
+    'radiusMeters': radiusMeters,
+    'address': address,
+    'isActive': isActive,
+  };
 
   static double? _asDouble(dynamic value) {
     if (value == null) return null;

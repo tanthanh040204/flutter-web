@@ -66,7 +66,8 @@ class Trip {
     final lat1 = _degToRad(a.latitude);
     final lat2 = _degToRad(b.latitude);
 
-    final h = (sin(dLat / 2) * sin(dLat / 2)) +
+    final h =
+        (sin(dLat / 2) * sin(dLat / 2)) +
         (cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2));
     final c = 2 * atan2(sqrt(h), sqrt(1 - h));
     return r * c;

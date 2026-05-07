@@ -232,7 +232,8 @@ class _MoreMqttSectionState extends State<MoreMqttSection> {
             _CopyableTile(
               icon: Icons.notifications_outlined,
               title: noti.message,
-              subtitle: '${noti.deviceId}  •  ${AppDateUtils.formatTime(noti.receivedAt)}',
+              subtitle:
+                  '${noti.deviceId}  •  ${AppDateUtils.formatTime(noti.receivedAt)}',
               copyText: noti.message,
             ),
         ],
@@ -264,7 +265,8 @@ class _MoreMqttSectionState extends State<MoreMqttSection> {
             _CopyableTile(
               icon: Icons.data_object,
               title: entry.text,
-              subtitle: '${entry.deviceId}  •  ${AppDateUtils.formatTime(entry.time)}',
+              subtitle:
+                  '${entry.deviceId}  •  ${AppDateUtils.formatTime(entry.time)}',
               copyText: entry.text,
               monospace: true,
             ),
@@ -296,7 +298,8 @@ class _MoreMqttSectionState extends State<MoreMqttSection> {
             _CopyableTile(
               icon: Icons.notifications_outlined,
               title: entry.text,
-              subtitle: '${entry.deviceId}  •  ${AppDateUtils.formatTime(entry.time)}',
+              subtitle:
+                  '${entry.deviceId}  •  ${AppDateUtils.formatTime(entry.time)}',
               copyText: entry.text,
             ),
       ],
@@ -333,7 +336,9 @@ class _MoreMqttSectionState extends State<MoreMqttSection> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          ok ? 'Message sent → $topic' : 'Failed to send message (not connected)',
+          ok
+              ? 'Message sent → $topic'
+              : 'Failed to send message (not connected)',
         ),
         backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
         duration: const Duration(seconds: 2),

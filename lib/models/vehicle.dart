@@ -17,6 +17,7 @@ class Vehicle {
   final double temp;
   final double hum;
   final double dust;
+
   /// Live speed from last MQTT /data (km/h); not persisted as critical odometer data.
   final double velocityKmh;
 

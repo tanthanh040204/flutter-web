@@ -1,4 +1,4 @@
-﻿// @file       control_tab.dart
+// @file       control_tab.dart
 // @brief      Tab UI for Control.
 
 /* Imports ------------------------------------------------------------ */
@@ -376,7 +376,10 @@ class _HeroCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [primary.withValues(alpha: 0.98), primary.withValues(alpha: 0.58)],
+              colors: [
+                primary.withValues(alpha: 0.98),
+                primary.withValues(alpha: 0.58),
+              ],
             ),
             boxShadow: [
               BoxShadow(
@@ -542,7 +545,10 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
             Colors.white.withValues(alpha: 0.09),
           ],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1.2),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -830,7 +836,7 @@ class _InlockButtonState extends State<_InlockButton> {
               ? 'Unlock'
               : isPause
               ? 'Resume'
-                : 'Lock');
+              : 'Lock');
 
     final bg = (isLocked || isPause)
         ? Colors.orange.withValues(alpha: 0.15)

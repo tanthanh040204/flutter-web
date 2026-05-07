@@ -17,8 +17,7 @@ class MoreChangePasswordSection extends StatefulWidget {
 }
 
 /* Private classes ---------------------------------------------------- */
-class _MoreChangePasswordSectionState
-    extends State<MoreChangePasswordSection> {
+class _MoreChangePasswordSectionState extends State<MoreChangePasswordSection> {
   final _currentPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
@@ -130,9 +129,7 @@ class _MoreChangePasswordSectionState
     }
 
     if (auth.errorMessage != null) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(auth.errorMessage!)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(auth.errorMessage!)));
     }
   }
 }

@@ -49,10 +49,9 @@ class MaintenanceScreen extends StatelessWidget {
               color: Theme.of(context).colorScheme.surface,
               border: due
                   ? Border.all(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .error
-                          .withValues(alpha: 0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.error.withValues(alpha: 0.6),
                       width: 1.2,
                     )
                   : null,
@@ -61,7 +60,7 @@ class MaintenanceScreen extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
-                )
+                ),
               ],
             ),
             child: Column(
@@ -88,10 +87,9 @@ class MaintenanceScreen extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .error
-                              .withValues(alpha: 0.12),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.error.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
@@ -100,7 +98,7 @@ class MaintenanceScreen extends StatelessWidget {
                             color: Theme.of(context).colorScheme.error,
                           ),
                         ),
-                      )
+                      ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -145,7 +143,7 @@ class MaintenanceScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                )
+                ),
               ],
             ),
           );
@@ -182,9 +180,11 @@ class MaintenanceScreen extends StatelessWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(sent
-            ? 'CLEAR_TOTAL_DISTANCE sent. Waiting for OK from devices...'
-            : 'Could not send command (MQTT not connected or no devices).'),
+        content: Text(
+          sent
+              ? 'CLEAR_TOTAL_DISTANCE sent. Waiting for OK from devices...'
+              : 'Could not send command (MQTT not connected or no devices).',
+        ),
       ),
     );
   }
@@ -206,7 +206,9 @@ class MaintenanceScreen extends StatelessWidget {
           children: [
             TextField(
               controller: nameCtl,
-              decoration: const InputDecoration(labelText: 'Name (e.g., Tire Replacement)'),
+              decoration: const InputDecoration(
+                labelText: 'Name (e.g., Tire Replacement)',
+              ),
             ),
             TextField(
               controller: kmCtl,
@@ -234,11 +236,7 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? 0;
     if (name.isEmpty || cycleKm <= 0) return;
 
-    await maintenance.addItem(
-          v.id,
-          name: name,
-          cycleKm: cycleKm,
-        );
+    await maintenance.addItem(v.id, name: name, cycleKm: cycleKm);
   }
 
   Future<void> _showEditCycleKm(
@@ -279,11 +277,7 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? current;
     if (cycleKm <= 0) return;
 
-    await maintenance.updateCycleKm(
-          v.id,
-          itemId,
-          cycleKm,
-        );
+    await maintenance.updateCycleKm(v.id, itemId, cycleKm);
   }
 }
 

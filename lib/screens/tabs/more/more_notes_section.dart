@@ -62,10 +62,7 @@ class MoreNotesSection extends StatelessWidget {
     );
   }
 
-  Future<void> _openNoteEditor(
-    BuildContext context, {
-    AppNote? note,
-  }) async {
+  Future<void> _openNoteEditor(BuildContext context, {AppNote? note}) async {
     final messenger = ScaffoldMessenger.of(context);
     final titleCtrl = TextEditingController(text: note?.title ?? '');
     final contentCtrl = TextEditingController(text: note?.content ?? '');
@@ -186,7 +183,9 @@ class MoreNotesSection extends StatelessWidget {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          note == null ? 'Note added successfully.' : 'Note updated successfully.',
+          note == null
+              ? 'Note added successfully.'
+              : 'Note updated successfully.',
         ),
       ),
     );
@@ -194,7 +193,8 @@ class MoreNotesSection extends StatelessWidget {
 
   Future<void> _deleteNote(BuildContext context, AppNote note) async {
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
+    final ok =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete Note'),
@@ -296,7 +296,6 @@ class _NoteCard extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /* End of file -------------------------------------------------------- */

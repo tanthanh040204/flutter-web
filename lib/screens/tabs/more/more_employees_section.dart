@@ -61,8 +61,7 @@ class _MoreEmployeesSectionState extends State<MoreEmployeesSection> {
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
-              onPressed: () =>
-                  setState(() => _hidePassword = !_hidePassword),
+              onPressed: () => setState(() => _hidePassword = !_hidePassword),
               icon: Icon(
                 _hidePassword ? Icons.visibility_off : Icons.visibility,
               ),
@@ -78,13 +77,10 @@ class _MoreEmployeesSectionState extends State<MoreEmployeesSection> {
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.verified_user_outlined),
             suffixIcon: IconButton(
-              onPressed: () => setState(
-                () => _hideConfirmPassword = !_hideConfirmPassword,
-              ),
+              onPressed: () =>
+                  setState(() => _hideConfirmPassword = !_hideConfirmPassword),
               icon: Icon(
-                _hideConfirmPassword
-                    ? Icons.visibility_off
-                    : Icons.visibility,
+                _hideConfirmPassword ? Icons.visibility_off : Icons.visibility,
               ),
             ),
           ),
@@ -226,7 +222,8 @@ class _MoreEmployeesSectionState extends State<MoreEmployeesSection> {
       return;
     }
 
-    final ok = await showDialog<bool>(
+    final ok =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete Employee Code'),
@@ -265,7 +262,6 @@ class _MoreEmployeesSectionState extends State<MoreEmployeesSection> {
       ),
     );
   }
-
 }
 
 /* End of file -------------------------------------------------------- */

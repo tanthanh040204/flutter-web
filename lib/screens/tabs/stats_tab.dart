@@ -59,15 +59,15 @@ class _StatsTabState extends State<StatsTab> {
     try {
       await fleet.deleteVehicle(v.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${v.id} deleted.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${v.id} deleted.')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
   }

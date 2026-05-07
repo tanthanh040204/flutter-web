@@ -44,11 +44,20 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Controls'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Statistics',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Location'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_parking), label: 'Stations'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_parking),
+            label: 'Stations',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'Notifications',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
         ],
       ),

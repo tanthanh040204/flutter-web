@@ -25,8 +25,8 @@ class RentalUser {
     final updatedAt = raw is Timestamp
         ? raw.toDate()
         : raw is DateTime
-            ? raw
-            : null;
+        ? raw
+        : null;
 
     return RentalUser(
       userId: (map['userId'] ?? id).toString(),
@@ -38,11 +38,11 @@ class RentalUser {
   }
 
   Map<String, dynamic> toMap() => {
-        'userId': userId,
-        'tokens': tokens,
-        'displayName': displayName,
-        'isActive': isActive,
-      };
+    'userId': userId,
+    'tokens': tokens,
+    'displayName': displayName,
+    'isActive': isActive,
+  };
 
   static int? _asInt(dynamic value) {
     if (value == null) return null;

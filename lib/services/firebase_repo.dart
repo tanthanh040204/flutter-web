@@ -391,7 +391,8 @@ class FirebaseRepo {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final message = 'Employee code $employeeCode has logged in at $hour:$minute';
+    final message =
+        'Employee code $employeeCode has logged in at $hour:$minute';
 
     final notifications = _appNotifications;
     if (notifications == null) {
@@ -459,14 +460,11 @@ class FirebaseRepo {
       return _localNotesCtl.stream;
     }
 
-    return notes
-        .orderBy('updatedAt', descending: true)
-        .snapshots()
-        .map((snap) {
-          return snap.docs
-              .map((doc) => AppNote.fromMap(doc.id, doc.data()))
-              .toList();
-        });
+    return notes.orderBy('updatedAt', descending: true).snapshots().map((snap) {
+      return snap.docs
+          .map((doc) => AppNote.fromMap(doc.id, doc.data()))
+          .toList();
+    });
   }
 
   Future<void> createNote({
@@ -874,10 +872,12 @@ class FirebaseRepo {
     final s = id.trim();
     // haq-trk-001 format
     final matchNew = RegExp(r'^haq-trk-(\d+)$').firstMatch(s);
-    if (matchNew != null) return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
+    if (matchNew != null)
+      return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
     // Legacy V1/V2 format
     final matchOld = RegExp(r'^(?:V|v)(\d+)$').firstMatch(s);
-    if (matchOld != null) return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
+    if (matchOld != null)
+      return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
     return 1 << 30;
   }
 

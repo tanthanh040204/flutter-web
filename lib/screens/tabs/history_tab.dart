@@ -22,9 +22,7 @@ class HistoryTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'History (${FeatureConfig.historyKeepDays} days)',
-        ),
+        title: const Text('History (${FeatureConfig.historyKeepDays} days)'),
       ),
       body: v == null
           ? const Center(child: Text('No vehicle selected.'))
@@ -40,9 +38,7 @@ class HistoryTab extends StatelessWidget {
 
                 final routes = snap.data ?? const <HistoryRouteRecord>[];
                 if (routes.isEmpty) {
-                  return const Center(
-                    child: Text('No route data available.'),
-                  );
+                  return const Center(child: Text('No route data available.'));
                 }
 
                 return ListView.separated(
@@ -122,7 +118,9 @@ class HistoryTab extends StatelessWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Route deleted successfully'),
+                                        content: Text(
+                                          'Route deleted successfully',
+                                        ),
                                       ),
                                     );
                                   }
@@ -130,7 +128,9 @@ class HistoryTab extends StatelessWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Failed to delete route: $e'),
+                                        content: Text(
+                                          'Failed to delete route: $e',
+                                        ),
                                       ),
                                     );
                                   }

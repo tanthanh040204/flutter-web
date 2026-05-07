@@ -24,15 +24,17 @@ class TripProvider extends ChangeNotifier {
   void bindVehicles(List<String> vehicleIds) {
     final wanted = vehicleIds.toSet();
 
-    final removedTrips =
-        _tripSubs.keys.where((id) => !wanted.contains(id)).toList();
+    final removedTrips = _tripSubs.keys
+        .where((id) => !wanted.contains(id))
+        .toList();
     for (final id in removedTrips) {
       _tripSubs.remove(id)?.cancel();
       _tripsByVehicle.remove(id);
     }
 
-    final removedDaily =
-        _dailyUsageSubs.keys.where((id) => !wanted.contains(id)).toList();
+    final removedDaily = _dailyUsageSubs.keys
+        .where((id) => !wanted.contains(id))
+        .toList();
     for (final id in removedDaily) {
       _dailyUsageSubs.remove(id)?.cancel();
       _dailyUsageByVehicle.remove(id);
@@ -40,31 +42,35 @@ class TripProvider extends ChangeNotifier {
 
     for (final id in wanted) {
       if (!_tripSubs.containsKey(id)) {
-        _tripSubs[id] = FirebaseRepo.instance.watchTrips(id).listen(
-          (trips) {
-            final sorted = [...trips]
-              ..sort((a, b) => b.startTime.compareTo(a.startTime));
-            _tripsByVehicle[id] = sorted;
-            notifyListeners();
-          },
-          onError: (_) {
-            _tripsByVehicle[id] = const <Trip>[];
-            notifyListeners();
-          },
-        );
+        _tripSubs[id] = FirebaseRepo.instance
+            .watchTrips(id)
+            .listen(
+              (trips) {
+                final sorted = [...trips]
+                  ..sort((a, b) => b.startTime.compareTo(a.startTime));
+                _tripsByVehicle[id] = sorted;
+                notifyListeners();
+              },
+              onError: (_) {
+                _tripsByVehicle[id] = const <Trip>[];
+                notifyListeners();
+              },
+            );
       }
 
       if (!_dailyUsageSubs.containsKey(id)) {
-        _dailyUsageSubs[id] = FirebaseRepo.instance.watchDailyUsage(id).listen(
-          (stats) {
-            _dailyUsageByVehicle[id] = stats;
-            notifyListeners();
-          },
-          onError: (_) {
-            _dailyUsageByVehicle[id] = const <DailyStat>[];
-            notifyListeners();
-          },
-        );
+        _dailyUsageSubs[id] = FirebaseRepo.instance
+            .watchDailyUsage(id)
+            .listen(
+              (stats) {
+                _dailyUsageByVehicle[id] = stats;
+                notifyListeners();
+              },
+              onError: (_) {
+                _dailyUsageByVehicle[id] = const <DailyStat>[];
+                notifyListeners();
+              },
+            );
       }
     }
 
@@ -92,12 +98,7 @@ class TripProvider extends ChangeNotifier {
 
       out.add(
         byDay[key] ??
-            DailyStat(
-              day: day,
-              distanceKm: 0,
-              avgSpeedKmh: 0,
-              maxSpeedKmh: 0,
-            ),
+            DailyStat(day: day, distanceKm: 0, avgSpeedKmh: 0, maxSpeedKmh: 0),
       );
     }
 
