@@ -38,26 +38,27 @@ class ActiveRental {
 
 /* Public classes ----------------------------------------------------- */
 class RentalProvider extends ChangeNotifier {
-  // Mirrored from Firestore (collection: parking_zones). The default seed
-  // values are kept as a fallback so the provider still works in offline /
-  // demo mode before Firebase has streamed in any data.
+  // Parking zones freom Firestore.
   final List<ParkingZone> _zones = List<ParkingZone>.from(
     ParkingZone.defaultSeed,
   );
 
-  // Mirrored from Firestore (collection: rental_users). Map shape because
-  // we mutate token balances during the rental flow. Seeded with default
-  // users so token requests still resolve before the Firestore stream
-  // delivers its first batch.
+  // User tokens from Firestore.
   final Map<String, int> _userTokens = {
     for (final u in RentalUser.defaultSeed) u.userId: u.tokens,
   };
+  // Per-user debt accounting. Mirrored from Firestore alongside tokens.
+  final Map<String, int> _userDebt = {};
+  final Map<String, DateTime> _debtStartedAt = {};
+  final Set<String> _lockedUsers = {};
 
   StreamSubscription<List<ParkingZone>>? _zonesSub;
   StreamSubscription<List<RentalUser>>? _usersSub;
 
   // bikeId → 30-min block timer
   final Map<String, Timer> _blockTimers = {};
+  // Block timer division remainder
+  final Map<String, int> _blockHundredths = {};
   // bikeId → 15-min out-of-balance grace timer
   final Map<String, Timer> _graceTimers = {};
   // bikeId → position poll timer during grace period
@@ -95,6 +96,8 @@ class RentalProvider extends ChangeNotifier {
   bool isBikeRented(String bikeId) => _activeRentals.containsKey(bikeId);
   bool isBikePaused(String bikeId) => _pausedBikes.contains(bikeId);
   int tokensOf(String userId) => _userTokens[userId] ?? 0;
+  int debtOf(String userId) => _userDebt[userId] ?? 0;
+  bool isUserLocked(String userId) => _lockedUsers.contains(userId);
 
   void bindToMqtt(MqttService mqtt, DeviceProvider deviceProvider) {
     _mqtt = mqtt;
@@ -130,17 +133,36 @@ class RentalProvider extends ChangeNotifier {
   void _onRentalUsersUpdated(List<RentalUser> users) {
     if (users.isEmpty) return;
     _userTokens.clear();
+    _userDebt.clear();
+    _debtStartedAt.clear();
+    _lockedUsers.clear();
     for (final u in users) {
       _userTokens[u.userId] = u.tokens;
+      if (u.debt > 0) _userDebt[u.userId] = u.debt;
+      if (u.debtStartedAt != null) {
+        _debtStartedAt[u.userId] = u.debtStartedAt!;
+      }
+      if (u.isLocked) _lockedUsers.add(u.userId);
     }
     debugPrint('[Rental] rental users synced from Firestore: ${users.length}');
     notifyListeners();
   }
 
-  void _persistTokens(String userId) {
+  void _persistUserState(String userId) {
     final tokens = _userTokens[userId] ?? 0;
+    final debt = _userDebt[userId] ?? 0;
+    final debtStartedAt = _debtStartedAt[userId];
+    final isLocked = _lockedUsers.contains(userId);
     // Fire-and-forget; offline mode silently no-ops inside FirebaseRepo.
-    unawaited(FirebaseRepo.instance.setRentalUserTokens(userId, tokens));
+    unawaited(
+      FirebaseRepo.instance.setRentalUserState(
+        userId: userId,
+        tokens: tokens,
+        debt: debt,
+        debtStartedAt: debtStartedAt,
+        isLocked: isLocked,
+      ),
+    );
   }
 
   // ---- Token requests ------------------------------------------------
@@ -172,14 +194,53 @@ class RentalProvider extends ChangeNotifier {
       return;
     }
 
-    _userTokens[userId] = (_userTokens[userId] ?? 0) + amount;
-    _persistTokens(userId);
+    int balance = (_userTokens[userId] ?? 0) + amount;
+
+    // Clear debt if enough tokens added
+    final int debt = _userDebt[userId] ?? 0;
+    if (debt > 0) {
+      final int repay = math.min(debt, balance);
+      final int remainingDebt = debt - repay;
+      balance -= repay;
+      if (remainingDebt == 0) {
+        final bool wasLocked = _lockedUsers.contains(userId);
+        _userDebt.remove(userId);
+        _debtStartedAt.remove(userId);
+        _lockedUsers.remove(userId);
+        debugPrint('[Token] debt cleared → unlock userId=$userId');
+
+        ActiveRental? rental;
+        for (final r in _activeRentals.values) {
+          if (r.userId == userId) {
+            rental = r;
+            break;
+          }
+        }
+        if (rental != null) {
+          final String bikeId = rental.bikeId;
+          mqtt?.publishToApp(bikeId, 'DEBT_CLEAR');
+          mqtt?.publish(bikeId, 'DEBT_CLEAR');
+          debugPrint('[Rental] DEBT_CLEAR bikeId=$bikeId userId=$userId');
+          if (wasLocked) {
+            _startBlockTimer(bikeId, userId);
+            debugPrint(
+              '[Rental] Block timer resumed after unlock bikeId=$bikeId',
+            );
+          }
+        }
+      } else {
+        _userDebt[userId] = remainingDebt;
+        debugPrint(
+          '[Token] partial debt repay userId=$userId paid=$repay remaining=$remainingDebt',
+        );
+      }
+    }
+
+    _userTokens[userId] = balance;
+    _persistUserState(userId);
     notifyListeners();
-    mqtt?.publishRaw(
-      '$userId/response',
-      'RESP_ADD_TOKEN_SUCCESS=${_userTokens[userId]}',
-    );
-    debugPrint('[Token] +$amount → $userId (total: ${_userTokens[userId]})');
+    mqtt?.publishRaw('$userId/response', 'RESP_ADD_TOKEN_SUCCESS=$balance');
+    debugPrint('[Token] +$amount → $userId (total: $balance)');
   }
 
   // ---- Rental requests (from app via bike_id/app_web) ----------------
@@ -264,7 +325,7 @@ class RentalProvider extends ChangeNotifier {
 
     // Deduct first block deposit and mark in-progress
     _userTokens[userId] = balance - FeatureConfig.minTokenToRent;
-    _persistTokens(userId);
+    _persistUserState(userId);
     _inProgressBikes.add(bikeId);
     notifyListeners();
 
@@ -274,7 +335,7 @@ class RentalProvider extends ChangeNotifier {
     if (!success) {
       _userTokens[userId] =
           (_userTokens[userId] ?? 0) + FeatureConfig.minTokenToRent;
-      _persistTokens(userId);
+      _persistUserState(userId);
       notifyListeners();
       mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_UNLOCK_TIMEOUT');
       return;
@@ -302,50 +363,98 @@ class RentalProvider extends ChangeNotifier {
 
   void _startBlockTimer(String bikeId, String userId) {
     _blockTimers[bikeId]?.cancel();
+    _blockHundredths[bikeId] = 0;
     _blockTimers[bikeId] = Timer.periodic(
-      Duration(minutes: FeatureConfig.rentalBlockDurationsMinutes),
-      (_) => _onRentalBlock(bikeId, userId),
+      const Duration(seconds: 1),
+      (_) => _blockTick(bikeId, userId),
     );
+  }
+
+  void _blockTick(String bikeId, String userId) {
+    if (!_activeRentals.containsKey(bikeId)) {
+      _blockTimers[bikeId]?.cancel();
+      _blockTimers.remove(bikeId);
+      _blockHundredths.remove(bikeId);
+      return;
+    }
+    /* Frozen while locked — keep the timer alive but stop accumulating
+     * so the user isn't charged further. */
+    if (_lockedUsers.contains(userId)) return;
+    final int factor = _pausedBikes.contains(bikeId) ? 50 : 100;
+    final int next = (_blockHundredths[bikeId] ?? 0) + factor;
+    _blockHundredths[bikeId] = next;
+    final int blockHundredths = FeatureConfig.rentalBlockDurationsSeconds * 100;
+    if (next >= blockHundredths) {
+      _blockHundredths[bikeId] = next - blockHundredths;
+      _onRentalBlock(bikeId, userId);
+    }
   }
 
   void _onRentalBlock(String bikeId, String userId) {
     if (!_activeRentals.containsKey(bikeId)) {
       _blockTimers[bikeId]?.cancel();
       _blockTimers.remove(bikeId);
+      _blockHundredths.remove(bikeId);
+      return;
+    }
+    if (_lockedUsers.contains(userId)) return;
+
+    final balance = _userTokens[userId] ?? 0;
+    final int rate = FeatureConfig.minTokenToRent;
+    /* Pay block from balance first, accrue any shortfall as debt. */
+    final int chargeFromBalance = math.min(balance, rate);
+    final int shortfall = rate - chargeFromBalance;
+    _userTokens[userId] = balance - chargeFromBalance;
+
+    final r = _activeRentals[bikeId]!;
+    _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
+
+    if (shortfall > 0) {
+      final int newDebt = (_userDebt[userId] ?? 0) + shortfall;
+      _userDebt[userId] = newDebt;
+      _debtStartedAt[userId] ??= DateTime.now();
+      final DateTime debtStarted = _debtStartedAt[userId]!;
+      final bool exceedsAmount = newDebt >= FeatureConfig.rentalDebtMaxTokens;
+      final bool exceedsTime =
+          DateTime.now().difference(debtStarted).inDays >=
+          FeatureConfig.rentalDebtMaxDays;
+
+      if (exceedsAmount || exceedsTime) {
+        _lockedUsers.add(userId);
+        _persistUserState(userId);
+        _blockTimers[bikeId]?.cancel();
+        _blockTimers.remove(bikeId);
+        _blockHundredths.remove(bikeId);
+        _mqtt?.publishToApp(bikeId, 'RENTAL_NOTI_LIMIT=$newDebt');
+        _mqtt?.publish(bikeId, 'RENTAL_NOTI_LIMIT');
+        notifyListeners();
+        debugPrint(
+          '[Rental] LOCK bikeId=$bikeId userId=$userId debt=$newDebt '
+          'reason=${exceedsAmount ? "amount" : "time"}',
+        );
+        return;
+      }
+
+      _persistUserState(userId);
+      _mqtt?.publishToApp(bikeId, 'WARN_DEBT=$newDebt');
+      _mqtt?.publish(bikeId, 'WARN_DEBT');
+      notifyListeners();
+      debugPrint(
+        '[Rental] WARN_DEBT bikeId=$bikeId userId=$userId debt=$newDebt',
+      );
       return;
     }
 
-    final balance = _userTokens[userId] ?? 0;
-    // 50% rate when paused, full rate when active
-    final rate = _pausedBikes.contains(bikeId)
-        ? FeatureConfig.minTokenToRent ~/ 2
-        : FeatureConfig.minTokenToRent;
-
-    if (balance >= rate * 2) {
-      // Enough for this block + at least one more — deduct and continue
-      _userTokens[userId] = balance - rate;
-      _persistTokens(userId);
-      final r = _activeRentals[bikeId]!;
-      _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
-      notifyListeners();
-      debugPrint(
-        '[Rental] Block charged bikeId=$bikeId rate=$rate balance=${_userTokens[userId]}',
-      );
-    } else if (balance >= rate) {
-      // Last affordable block — deduct and warn
-      _userTokens[userId] = balance - rate;
-      _persistTokens(userId);
-      final r = _activeRentals[bikeId]!;
-      _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
-      notifyListeners();
+    /* Block paid in full. Warn if next block won't be affordable. */
+    _persistUserState(userId);
+    notifyListeners();
+    debugPrint(
+      '[Rental] Block charged bikeId=$bikeId rate=$rate balance=${_userTokens[userId]}',
+    );
+    if ((_userTokens[userId] ?? 0) < rate) {
       _mqtt?.publishToApp(bikeId, 'WARN_LOW_BALANCE');
       _mqtt?.publish(bikeId, 'WARN_LOW_BALANCE');
       debugPrint('[Rental] WARN_LOW_BALANCE bikeId=$bikeId userId=$userId');
-    } else {
-      // Cannot pay — stop timer and handle out-of-balance
-      _blockTimers[bikeId]?.cancel();
-      _blockTimers.remove(bikeId);
-      _handleOutOfBalance(bikeId, userId);
     }
   }
 
@@ -452,62 +561,6 @@ class RentalProvider extends ChangeNotifier {
     );
   }
 
-  // ---- Out-of-balance flow -------------------------------------------
-
-  Future<void> _handleOutOfBalance(String bikeId, String userId) async {
-    final mqtt = _mqtt;
-    if (mqtt == null) return;
-
-    debugPrint('[Rental] OUT_OF_BALANCE bikeId=$bikeId userId=$userId');
-
-    if (_isInValidParkingArea(bikeId)) {
-      await _endRental(bikeId, userId);
-    } else {
-      mqtt.publishToApp(bikeId, 'WARN_OUT_OF_BALANCE');
-      mqtt.publish(bikeId, 'WARN_OUT_OF_BALANCE');
-      debugPrint('[Rental] WARN_OUT_OF_BALANCE grace started bikeId=$bikeId');
-
-      // Poll GPS to detect when bike returns to a valid zone
-      _graceCheckers[bikeId]?.cancel();
-      _graceCheckers[bikeId] = Timer.periodic(
-        const Duration(seconds: FeatureConfig.outOfBalanceGracePollSeconds),
-        (t) {
-          if (!_activeRentals.containsKey(bikeId)) {
-            t.cancel();
-            _graceCheckers.remove(bikeId);
-            return;
-          }
-          if (_isInValidParkingArea(bikeId)) {
-            t.cancel();
-            _graceCheckers.remove(bikeId);
-            _graceTimers[bikeId]?.cancel();
-            _graceTimers.remove(bikeId);
-            _endRental(bikeId, userId, status: 'ERR_TIME_LIMIT_WARNING');
-          }
-        },
-      );
-
-      // Hard deadline — past this, force end rental with penalty.
-      _graceTimers[bikeId]?.cancel();
-      _graceTimers[bikeId] = Timer(
-        const Duration(minutes: FeatureConfig.outOfBalanceGraceMinutes),
-        () {
-          _graceTimers.remove(bikeId);
-          _graceCheckers[bikeId]?.cancel();
-          _graceCheckers.remove(bikeId);
-          if (_activeRentals.containsKey(bikeId)) {
-            _endRental(
-              bikeId,
-              userId,
-              status: 'ERR_TIME_LIMIT_EXCEEDED',
-              addPenalty: true,
-            );
-          }
-        },
-      );
-    }
-  }
-
   // ---- End rental ----------------------------------------------------
 
   Future<void> _endRental(
@@ -533,6 +586,7 @@ class RentalProvider extends ChangeNotifier {
     _pausedBikes.remove(bikeId);
     _blockTimers[bikeId]?.cancel();
     _blockTimers.remove(bikeId);
+    _blockHundredths.remove(bikeId);
     notifyListeners();
 
     final billAmount =
@@ -601,6 +655,7 @@ class RentalProvider extends ChangeNotifier {
     if (rental == null) return;
     _blockTimers[bikeId]?.cancel();
     _blockTimers.remove(bikeId);
+    _blockHundredths.remove(bikeId);
     _graceTimers[bikeId]?.cancel();
     _graceTimers.remove(bikeId);
     _graceCheckers[bikeId]?.cancel();

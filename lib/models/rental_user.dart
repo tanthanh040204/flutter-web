@@ -9,6 +9,9 @@ class RentalUser {
   const RentalUser({
     required this.userId,
     required this.tokens,
+    this.debt = 0,
+    this.debtStartedAt,
+    this.isLocked = false,
     this.displayName = '',
     this.isActive = true,
     this.updatedAt,
@@ -16,6 +19,9 @@ class RentalUser {
 
   final String userId;
   final int tokens;
+  final int debt;
+  final DateTime? debtStartedAt;
+  final bool isLocked;
   final String displayName;
   final bool isActive;
   final DateTime? updatedAt;
@@ -27,10 +33,19 @@ class RentalUser {
         : raw is DateTime
         ? raw
         : null;
+    final debtRaw = map['debtStartedAt'];
+    final debtStartedAt = debtRaw is Timestamp
+        ? debtRaw.toDate()
+        : debtRaw is DateTime
+        ? debtRaw
+        : null;
 
     return RentalUser(
       userId: (map['userId'] ?? id).toString(),
       tokens: _asInt(map['tokens']) ?? 0,
+      debt: _asInt(map['debt']) ?? 0,
+      debtStartedAt: debtStartedAt,
+      isLocked: map['isLocked'] is bool ? map['isLocked'] as bool : false,
       displayName: (map['displayName'] ?? '').toString(),
       isActive: map['isActive'] is bool ? map['isActive'] as bool : true,
       updatedAt: updatedAt,
@@ -40,6 +55,10 @@ class RentalUser {
   Map<String, dynamic> toMap() => {
     'userId': userId,
     'tokens': tokens,
+    'debt': debt,
+    'debtStartedAt':
+        debtStartedAt == null ? null : Timestamp.fromDate(debtStartedAt!),
+    'isLocked': isLocked,
     'displayName': displayName,
     'isActive': isActive,
   };

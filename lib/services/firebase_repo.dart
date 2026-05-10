@@ -184,6 +184,26 @@ class FirebaseRepo {
     }, SetOptions(merge: true));
   }
 
+  Future<void> setRentalUserState({
+    required String userId,
+    required int tokens,
+    required int debt,
+    required DateTime? debtStartedAt,
+    required bool isLocked,
+  }) async {
+    final users = _rentalUsers;
+    if (users == null) return;
+    await users.doc(userId).set({
+      'userId': userId,
+      'tokens': tokens < 0 ? 0 : tokens,
+      'debt': debt < 0 ? 0 : debt,
+      'debtStartedAt':
+          debtStartedAt == null ? null : Timestamp.fromDate(debtStartedAt),
+      'isLocked': isLocked,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> deleteRentalUser(String userId) async {
     final users = _rentalUsers;
     if (users == null) return;

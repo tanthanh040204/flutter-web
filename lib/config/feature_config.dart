@@ -68,9 +68,11 @@ class FeatureConfig {
   static const int offlineCheckIntervalMs = 5000;
 
   // Rental service
-  static const int rentalBlockDurationsMinutes = 60;
+  static const int rentalBlockDurationsSeconds = 60 * 60; // 1 hour
   static const int minTokenToRent = 10000; // 10k VND
   static const int outOfZonePenaltyTokens = 5000;
+  static const int rentalDebtMaxTokens = 50000; // 50k VND
+  static const int rentalDebtMaxDays = 7;
   // Time the user has after running out of balance to return the bike to a
   // valid parking zone. Past this, the rental ends with a penalty.
   static const int outOfBalanceGraceMinutes = 15;
