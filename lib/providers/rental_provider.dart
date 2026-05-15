@@ -342,7 +342,13 @@ class RentalProvider extends ChangeNotifier {
     _inProgressBikes.add(bikeId);
     notifyListeners();
 
-    final success = await deviceProvider.sendUnlock(bikeId);
+    // startTime captured before the cmd so the timestamp sent to device matches
+    // the session start recorded in _activeRentals and the trip doc.
+    final startTime = DateTime.now();
+    final success = await deviceProvider.sendStartRental(
+      bikeId,
+      _toRentalTs(startTime),
+    );
     _inProgressBikes.remove(bikeId);
 
     if (!success) {
@@ -350,11 +356,10 @@ class RentalProvider extends ChangeNotifier {
           (_userTokens[userId] ?? 0) + FeatureConfig.minTokenToRent;
       _persistUserState(userId);
       notifyListeners();
-      mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_UNLOCK_TIMEOUT');
+      mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_START_TIMEOUT');
       return;
     }
 
-    final startTime = DateTime.now();
     _activeRentals[bikeId] = ActiveRental(
       bikeId: bikeId,
       userId: userId,
@@ -363,7 +368,6 @@ class RentalProvider extends ChangeNotifier {
     );
     notifyListeners();
 
-    mqtt.publish(bikeId, 'START_RENTAL=${_toRentalTs(startTime)}');
     mqtt.publishToApp(
       bikeId,
       'START_RENTAL_SUCCESS=$userId,${_toVietnamTime(startTime)}',

@@ -194,6 +194,45 @@ class DeviceProvider extends ChangeNotifier {
     return mqtt.publish(deviceId, command);
   }
 
+  // Send START_RENTAL=<ts> and wait for OK (device unlocks on receipt).
+  Future<bool> sendStartRental(String deviceId, String rentalTs) async {
+    final mqtt = _mqttService;
+    if (mqtt == null || !_mqttConnected) return false;
+    if (!_devices.containsKey(deviceId)) return false;
+
+    _pendingLocks[deviceId]?.timer.cancel();
+    if (_pendingLocks[deviceId]?.completer.isCompleted == false) {
+      _pendingLocks[deviceId]!.completer.complete(false);
+    }
+
+    final completer = Completer<bool>();
+    final timer = Timer(
+      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
+      () {
+        _pendingLocks.remove(deviceId);
+        if (!completer.isCompleted) completer.complete(false);
+        notifyListeners();
+      },
+    );
+
+    _pendingLocks[deviceId] = _PendingLock(
+      targetState: DeviceLockState.active,
+      completer: completer,
+      timer: timer,
+    );
+    notifyListeners();
+
+    final sent = mqtt.publish(deviceId, 'START_RENTAL=$rentalTs');
+    if (!sent) {
+      _pendingLocks.remove(deviceId);
+      timer.cancel();
+      if (!completer.isCompleted) completer.complete(false);
+      notifyListeners();
+    }
+
+    return completer.future;
+  }
+
   // Send LOCK or UNLOCK command and wait for OK response (max 30 s).
   // Returns true if OK received, false on timeout or error.
   Future<bool> sendUnlock(String deviceId) async {
