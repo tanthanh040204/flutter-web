@@ -1,16 +1,16 @@
 // @file       location_tab.dart
-// @brief      Tab UI for Location.
+// @brief      Tab UI for Location — single-vehicle focus and track-all mode.
 
 /* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../../widgets/vehicle_picker.dart';
+import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../widgets/vehicle_picker.dart';
 
 /* Public classes ----------------------------------------------------- */
 class LocationTab extends StatefulWidget {
@@ -21,107 +21,284 @@ class LocationTab extends StatefulWidget {
 }
 
 class _LocationTabState extends State<LocationTab> {
+  // ---- private fields ------------------------------------------------
   bool _showRoute = false;
+  bool _trackAll = false;
+  final MapController _mapController = MapController();
+
+  // Used to detect VehiclePicker selection changes in track-all mode
+  String? _lastSelectedId;
+
+  // ---- private methods -----------------------------------------------
+  Widget _buildLegend(List<dynamic> vehicles, DeviceProvider dp) {
+    return Card(
+      // ignore: deprecated_member_use
+      color: Colors.white.withOpacity(0.92),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final vehicle in vehicles)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 18,
+                        color: () {
+                          final ds = dp.deviceById(vehicle.id as String);
+                          return ds != null
+                              ? _hexColor(ds.color)
+                              : Colors.blue;
+                        }(),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        vehicle.name as String,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _hexColor(String hex) {
+    final h = hex.startsWith('#') ? hex.substring(1) : hex;
+    return Color(int.parse(h, radix: 16) | 0xFF000000);
+  }
+
+  void _fitAll(List<LatLng> points) {
+    if (points.isEmpty) return;
+    if (points.length == 1) {
+      _mapController.move(points.first, 15);
+      return;
+    }
+    var minLat = points.first.latitude;
+    var maxLat = points.first.latitude;
+    var minLng = points.first.longitude;
+    var maxLng = points.first.longitude;
+    for (final p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
+        padding: const EdgeInsets.all(48),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final v = context.watch<FleetProvider>().selectedOrNull;
+    final fleet = context.watch<FleetProvider>();
+    final deviceProvider = context.watch<DeviceProvider>();
+
+    final v = fleet.selectedOrNull;
     if (v == null) {
       return const Scaffold(
         body: Center(child: Text('No device selected in Firebase.')),
       );
     }
 
-    final deviceState = context.watch<DeviceProvider>().deviceById(v.id);
-    final routePoints = deviceState?.routePoints ?? const [];
-    final routeLatLng = routePoints.map((p) => p.latLng).toList();
+    // In track-all mode: VehiclePicker moves the camera to the picked vehicle
+    // without switching out of track-all mode.
+    if (_trackAll && _lastSelectedId != null && v.id != _lastSelectedId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mapController.move(v.lastLocation, 15);
+      });
+    }
+    _lastSelectedId = v.id;
 
-    final LatLng loc = v.lastLocation;
+    // Build markers and polylines depending on mode
+    final markers = <Marker>[];
+    final polylines = <Polyline>[];
+
+    if (_trackAll) {
+      for (final vehicle in fleet.vehicles) {
+        final ds = deviceProvider.deviceById(vehicle.id);
+        final color = ds != null ? _hexColor(ds.color) : Colors.blue;
+        final loc = vehicle.lastLocation;
+
+        markers.add(Marker(
+          point: loc,
+          width: 50,
+          height: 50,
+          child: Icon(Icons.location_on, size: 44, color: color),
+        ));
+
+        if (_showRoute && ds != null) {
+          final pts = ds.routePoints.map((p) => p.latLng).toList();
+          if (pts.length >= 2) {
+            polylines.add(Polyline(points: pts, strokeWidth: 4, color: color));
+            markers.add(Marker(
+              point: pts.first,
+              width: 44,
+              height: 44,
+              child: Icon(Icons.flag, size: 28, color: color),
+            ));
+            markers.add(Marker(
+              point: pts.last,
+              width: 44,
+              height: 44,
+              // ignore: deprecated_member_use
+              child: Icon(Icons.location_on, size: 28, color: color.withOpacity(0.7)),
+            ));
+          }
+        }
+      }
+    } else {
+      final ds = deviceProvider.deviceById(v.id);
+      final routeLatLng = ds?.routePoints.map((p) => p.latLng).toList() ?? [];
+      final loc = v.lastLocation;
+
+      markers.add(Marker(
+        point: loc,
+        width: 50,
+        height: 50,
+        child: const Icon(Icons.location_on, size: 44),
+      ));
+
+      if (_showRoute && routeLatLng.isNotEmpty) {
+        markers.add(Marker(
+          point: routeLatLng.first,
+          width: 44,
+          height: 44,
+          child: const Icon(Icons.flag, size: 28, color: AppColors.startMarker),
+        ));
+        if (routeLatLng.length >= 2) {
+          polylines.add(Polyline(
+            points: routeLatLng,
+            strokeWidth: 4,
+            color: AppColors.routeLine,
+          ));
+          markers.add(Marker(
+            point: routeLatLng.last,
+            width: 44,
+            height: 44,
+            child: const Icon(
+              Icons.location_on,
+              size: 28,
+              color: AppColors.endMarker,
+            ),
+          ));
+        }
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Location'),
-        actions: const [VehiclePicker(), SizedBox(width: 8)],
-      ),
-      body: FlutterMap(
-        options: MapOptions(initialCenter: loc, initialZoom: 15),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.route_tracker',
+        actions: [
+          FilterChip(
+            label: const Text('Track all'),
+            selected: _trackAll,
+            onSelected: (val) {
+              setState(() => _trackAll = val);
+              if (val) {
+                final allPoints =
+                    fleet.vehicles.map((ve) => ve.lastLocation).toList();
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => _fitAll(allPoints));
+              } else {
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _mapController.move(v.lastLocation, 15),
+                );
+              }
+            },
           ),
-          if (_showRoute && routeLatLng.length >= 2)
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: routeLatLng,
-                  strokeWidth: 4,
-                  color: AppColors.routeLine,
-                ),
-              ],
-            ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: loc,
-                width: 50,
-                height: 50,
-                child: const Icon(Icons.location_on, size: 44),
+          const SizedBox(width: 8),
+          const VehiclePicker(),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(initialCenter: v.lastLocation, initialZoom: 15),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.route_tracker',
               ),
-              if (_showRoute && routeLatLng.isNotEmpty)
-                Marker(
-                  point: routeLatLng.first,
-                  width: 44,
-                  height: 44,
-                  child: const Icon(
-                    Icons.flag,
-                    size: 28,
-                    color: AppColors.startMarker,
-                  ),
-                ),
-              if (_showRoute && routeLatLng.length >= 2)
-                Marker(
-                  point: routeLatLng.last,
-                  width: 44,
-                  height: 44,
-                  child: const Icon(
-                    Icons.location_on,
-                    size: 28,
-                    color: AppColors.endMarker,
-                  ),
-                ),
+              if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              MarkerLayer(markers: markers),
             ],
           ),
+          if (_trackAll)
+            Positioned(
+              top: 8,
+              left: 8,
+              right: 8,
+              child: _buildLegend(fleet.vehicles, deviceProvider),
+            ),
         ],
       ),
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FloatingActionButton.extended(
-            heroTag: 'location-update',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Location on the map will update when Firestore updates lastLocation.',
+          if (_trackAll)
+            FloatingActionButton.extended(
+              heroTag: 'location-fit-all',
+              onPressed: () {
+                final allPoints =
+                    fleet.vehicles.map((ve) => ve.lastLocation).toList();
+                _fitAll(allPoints);
+              },
+              icon: const Icon(Icons.fit_screen),
+              label: const Text('Fit all'),
+            )
+          else
+            FloatingActionButton.extended(
+              heroTag: 'location-update',
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Location on the map will update when Firestore updates lastLocation.',
+                    ),
                   ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.refresh),
-            label: const Text('Update'),
-          ),
+                );
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Update'),
+            ),
           const SizedBox(width: 12),
           FloatingActionButton.extended(
             heroTag: 'location-route-toggle',
             onPressed: () {
-              if (routeLatLng.length < 2) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Not enough points to display route.'),
-                  ),
-                );
-                return;
+              if (!_trackAll) {
+                final ds = deviceProvider.deviceById(v.id);
+                if ((ds?.routePoints.length ?? 0) < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Not enough points to display route.'),
+                    ),
+                  );
+                  return;
+                }
               }
               setState(() => _showRoute = !_showRoute);
             },
