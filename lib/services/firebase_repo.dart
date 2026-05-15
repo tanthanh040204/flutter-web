@@ -1066,6 +1066,65 @@ class FirebaseRepo {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  // Merge a single GPS point into a rental trip doc, deduplicating and
+  // sorting by timestamp. Creates the doc if it doesn't exist yet.
+  Future<void> mergeTripPoint(
+    String vehicleId, {
+    required String tripId,
+    required String userId,
+    required DateTime startTime,
+    required Map<String, dynamic> point,
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    final ref = vehicles.doc(vehicleId).collection('trips').doc(tripId);
+    final snap = await ref.get();
+    final existing = snap.data() ?? {};
+
+    final prevPts =
+        (existing['points'] as List<dynamic>? ?? [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+
+    final timeKey = point['time'] as String;
+    final merged =
+        [...prevPts.where((p) => p['time'] != timeKey), point]
+          ..sort(
+            (a, b) =>
+                (a['time'] as String).compareTo(b['time'] as String),
+          );
+
+    await ref.set({
+      'vehicleId': vehicleId,
+      'userId': userId,
+      'startTime': startTime.toIso8601String(),
+      'points': merged,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // Set endTime and mark a rental trip as closed.
+  Future<void> finalizeTripEntry(
+    String vehicleId, {
+    required String tripId,
+    required DateTime endTime,
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    await vehicles
+        .doc(vehicleId)
+        .collection('trips')
+        .doc(tripId)
+        .set({
+          'endTime': endTime.toIso8601String(),
+          'isClosed': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+  }
 }
 
 /* End of file -------------------------------------------------------- */

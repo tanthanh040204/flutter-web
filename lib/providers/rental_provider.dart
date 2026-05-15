@@ -78,6 +78,9 @@ class RentalProvider extends ChangeNotifier {
   StreamSubscription<MqttRentalRequestMessage>? _rentalSub;
   StreamSubscription<MqttTokenRequestMessage>? _tokenSub;
   StreamSubscription<MqttNotiMessage>? _notiSub;
+  StreamSubscription<MqttDataMessage>? _dataSub;
+
+  final Map<String, List<_RentalWindow>> _completedWindows = {};
   MqttService? _mqtt;
   DeviceProvider? _deviceProvider;
 
@@ -116,6 +119,8 @@ class RentalProvider extends ChangeNotifier {
     _tokenSub = mqtt.tokenRequests.listen(_onTokenRequest);
     _notiSub?.cancel();
     _notiSub = mqtt.notifications.listen(_onNotiMessage);
+    _dataSub?.cancel();
+    _dataSub = mqtt.dataMessages.listen(_onDeviceData);
   }
 
   void bindToFirebase() {
@@ -578,6 +583,7 @@ class RentalProvider extends ChangeNotifier {
     String? status,
     bool addPenalty = false,
   }) async {
+    final endTime = DateTime.now();
     final mqtt = _mqtt;
     final deviceProvider = _deviceProvider;
     final rental = _activeRentals[bikeId];
@@ -597,6 +603,26 @@ class RentalProvider extends ChangeNotifier {
     _blockTimers.remove(bikeId);
     _blockHundredths.remove(bikeId);
     notifyListeners();
+
+    // Record completed window so late-arriving GPS data can be merged
+    final tripId = _toRentalTs(rental.startTime);
+    final windows = _completedWindows.putIfAbsent(bikeId, () => []);
+    windows.add(
+      _RentalWindow(
+        tripId: tripId,
+        userId: rental.userId,
+        startTime: rental.startTime,
+        endTime: endTime,
+      ),
+    );
+    if (windows.length > 5) windows.removeAt(0);
+    unawaited(
+      FirebaseRepo.instance.finalizeTripEntry(
+        bikeId,
+        tripId: tripId,
+        endTime: endTime,
+      ),
+    );
 
     final billAmount =
         rental.chargedTokens +
@@ -679,6 +705,7 @@ class RentalProvider extends ChangeNotifier {
     _rentalSub?.cancel();
     _tokenSub?.cancel();
     _notiSub?.cancel();
+    _dataSub?.cancel();
     _zonesSub?.cancel();
     _usersSub?.cancel();
     for (final t in _blockTimers.values) {
@@ -695,6 +722,68 @@ class RentalProvider extends ChangeNotifier {
     }
     super.dispose();
   }
+
+  // ---- Trip data sync --------------------------------------------------
+
+  void _onDeviceData(MqttDataMessage msg) {
+    final bikeId = msg.deviceId;
+    final data = msg.data;
+    if (!data.hasGps) return;
+
+    final point = <String, dynamic>{
+      'time': data.timestamp.toIso8601String(),
+      'lat': data.lat,
+      'lon': data.lng,
+      'speedKmh': data.velocityKmh ?? 0.0,
+    };
+
+    // Active rental — data belongs to current trip
+    final active = _activeRentals[bikeId];
+    if (active != null && !data.timestamp.isBefore(active.startTime)) {
+      unawaited(
+        FirebaseRepo.instance.mergeTripPoint(
+          bikeId,
+          tripId: _toRentalTs(active.startTime),
+          userId: active.userId,
+          startTime: active.startTime,
+          point: point,
+        ),
+      );
+      return;
+    }
+
+    // Late-arriving data — check completed rental windows
+    for (final w in (_completedWindows[bikeId] ?? []).reversed) {
+      if (!data.timestamp.isBefore(w.startTime) &&
+          !data.timestamp.isAfter(w.endTime)) {
+        unawaited(
+          FirebaseRepo.instance.mergeTripPoint(
+            bikeId,
+            tripId: w.tripId,
+            userId: w.userId,
+            startTime: w.startTime,
+            point: point,
+          ),
+        );
+        return;
+      }
+    }
+  }
+}
+
+/* Private classes ---------------------------------------------------- */
+class _RentalWindow {
+  final String tripId;
+  final String userId;
+  final DateTime startTime;
+  final DateTime endTime;
+
+  const _RentalWindow({
+    required this.tripId,
+    required this.userId,
+    required this.startTime,
+    required this.endTime,
+  });
 }
 
 /* End of file -------------------------------------------------------- */
