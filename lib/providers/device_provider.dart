@@ -29,7 +29,9 @@ class DeviceNotification {
 //   MqttService.dataMessages  → _onDataMessage() → DeviceState.routePoints
 //   MqttService.notifications → _onNotification() → lockState (STATE_* / OK)
 // Online/offline:
-//   Only KEEPALIVE on /noti sets online + lastKeepalive; if last keepalive > 60 s → offline
+//   Any data or noti (including KEEPALIVE) sets online=true + lastSeen.
+//   Timer checks lastSeen; no activity within keepaliveTimeoutMs → online=false.
+//   lastKeepalive is still tracked separately for display purposes.
 // Lock / unlock / resume:
 //   UI: locked → UNLOCK, active → LOCK, pause → UNLOCK (resume); wait for OK on /noti (30 s)
 // Device-initiated via /noti: STATE_ACTIVE, STATE_LOCK, STATE_PAUSE (do not affect online)
@@ -301,8 +303,8 @@ class DeviceProvider extends ChangeNotifier {
       }
     }
 
-    // Data messages do not affect online/offline — only KEEPALIVE does
     _devices[deviceId] = current.copyWith(
+      online: true,
       lastSeen: now,
       latest: data,
       routePoints: nextPoints,
@@ -343,12 +345,14 @@ class DeviceProvider extends ChangeNotifier {
           pending.timer.cancel();
           if (pending.targetState == DeviceLockState.locked) {
             next = current.copyWith(
+              online: true,
               lastSeen: now,
               lockState: DeviceLockState.locked,
               routePoints: [],
             );
           } else {
             next = current.copyWith(
+              online: true,
               lastSeen: now,
               lockState: DeviceLockState.active,
               routePoints: [],
@@ -356,12 +360,13 @@ class DeviceProvider extends ChangeNotifier {
           }
           if (!pending.completer.isCompleted) pending.completer.complete(true);
         } else {
-          next = current.copyWith(lastSeen: now);
+          next = current.copyWith(online: true, lastSeen: now);
         }
         break;
 
       case 'STATE_ACTIVE':
         next = current.copyWith(
+          online: true,
           lockState: DeviceLockState.active,
           lastSeen: now,
         );
@@ -369,6 +374,7 @@ class DeviceProvider extends ChangeNotifier {
 
       case 'STATE_LOCK':
         next = current.copyWith(
+          online: true,
           lockState: DeviceLockState.locked,
           lastSeen: now,
           routePoints: [],
@@ -378,6 +384,7 @@ class DeviceProvider extends ChangeNotifier {
       case 'STATE_PAUSE':
       case 'NOTI_PAUSE':
         next = current.copyWith(
+          online: true,
           lockState: DeviceLockState.pause,
           lastSeen: now,
         );
@@ -416,10 +423,9 @@ class DeviceProvider extends ChangeNotifier {
 
     for (final id in _devices.keys) {
       final s = _devices[id]!;
-      final lastKa = s.lastKeepalive;
+      final lastActivity = s.lastSeen;
 
-      // Online is only valid with a keepalive timestamp; repair stale flags
-      if (lastKa == null) {
+      if (lastActivity == null) {
         if (s.online) {
           _devices[id] = s.copyWith(online: false);
           changed = true;
@@ -429,7 +435,7 @@ class DeviceProvider extends ChangeNotifier {
 
       if (!s.online) continue;
 
-      if (now.difference(lastKa).inMilliseconds > timeoutMs) {
+      if (now.difference(lastActivity).inMilliseconds > timeoutMs) {
         _devices[id] = s.copyWith(online: false);
         changed = true;
       }
