@@ -375,6 +375,99 @@ async function pruneOldRoutes(vehicleId, keepDays = 30) {
   log(`[ROUTE] PRUNE ${vehicleId} deleted ${snap.size} old routes`);
 }
 
+// Parse firmware "YYYY/MM/DD-HH:MM:SS", Unix-ms number, or ISO string → Date|null.
+function parseFirmwareOrIsoTime(value) {
+  if (typeof value === 'number') return isFinite(value) ? new Date(value) : null;
+  if (typeof value !== 'string' || !value) return null;
+  const m = value.match(/(\d+)\/(\d+)\/(\d+)-(\d+):(\d+):(\d+)/);
+  if (m) {
+    const d = new Date(
+      Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+      Number(m[4]), Number(m[5]), Number(m[6])
+    );
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Handle a single offline-trip data packet: merge point into history_routes/{trip_id},
+// keeping all points sorted by timestamp and applying start_time / stop_time metadata.
+async function saveOfflineTripData(vehicleId, data, nowDate) {
+  const tripId = String(data.trip_id);
+  const docRef = db
+    .collection(vehiclesCollection)
+    .doc(vehicleId)
+    .collection('history_routes')
+    .doc(tripId);
+
+  const lat = parseNumber(data.lat, 0);
+  const lon = parseNumber(data.lon, 0);
+  const mqttTs = parseNumber(data.ts, nowDate.getTime());
+  const speedKmh = parseNumber(data.speedKmh || data.velocity_kmh || data.velocityKmh, 0);
+  const totalKm = parseNumber(data.totalKm, 0);
+  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const existing = snap.exists ? snap.data() : null;
+
+    // Merge with existing points, deduplicate by ts+lat+lon, then sort by ts.
+    const prevPoints = existing && Array.isArray(existing.points) ? existing.points : [];
+    const seen = new Set();
+    const merged = [...prevPoints, point].filter(p => {
+      const key = `${p.ts}_${p.lat}_${p.lon}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    merged.sort((a, b) => a.ts - b.ts);
+
+    // startAt: prefer explicit start_time, fall back to first point ts, then existing.
+    let startAt = existing && existing.startAt ? existing.startAt : null;
+    if (data.start_time) {
+      const parsed = parseFirmwareOrIsoTime(data.start_time);
+      if (parsed) startAt = admin.firestore.Timestamp.fromDate(parsed);
+    }
+    if (!startAt && merged.length > 0) {
+      startAt = admin.firestore.Timestamp.fromMillis(merged[0].ts);
+    }
+
+    // endAt / isClosed: set when stop_time arrives; never unset once closed.
+    let endAt = existing && existing.endAt ? existing.endAt : null;
+    let isClosed = existing ? Boolean(existing.isClosed) : false;
+    if (data.stop_time) {
+      const parsed = parseFirmwareOrIsoTime(data.stop_time);
+      if (parsed) {
+        endAt = admin.firestore.Timestamp.fromDate(parsed);
+        isClosed = true;
+      }
+    }
+
+    const startTotalKm = existing != null && existing.startTotalKm != null
+      ? existing.startTotalKm
+      : (merged.length > 0 ? merged[0].totalKm : totalKm);
+    const endTotalKm = merged.length > 0 ? merged[merged.length - 1].totalKm : totalKm;
+    const dayKey = dayKeyOf(startAt ? startAt.toDate() : nowDate);
+
+    log(`[TRIP] ${vehicleId} trip_id=${tripId} points=${merged.length} isClosed=${isClosed}`);
+
+    tx.set(docRef, {
+      vehicleId,
+      tripId,
+      dayKey,
+      startAt: startAt || admin.firestore.Timestamp.fromDate(nowDate),
+      endAt,
+      isClosed,
+      startTotalKm,
+      endTotalKm,
+      distanceKm: Math.max(0, endTotalKm - startTotalKm),
+      points: merged,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
 async function saveVehicleState(topic, data) {
   const vehicleId = resolveVehicleId(topic, data);
   if (!vehicleId) {
@@ -418,36 +511,42 @@ async function saveVehicleState(topic, data) {
 
   const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
 
-  const prevState = lastVehicleStateCache.get(vehicleId) || {
-  isLocked: true,
-  isRunning: false,
-};
+  if (data.trip_id !== undefined && data.trip_id !== null) {
+    // Offline trip upload: route into the trip-id-keyed history_routes doc.
+    await saveOfflineTripData(vehicleId, data, nowDate);
+  } else {
+    // Live data: maintain in-memory route segments as before.
+    const prevState = lastVehicleStateCache.get(vehicleId) || {
+      isLocked: true,
+      isRunning: false,
+    };
 
-const active = activeRoutes.get(vehicleId);
+    const active = activeRoutes.get(vehicleId);
 
-// nếu qua ngày mới thì đóng route cũ và mở route mới
-if (active && active.dayKey !== dayKeyOf(nowDate)) {
-  await closeRoute(vehicleId, point, totalKm, nowDate);
-}
+    // nếu qua ngày mới thì đóng route cũ và mở route mới
+    if (active && active.dayKey !== dayKeyOf(nowDate)) {
+      await closeRoute(vehicleId, point, totalKm, nowDate);
+    }
 
-if (!activeRoutes.has(vehicleId)) {
-  await startRoute(vehicleId, point, totalKm, nowDate);
-} else {
-  await appendRoutePoint(vehicleId, point, totalKm, nowDate);
-}
+    if (!activeRoutes.has(vehicleId)) {
+      await startRoute(vehicleId, point, totalKm, nowDate);
+    } else {
+      await appendRoutePoint(vehicleId, point, totalKm, nowDate);
+    }
 
-const shouldCloseRoute =
-  activeRoutes.has(vehicleId) &&
-  ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
+    const shouldCloseRoute =
+      activeRoutes.has(vehicleId) &&
+      ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
 
-if (shouldCloseRoute) {
-  await closeRoute(vehicleId, point, totalKm, nowDate);
-}
+    if (shouldCloseRoute) {
+      await closeRoute(vehicleId, point, totalKm, nowDate);
+    }
 
-lastVehicleStateCache.set(vehicleId, {
-  isLocked,
-  isRunning,
-});
+    lastVehicleStateCache.set(vehicleId, {
+      isLocked,
+      isRunning,
+    });
+  }
 
   const doc = {
     id: vehicleId,

@@ -16,6 +16,8 @@ class HistoryRouteRecord {
   final double endTotalKm;
   final double distanceKm;
   final List<LatLng> points;
+  // Non-null for routes built from offline device uploads; null for live routes.
+  final String? tripId;
 
   const HistoryRouteRecord({
     required this.id,
@@ -28,6 +30,7 @@ class HistoryRouteRecord {
     required this.endTotalKm,
     required this.distanceKm,
     required this.points,
+    this.tripId,
   });
 
   String _two(int n) => n.toString().padLeft(2, '0');
@@ -36,12 +39,15 @@ class HistoryRouteRecord {
     return '${_two(dt.hour)}:${_two(dt.minute)}-${_two(dt.day)}/${_two(dt.month)}';
   }
 
+  bool get isOfflineTrip => tripId != null;
+
   String get buttonLabel {
+    final String prefix = tripId != null ? '[Trip #$tripId] ' : '';
     final end = endAt;
     if (end == null) {
-      return '${_fmt(startAt)} → receiving data';
+      return '$prefix${_fmt(startAt)} → receiving data';
     }
-    return '${_fmt(startAt)} → ${_fmt(end)}';
+    return '$prefix${_fmt(startAt)} → ${_fmt(end)}';
   }
 }
 

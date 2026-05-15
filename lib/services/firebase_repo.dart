@@ -744,6 +744,7 @@ class FirebaseRepo {
               endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
               distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
               points: points,
+              tripId: m['tripId']?.toString(),
             );
           }).toList();
         });
