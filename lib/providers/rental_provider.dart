@@ -89,6 +89,14 @@ class RentalProvider extends ChangeNotifier {
         '${two(vn.hour)}:${two(vn.minute)}:${two(vn.second)}';
   }
 
+  // ISO-like timestamp in VN time (UTC+7) for device cmd payloads.
+  String _toRentalTs(DateTime value) {
+    final vn = value.toUtc().add(const Duration(hours: 7));
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${vn.year.toString().padLeft(4, '0')}-${two(vn.month)}-${two(vn.day)}'
+        'T${two(vn.hour)}:${two(vn.minute)}:${two(vn.second)}';
+  }
+
   List<ActiveRental> get activeRentals =>
       List.unmodifiable(_activeRentals.values.toList());
 
@@ -350,6 +358,7 @@ class RentalProvider extends ChangeNotifier {
     );
     notifyListeners();
 
+    mqtt.publish(bikeId, 'START_RENTAL=${_toRentalTs(startTime)}');
     mqtt.publishToApp(
       bikeId,
       'START_RENTAL_SUCCESS=$userId,${_toVietnamTime(startTime)}',
