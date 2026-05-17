@@ -28,7 +28,7 @@ class MqttDataMessage {
   });
 }
 
-// Notification from topic <deviceId>/noti
+// Notification từ topic  <deviceId>/noti
 class MqttNotiMessage {
   final String deviceId;
   final String message;
@@ -50,7 +50,7 @@ class MqttTokenRequestMessage {
   const MqttTokenRequestMessage({required this.raw});
 }
 
-// Backward-compat: vehicle state from bridge server (vehicles/+/state)
+// Backward-compat: vehicle state từ bridge server (vehicles/+/state)
 class MqttVehicleState {
   final String topic;
   final Map<String, dynamic> payload;
@@ -388,8 +388,8 @@ class MqttService {
         'isLocked': false,
         'isRunning': (vKmh ?? 0) > 0,
       };
-      if (parsed.totalKm != null) {
-        payload['totalKm'] = parsed.totalKm;
+      if (parsed.distanceM != null) {
+        payload['totalKm'] = parsed.distanceM! / 1000.0;
       }
       if (parsed.temp != null) payload['temp'] = parsed.temp;
       if (parsed.hum != null) payload['hum'] = parsed.hum;

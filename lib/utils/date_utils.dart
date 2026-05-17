@@ -1,7 +1,5 @@
 // @file       date_utils.dart
-// @brief      Utility helpers for Date / Time formatting. Single source of
-//             truth — feature code should call these instead of rolling its
-//             own padLeft/string-interpolation helpers.
+// @brief      Utility helpers for Date.
 
 /* Imports ------------------------------------------------------------ */
 import 'package:intl/intl.dart';
@@ -13,44 +11,26 @@ class AppDateUtils {
   static final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm:ss');
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
   static final DateFormat _timeFormat = DateFormat('HH:mm:ss');
-  // Compact human label, e.g. "20:35 - 05/05/2026" — used in list rows.
-  static final DateFormat _shortDateTimeFormat = DateFormat(
-    'HH:mm - dd/MM/yyyy',
-  );
-  // Wall-clock time without seconds, e.g. "20:35".
-  static final DateFormat _shortTimeFormat = DateFormat('HH:mm');
 
-  // Format DateTime → "dd/MM/yyyy HH:mm:ss" (full).
+  // Format DateTime
   static String formatDateTime(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _dateTimeFormat.format(dateTime);
   }
 
-  // Format DateTime → "HH:mm - dd/MM/yyyy" (compact label for list rows).
-  static String formatShortDateTime(DateTime? dateTime) {
-    if (dateTime == null) return '--';
-    return _shortDateTimeFormat.format(dateTime);
-  }
-
-  // Format Date → "dd/MM/yyyy".
+  // Format Date
   static String formatDate(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _dateFormat.format(dateTime);
   }
 
-  // Format Time → "HH:mm:ss".
+  // Format Time
   static String formatTime(DateTime? dateTime) {
     if (dateTime == null) return '--';
     return _timeFormat.format(dateTime);
   }
 
-  // Format Time → "HH:mm" (no seconds).
-  static String formatShortTime(DateTime? dateTime) {
-    if (dateTime == null) return '--';
-    return _shortTimeFormat.format(dateTime);
-  }
-
-  // Format duration between two timestamps as "Hh Mm Ss" / "Mm Ss" / "Ss".
+  // Calculate duration between two DateTime objects
   static String formatDuration(DateTime? start, DateTime? end) {
     if (start == null || end == null) return '--';
 

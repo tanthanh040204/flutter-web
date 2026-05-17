@@ -5,9 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/feature_config.dart';
 import '../../models/history_route.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../history_route_map_screen.dart';
 
@@ -21,36 +21,48 @@ class HistoryTab extends StatelessWidget {
     final v = fleet.selectedOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('History (${FeatureConfig.historyKeepDays} days)'),
-      ),
+      appBar: AppBar(title: Text(context.tr('Lịch sử (30 ngày)', 'History (30 days)'))),
       body: v == null
-          ? const Center(child: Text('No vehicle selected.'))
+          ? Center(child: Text(context.tr('Chưa chọn xe.', 'No vehicle selected.')))
           : StreamBuilder<List<HistoryRouteRecord>>(
               stream: FirebaseRepo.instance.watchHistoryRoutes(
                 v.id,
-                keepDays: FeatureConfig.historyKeepDays,
+                keepDays: 30,
               ),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                if (snap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        context.tr('Không đọc được lịch sử lộ trình: ${snap.error}', 'Could not read route history: ${snap.error}'),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+
                 final routes = snap.data ?? const <HistoryRouteRecord>[];
                 if (routes.isEmpty) {
-                  return const Center(child: Text('No route data available.'));
+                  return Center(
+                    child: Text(context.tr('Chưa có dữ liệu lộ trình.', 'No route history yet.')),
+                  );
                 }
 
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: routes.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final route = routes[index];
 
                     return Container(
                       decoration: BoxDecoration(
-                        color: Colors.blueGrey.withValues(alpha: 0.18),
+                        color: Colors.blueGrey.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(
@@ -82,26 +94,26 @@ class HistoryTab extends StatelessWidget {
                             ),
                           ),
                           IconButton(
-                            tooltip: 'Delete route',
+                            tooltip: context.tr('Xóa lộ trình', 'Delete route'),
                             icon: const Icon(Icons.close),
                             onPressed: () async {
                               final ok = await showDialog<bool>(
                                 context: context,
                                 builder: (_) => AlertDialog(
-                                  title: const Text('Delete route'),
+                                  title: Text(context.tr('Xóa lộ trình', 'Delete route')),
                                   content: Text(
-                                    'Do you want to delete "${route.buttonLabel}"?',
+                                    context.tr('Bạn muốn xóa "${route.buttonLabel}"?', 'Delete "${route.buttonLabel}"?'),
                                   ),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
+                                      child: Text(context.tr('Hủy', 'Cancel')),
                                     ),
                                     FilledButton(
                                       onPressed: () =>
                                           Navigator.pop(context, true),
-                                      child: const Text('Delete'),
+                                      child: Text(context.tr('Xóa', 'Delete')),
                                     ),
                                   ],
                                 ),
@@ -117,10 +129,8 @@ class HistoryTab extends StatelessWidget {
 
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Route deleted successfully',
-                                        ),
+                                      SnackBar(
+                                        content: Text(context.tr('Đã xóa lộ trình', 'Route deleted.')),
                                       ),
                                     );
                                   }
@@ -128,9 +138,7 @@ class HistoryTab extends StatelessWidget {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(
-                                          'Failed to delete route: $e',
-                                        ),
+                                        content: Text(context.tr('Không xóa được lộ trình: $e', 'Could not delete route: $e')),
                                       ),
                                     );
                                   }

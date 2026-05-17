@@ -7,14 +7,23 @@ import 'package:provider/provider.dart';
 
 import '../../models/app_notification.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../services/firebase_repo.dart';
-import '../../utils/date_utils.dart';
 import '../../widgets/vehicle_picker.dart';
 
 /* Public classes ----------------------------------------------------- */
 class NotificationsTab extends StatelessWidget {
   const NotificationsTab({super.key});
+
+  String _formatDateTime(DateTime value) {
+    final h = value.hour.toString().padLeft(2, '0');
+    final m = value.minute.toString().padLeft(2, '0');
+    final d = value.day.toString().padLeft(2, '0');
+    final mo = value.month.toString().padLeft(2, '0');
+    final y = value.year.toString();
+    return '$h:$m - $d/$mo/$y';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +37,7 @@ class NotificationsTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(context.tr('Thông báo', 'Notifications')),
         actions: const [VehiclePicker(), SizedBox(width: 8)],
       ),
       body: StreamBuilder<List<AppNotificationItem>>(
@@ -40,15 +49,15 @@ class NotificationsTab extends StatelessWidget {
               loginNotifications.isNotEmpty || maintenanceMessages.isNotEmpty;
 
           if (!hasAny) {
-            return const Center(child: Text('No notifications.'));
+            return Center(child: Text(context.tr('Chưa có thông báo.', 'No notifications.')));
           }
 
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               if (loginNotifications.isNotEmpty) ...[
-                const Text(
-                  'Recently Logged In',
+                Text(
+                  context.tr('Đăng nhập gần đây', 'Recently Logged In'),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -58,11 +67,9 @@ class NotificationsTab extends StatelessWidget {
                     child: ListTile(
                       leading: const Icon(Icons.login, color: Colors.green),
                       title: Text(item.message),
-                      subtitle: Text(
-                        AppDateUtils.formatShortDateTime(item.createdAt),
-                      ),
+                      subtitle: Text(_formatDateTime(item.createdAt)),
                       trailing: IconButton(
-                        tooltip: 'Delete notification',
+                        tooltip: context.tr('Xóa thông báo', 'Delete notification'),
                         icon: const Icon(Icons.close),
                         onPressed: () async {
                           await FirebaseRepo.instance.deleteAppNotification(
@@ -70,8 +77,8 @@ class NotificationsTab extends StatelessWidget {
                           );
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Notification deleted.'),
+                            SnackBar(
+                              content: Text(context.tr('Đã xóa thông báo.', 'Notification deleted.')),
                             ),
                           );
                         },
@@ -82,8 +89,8 @@ class NotificationsTab extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
               if (maintenanceMessages.isNotEmpty) ...[
-                const Text(
-                  'Maintenance',
+                Text(
+                  context.tr('Bảo trì', 'Maintenance'),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),

@@ -3,13 +3,16 @@
 
 /* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/language_provider.dart';
 
 import 'tabs/control_tab.dart';
 import 'tabs/stats_tab.dart';
 import 'tabs/location_tab.dart';
-import 'tabs/stations_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/notifications_tab.dart';
+import 'tabs/user_tab.dart';
 import 'tabs/more_tab.dart';
 
 /* Public classes ----------------------------------------------------- */
@@ -30,11 +33,13 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
       ControlTab(),
       StatsTab(),
       LocationTab(),
-      StationsTab(),
       HistoryTab(),
       NotificationsTab(),
+      UserTab(),
       MoreTab(),
     ];
+
+    final lang = context.watch<LanguageProvider>();
 
     return Scaffold(
       body: pages[index],
@@ -42,23 +47,35 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
         currentIndex: index,
         onTap: (i) => setState(() => index = i),
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.tune), label: 'Controls'),
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Statistics',
+            icon: const Icon(Icons.tune),
+            label: lang.tr('Điều khiển', 'Controls'),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Location'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.local_parking),
-            label: 'Stations',
+            icon: const Icon(Icons.bar_chart),
+            label: lang.tr('Thống kê', 'Statistics'),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifications',
+            icon: const Icon(Icons.location_on),
+            label: lang.tr('Trạm xe', 'Stations'),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.history),
+            label: lang.tr('Lịch sử', 'History'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.notifications),
+            label: lang.tr('Thông báo', 'Notifications'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.people_alt),
+            label: lang.tr('Người dùng', 'Users'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.more_horiz),
+            label: lang.tr('Mở rộng', 'More'),
+          ),
         ],
       ),
     );

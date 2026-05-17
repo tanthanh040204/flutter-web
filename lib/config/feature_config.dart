@@ -67,29 +67,10 @@ class FeatureConfig {
   // Interval for checking offline devices (ms)
   static const int offlineCheckIntervalMs = 5000;
 
-  // Rental service
-  static const int rentalBlockDurationsSeconds = 3600;
+  // Renta;l service
+  static const int rentalBlockDurationsMinutes = 60;
   static const int minTokenToRent = 10000; // 10k VND
   static const int outOfZonePenaltyTokens = 5000;
-  static const int rentalDebtMaxTokens = 50000; // 50k VND
-  static const int rentalDebtMaxDays = 7;
-  // Time the user has after running out of balance to return the bike to a
-  // valid parking zone. Past this, the rental ends with a penalty.
-  static const int outOfBalanceGraceMinutes = 15;
-  // Polling cadence for GPS while the user is in the out-of-balance grace
-  // window — drives how quickly we detect a successful return-to-zone.
-  static const int outOfBalanceGracePollSeconds = 30;
-  // Maximum time a rental may stay paused before being force-ended.
-  static const int pauseTimeoutHours = 1;
-
-  // Device command service
-  // Timeout for commands like UNLOCK / LOCK before considering it failed.
-  static const int unlockCommandTimeoutSeconds = 30;
-
-  // History retention
-  // History routes and daily-usage docs older than this are filtered out
-  // (and pruned from Firestore for daily_usage).
-  static const int historyKeepDays = 30;
 }
 
 /* End of file -------------------------------------------------------- */

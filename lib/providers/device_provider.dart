@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart';
 import '../config/feature_config.dart';
 import '../models/device_state.dart';
 import '../services/mqtt_service.dart';
-import '../utils/date_utils.dart';
 
 /* Public classes ----------------------------------------------------- */
 class DeviceNotification {
@@ -29,9 +28,7 @@ class DeviceNotification {
 //   MqttService.dataMessages  → _onDataMessage() → DeviceState.routePoints
 //   MqttService.notifications → _onNotification() → lockState (STATE_* / OK)
 // Online/offline:
-//   Any data or noti (including KEEPALIVE) sets online=true + lastSeen.
-//   Timer checks lastSeen; no activity within keepaliveTimeoutMs → online=false.
-//   lastKeepalive is still tracked separately for display purposes.
+//   Only KEEPALIVE on /noti sets online + lastKeepalive; if last keepalive > 60 s → offline
 // Lock / unlock / resume:
 //   UI: locked → UNLOCK, active → LOCK, pause → UNLOCK (resume); wait for OK on /noti (30 s)
 // Device-initiated via /noti: STATE_ACTIVE, STATE_LOCK, STATE_PAUSE (do not affect online)
@@ -194,45 +191,6 @@ class DeviceProvider extends ChangeNotifier {
     return mqtt.publish(deviceId, command);
   }
 
-  // Send START_RENTAL=<ts> and wait for OK (device unlocks on receipt).
-  Future<bool> sendStartRental(String deviceId, String rentalTs) async {
-    final mqtt = _mqttService;
-    if (mqtt == null || !_mqttConnected) return false;
-    if (!_devices.containsKey(deviceId)) return false;
-
-    _pendingLocks[deviceId]?.timer.cancel();
-    if (_pendingLocks[deviceId]?.completer.isCompleted == false) {
-      _pendingLocks[deviceId]!.completer.complete(false);
-    }
-
-    final completer = Completer<bool>();
-    final timer = Timer(
-      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
-      () {
-        _pendingLocks.remove(deviceId);
-        if (!completer.isCompleted) completer.complete(false);
-        notifyListeners();
-      },
-    );
-
-    _pendingLocks[deviceId] = _PendingLock(
-      targetState: DeviceLockState.active,
-      completer: completer,
-      timer: timer,
-    );
-    notifyListeners();
-
-    final sent = mqtt.publish(deviceId, 'START_RENTAL=$rentalTs');
-    if (!sent) {
-      _pendingLocks.remove(deviceId);
-      timer.cancel();
-      if (!completer.isCompleted) completer.complete(false);
-      notifyListeners();
-    }
-
-    return completer.future;
-  }
-
   // Send LOCK or UNLOCK command and wait for OK response (max 30 s).
   // Returns true if OK received, false on timeout or error.
   Future<bool> sendUnlock(String deviceId) async {
@@ -267,14 +225,11 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     final completer = Completer<bool>();
-    final timer = Timer(
-      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
-      () {
-        _pendingLocks.remove(deviceId);
-        if (!completer.isCompleted) completer.complete(false);
-        notifyListeners();
-      },
-    );
+    final timer = Timer(const Duration(seconds: 30), () {
+      _pendingLocks.remove(deviceId);
+      if (!completer.isCompleted) completer.complete(false);
+      notifyListeners();
+    });
 
     _pendingLocks[deviceId] = _PendingLock(
       targetState: targetState,
@@ -322,7 +277,7 @@ class DeviceProvider extends ChangeNotifier {
     final now = DateTime.now();
 
     // Append raw data to debug log
-    _appendLog(_rawDataLog, deviceId, AppDateUtils.formatTime(now), msg.raw);
+    _appendLog(_rawDataLog, deviceId, _fmtTime(now), msg.raw);
 
     List<RoutePoint> nextPoints = List.of(current.routePoints);
 
@@ -342,8 +297,8 @@ class DeviceProvider extends ChangeNotifier {
       }
     }
 
+    // Data messages do not affect online/offline — only KEEPALIVE does
     _devices[deviceId] = current.copyWith(
-      online: true,
       lastSeen: now,
       latest: data,
       routePoints: nextPoints,
@@ -362,7 +317,7 @@ class DeviceProvider extends ChangeNotifier {
     final now = DateTime.now();
 
     // Append raw noti to debug log
-    _appendLog(_rawNotiLog, deviceId, AppDateUtils.formatTime(now), message);
+    _appendLog(_rawNotiLog, deviceId, _fmtTime(now), message);
 
     final token = message.trim().toUpperCase();
 
@@ -384,14 +339,12 @@ class DeviceProvider extends ChangeNotifier {
           pending.timer.cancel();
           if (pending.targetState == DeviceLockState.locked) {
             next = current.copyWith(
-              online: true,
               lastSeen: now,
               lockState: DeviceLockState.locked,
               routePoints: [],
             );
           } else {
             next = current.copyWith(
-              online: true,
               lastSeen: now,
               lockState: DeviceLockState.active,
               routePoints: [],
@@ -399,13 +352,12 @@ class DeviceProvider extends ChangeNotifier {
           }
           if (!pending.completer.isCompleted) pending.completer.complete(true);
         } else {
-          next = current.copyWith(online: true, lastSeen: now);
+          next = current.copyWith(lastSeen: now);
         }
         break;
 
       case 'STATE_ACTIVE':
         next = current.copyWith(
-          online: true,
           lockState: DeviceLockState.active,
           lastSeen: now,
         );
@@ -413,7 +365,6 @@ class DeviceProvider extends ChangeNotifier {
 
       case 'STATE_LOCK':
         next = current.copyWith(
-          online: true,
           lockState: DeviceLockState.locked,
           lastSeen: now,
           routePoints: [],
@@ -423,7 +374,6 @@ class DeviceProvider extends ChangeNotifier {
       case 'STATE_PAUSE':
       case 'NOTI_PAUSE':
         next = current.copyWith(
-          online: true,
           lockState: DeviceLockState.pause,
           lastSeen: now,
         );
@@ -462,9 +412,10 @@ class DeviceProvider extends ChangeNotifier {
 
     for (final id in _devices.keys) {
       final s = _devices[id]!;
-      final lastActivity = s.lastSeen;
+      final lastKa = s.lastKeepalive;
 
-      if (lastActivity == null) {
+      // Online is only valid with a keepalive timestamp; repair stale flags
+      if (lastKa == null) {
         if (s.online) {
           _devices[id] = s.copyWith(online: false);
           changed = true;
@@ -474,7 +425,7 @@ class DeviceProvider extends ChangeNotifier {
 
       if (!s.online) continue;
 
-      if (now.difference(lastActivity).inMilliseconds > timeoutMs) {
+      if (now.difference(lastKa).inMilliseconds > timeoutMs) {
         _devices[id] = s.copyWith(online: false);
         changed = true;
       }
@@ -492,6 +443,13 @@ class DeviceProvider extends ChangeNotifier {
     final log = logMap.putIfAbsent(deviceId, () => []);
     log.add('[$time] $text');
     if (log.length > _maxLogLines) log.removeAt(0);
+  }
+
+  static String _fmtTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final s = dt.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 
   static bool _isValidCoord(double lat, double lng) =>

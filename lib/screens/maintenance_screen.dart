@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/fleet_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/language_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
 class MaintenanceScreen extends StatelessWidget {
@@ -21,13 +22,8 @@ class MaintenanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Maintenance'),
+        title: Text(context.tr('Bảo trì', 'Maintenance')),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.restart_alt),
-            tooltip: 'Reset total distance on all devices',
-            onPressed: () => _confirmClearTotalDistance(context),
-          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showAddItem(context),
@@ -37,7 +33,7 @@ class MaintenanceScreen extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final it = items[i];
           final due = it.isDue;
@@ -49,9 +45,10 @@ class MaintenanceScreen extends StatelessWidget {
               color: Theme.of(context).colorScheme.surface,
               border: due
                   ? Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.error.withValues(alpha: 0.6),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .error
+                          .withValues(alpha: 0.6),
                       width: 1.2,
                     )
                   : null,
@@ -60,7 +57,7 @@ class MaintenanceScreen extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
-                ),
+                )
               ],
             ),
             child: Column(
@@ -87,29 +84,30 @@ class MaintenanceScreen extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.error.withValues(alpha: 0.12),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .error
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          'Need maintenance',
+                          context.tr('Cần bảo dưỡng', 'Need maintenance'),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                           ),
                         ),
-                      ),
+                      )
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Cycle: ${it.cycleKm.toStringAsFixed(0)} km',
+                  context.tr('Chu kỳ: ${it.cycleKm.toStringAsFixed(0)} km', 'Cycle: ${it.cycleKm.toStringAsFixed(0)} km'),
                   style: TextStyle(
                     color: due ? Theme.of(context).colorScheme.error : null,
                   ),
                 ),
                 Text(
-                  'Travelled: ${it.maintanceKm.toStringAsFixed(0)} km',
+                  context.tr('Đã đi: ${it.maintanceKm.toStringAsFixed(0)} km', 'Used: ${it.maintanceKm.toStringAsFixed(0)} km'),
                   style: TextStyle(
                     color: due ? Theme.of(context).colorScheme.error : null,
                     fontWeight: due ? FontWeight.w700 : FontWeight.w400,
@@ -123,7 +121,7 @@ class MaintenanceScreen extends StatelessWidget {
                         onPressed: () =>
                             _showEditCycleKm(context, it.id, it.cycleKm),
                         icon: const Icon(Icons.edit),
-                        label: const Text('Edit Cycle'),
+                        label: Text(context.tr('Sửa chu kỳ', 'Edit Cycle')),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -135,15 +133,15 @@ class MaintenanceScreen extends StatelessWidget {
                               .markServiced(v.id, it.id);
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Updated: ${it.name}')),
+                            SnackBar(content: Text(context.tr('Đã cập nhật: ${it.name}', 'Updated: ${it.name}'))),
                           );
                         },
                         icon: const Icon(Icons.check),
-                        label: const Text('Mark as Serviced'),
+                        label: Text(context.tr('Đã bảo dưỡng', 'Mark as Serviced')),
                       ),
                     ),
                   ],
-                ),
+                )
               ],
             ),
           );
@@ -152,46 +150,8 @@ class MaintenanceScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmClearTotalDistance(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Reset total distance?'),
-        content: const Text(
-          'CLEAR_TOTAL_DISTANCE will be sent to every device. Each device\'s '
-          'total km will reset to 0 once it acknowledges with OK.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    if (!context.mounted) return;
-
-    final sent = context.read<FleetProvider>().clearTotalDistance();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          sent
-              ? 'CLEAR_TOTAL_DISTANCE sent. Waiting for OK from devices...'
-              : 'Could not send command (MQTT not connected or no devices).',
-        ),
-      ),
-    );
-  }
-
   Future<void> _showAddItem(BuildContext context) async {
     final fleet = context.read<FleetProvider>();
-    final maintenance = context.read<MaintenanceProvider>();
     final v = fleet.selected;
 
     final nameCtl = TextEditingController();
@@ -200,19 +160,17 @@ class MaintenanceScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Add Maintenance Item'),
+        title: Text(context.tr('Thêm hạng mục bảo trì', 'Add Maintenance Item')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtl,
-              decoration: const InputDecoration(
-                labelText: 'Name (e.g., Tire Replacement)',
-              ),
+              decoration: InputDecoration(labelText: context.tr('Tên (ví dụ: Thay lốp)', 'Name (e.g., Tire Replacement)')),
             ),
             TextField(
               controller: kmCtl,
-              decoration: const InputDecoration(labelText: 'Cycle (km)'),
+              decoration: InputDecoration(labelText: context.tr('Chu kỳ (km)', 'Cycle (km)')),
               keyboardType: TextInputType.number,
             ),
           ],
@@ -220,11 +178,11 @@ class MaintenanceScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Add'),
+            child: Text(context.tr('Thêm', 'Add')),
           ),
         ],
       ),
@@ -236,7 +194,11 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? 0;
     if (name.isEmpty || cycleKm <= 0) return;
 
-    await maintenance.addItem(v.id, name: name, cycleKm: cycleKm);
+    await context.read<MaintenanceProvider>().addItem(
+          v.id,
+          name: name,
+          cycleKm: cycleKm,
+        );
   }
 
   Future<void> _showEditCycleKm(
@@ -245,7 +207,6 @@ class MaintenanceScreen extends StatelessWidget {
     double current,
   ) async {
     final fleet = context.read<FleetProvider>();
-    final maintenance = context.read<MaintenanceProvider>();
     final v = fleet.selected;
 
     final kmCtl = TextEditingController(text: current.toStringAsFixed(0));
@@ -253,20 +214,20 @@ class MaintenanceScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Edit Cycle (km)'),
+        title: Text(context.tr('Sửa chu kỳ (km)', 'Edit Cycle (km)')),
         content: TextField(
           controller: kmCtl,
-          decoration: const InputDecoration(labelText: 'Cycle (km)'),
+          decoration: InputDecoration(labelText: context.tr('Chu kỳ (km)', 'Cycle (km)')),
           keyboardType: TextInputType.number,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
+            child: Text(context.tr('Lưu', 'Save')),
           ),
         ],
       ),
@@ -277,7 +238,11 @@ class MaintenanceScreen extends StatelessWidget {
     final cycleKm = double.tryParse(kmCtl.text.trim()) ?? current;
     if (cycleKm <= 0) return;
 
-    await maintenance.updateCycleKm(v.id, itemId, cycleKm);
+    await context.read<MaintenanceProvider>().updateCycleKm(
+          v.id,
+          itemId,
+          cycleKm,
+        );
   }
 }
 

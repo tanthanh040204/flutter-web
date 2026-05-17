@@ -3,20 +3,19 @@
 
 /* Imports ------------------------------------------------------------ */
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../config/feature_config.dart';
 import '../models/app_note.dart';
 import '../models/app_notification.dart';
 import '../models/employee_account.dart';
 import '../models/daily_stat.dart';
 import '../models/history_route.dart';
 import '../models/maintenance_item.dart';
-import '../models/parking_zone.dart';
-import '../models/rental_user.dart';
+import '../models/rental_user_info.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
 
@@ -43,6 +42,31 @@ class FirebaseRepo {
   final List<AppNote> _localNotes = <AppNote>[];
   final StreamController<List<AppNote>> _localNotesCtl =
       StreamController<List<AppNote>>.broadcast();
+
+  final Map<String, RentalUserInfo> _localRentalUsers = <String, RentalUserInfo>{
+    'user_1234567890': RentalUserInfo(
+      wireUserId: 'user_1234567890',
+      uid: '1234567890',
+      fullName: 'Nguyen Cao Tan Thanh',
+      employeeCode: 'NV001',
+      phone: '0900000001',
+      email: 'demo@tngo.vn',
+      balance: 120000,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+    'user_1132298001': RentalUserInfo(
+      wireUserId: 'user_1132298001',
+      fullName: 'Demo User 2',
+      balance: 0,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+    'user_0987654321': RentalUserInfo(
+      wireUserId: 'user_0987654321',
+      fullName: 'Demo User 3',
+      balance: 0,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+  };
 
   bool get _isReady => Firebase.apps.isNotEmpty;
 
@@ -77,137 +101,154 @@ class FirebaseRepo {
   CollectionReference<Map<String, dynamic>>? get _appNotes =>
       _db?.collection('app_notes');
 
-  CollectionReference<Map<String, dynamic>>? get _parkingZones =>
-      _db?.collection('parking_zones');
-
   CollectionReference<Map<String, dynamic>>? get _rentalUsers =>
       _db?.collection('rental_users');
 
-  // ---- Parking zones (shared by web admin + mobile app) ----------------
-  Future<void> _ensureSeedParkingZones() async {
-    final zones = _parkingZones;
-    if (zones == null) return;
+  CollectionReference<Map<String, dynamic>>? get _users =>
+      _db?.collection('users');
 
-    final snap = await zones.limit(1).get();
-    if (snap.docs.isNotEmpty) return;
+  Future<RentalUserInfo?> getRentalUserInfo(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return null;
 
-    for (final zone in ParkingZone.defaultSeed) {
-      await zones.doc(zone.id).set({
-        ...zone.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-  }
-
-  Stream<List<ParkingZone>> watchParkingZones() {
-    final zones = _parkingZones;
-    if (zones == null) {
-      return Stream.value(List<ParkingZone>.from(ParkingZone.defaultSeed));
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) {
+      return _localRentalUsers[id];
     }
 
-    Future.microtask(_ensureSeedParkingZones);
+    final rentalSnap = await rentalUsers.doc(id).get();
+    if (rentalSnap.exists) {
+      return RentalUserInfo.fromMap(rentalSnap.id, rentalSnap.data() ?? {});
+    }
 
-    return zones.snapshots().map((snap) {
-      final list = snap.docs
-          .map((doc) => ParkingZone.fromMap(doc.id, doc.data()))
-          .where((z) => z.isActive)
-          .toList();
-      list.sort((a, b) => a.id.compareTo(b.id));
-      return list;
-    });
+    final users = _users;
+    if (users != null) {
+      final userQuery = await users
+          .where('wireUserId', isEqualTo: id)
+          .limit(1)
+          .get();
+      if (userQuery.docs.isNotEmpty) {
+        return RentalUserInfo.fromMap(
+          id,
+          userQuery.docs.first.data(),
+        );
+      }
+    }
+
+    return null;
   }
 
-  Future<void> upsertParkingZone(ParkingZone zone) async {
-    final zones = _parkingZones;
-    if (zones == null) return;
-    await zones.doc(zone.id).set({
-      ...zone.toMap(),
+  Future<bool> rentalUserExists(String wireUserId) async {
+    return getRentalUserInfo(wireUserId).then((info) => info != null);
+  }
+
+  Future<int?> getRentalUserTokens(String wireUserId) async {
+    final info = await getRentalUserInfo(wireUserId);
+    return info?.balance;
+  }
+
+  Future<void> updateRentalUserTokens(String wireUserId, int tokens) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return;
+
+    final safeTokens = tokens < 0 ? 0 : tokens;
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) {
+      final current = _localRentalUsers[id] ?? RentalUserInfo(wireUserId: id);
+      _localRentalUsers[id] = current.copyWith(
+        balance: safeTokens,
+        updatedAt: DateTime.now(),
+      );
+      return;
+    }
+
+    await rentalUsers.doc(id).set({
+      'userId': id,
+      'wireUserId': id,
+      'tokens': safeTokens,
+      'balance': safeTokens,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final users = _users;
+    if (users == null) return;
+    final query = await users.where('wireUserId', isEqualTo: id).limit(1).get();
+    if (query.docs.isEmpty) return;
+    await query.docs.first.reference.set({
+      'balance': safeTokens,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  Future<void> deleteParkingZone(String zoneId) async {
-    final zones = _parkingZones;
-    if (zones == null) return;
-    await zones.doc(zoneId).delete();
-  }
-
-  // ---- Rental users (shared by web admin + mobile app) -----------------
-  Future<void> _ensureSeedRentalUsers() async {
-    final users = _rentalUsers;
-    if (users == null) return;
-
-    final snap = await users.limit(1).get();
-    if (snap.docs.isNotEmpty) return;
-
-    for (final user in RentalUser.defaultSeed) {
-      await users.doc(user.userId).set({
-        ...user.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-  }
-
-  Stream<List<RentalUser>> watchRentalUsers() {
-    final users = _rentalUsers;
-    if (users == null) {
-      return Stream.value(List<RentalUser>.from(RentalUser.defaultSeed));
-    }
-
-    Future.microtask(_ensureSeedRentalUsers);
-
-    return users.snapshots().map((snap) {
-      final list = snap.docs
-          .map((doc) => RentalUser.fromMap(doc.id, doc.data()))
-          .toList();
-      list.sort((a, b) => a.userId.compareTo(b.userId));
-      return list;
-    });
-  }
-
-  Future<void> upsertRentalUser(RentalUser user) async {
-    final users = _rentalUsers;
-    if (users == null) return;
-    await users.doc(user.userId).set({
-      ...user.toMap(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  Future<void> setRentalUserTokens(String userId, int tokens) async {
-    final users = _rentalUsers;
-    if (users == null) return;
-    await users.doc(userId).set({
-      'userId': userId,
-      'tokens': tokens < 0 ? 0 : tokens,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  Future<void> setRentalUserState({
-    required String userId,
-    required int tokens,
-    required int debt,
-    required DateTime? debtStartedAt,
-    required bool isLocked,
+  Future<void> markRentalUserSession({
+    required String wireUserId,
+    required String bikeId,
+    required DateTime startedAt,
   }) async {
-    final users = _rentalUsers;
+    final id = wireUserId.trim();
+    if (id.isEmpty) return;
+
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) {
+      final current = _localRentalUsers[id] ?? RentalUserInfo(wireUserId: id);
+      _localRentalUsers[id] = current.copyWith(
+        currentBikeId: bikeId,
+        currentBikeStartedAt: startedAt,
+        updatedAt: DateTime.now(),
+      );
+      return;
+    }
+
+    await rentalUsers.doc(id).set({
+      'userId': id,
+      'wireUserId': id,
+      'currentBikeId': bikeId,
+      'currentBikeStartedAt': Timestamp.fromDate(startedAt),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final users = _users;
     if (users == null) return;
-    await users.doc(userId).set({
-      'userId': userId,
-      'tokens': tokens < 0 ? 0 : tokens,
-      'debt': debt < 0 ? 0 : debt,
-      'debtStartedAt':
-          debtStartedAt == null ? null : Timestamp.fromDate(debtStartedAt),
-      'isLocked': isLocked,
+    final query = await users.where('wireUserId', isEqualTo: id).limit(1).get();
+    if (query.docs.isEmpty) return;
+    await query.docs.first.reference.set({
+      'currentBikeId': bikeId,
+      'currentBikeStartedAt': Timestamp.fromDate(startedAt),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  Future<void> deleteRentalUser(String userId) async {
-    final users = _rentalUsers;
+  Future<void> clearRentalUserSession(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return;
+
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) {
+      final current = _localRentalUsers[id];
+      if (current != null) {
+        _localRentalUsers[id] = current.copyWith(
+          clearCurrentSession: true,
+          updatedAt: DateTime.now(),
+        );
+      }
+      return;
+    }
+
+    await rentalUsers.doc(id).set({
+      'currentBikeId': FieldValue.delete(),
+      'currentBikeStartedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final users = _users;
     if (users == null) return;
-    await users.doc(userId).delete();
+    final query = await users.where('wireUserId', isEqualTo: id).limit(1).get();
+    if (query.docs.isEmpty) return;
+    await query.docs.first.reference.set({
+      'currentBikeId': FieldValue.delete(),
+      'currentBikeStartedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   List<Vehicle> _sortedLocalVehicles() {
@@ -411,8 +452,7 @@ class FirebaseRepo {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final message =
-        'Employee code $employeeCode has logged in at $hour:$minute';
+    final message = 'Employee code $employeeCode has logged in at $hour:$minute';
 
     final notifications = _appNotifications;
     if (notifications == null) {
@@ -480,11 +520,14 @@ class FirebaseRepo {
       return _localNotesCtl.stream;
     }
 
-    return notes.orderBy('updatedAt', descending: true).snapshots().map((snap) {
-      return snap.docs
-          .map((doc) => AppNote.fromMap(doc.id, doc.data()))
-          .toList();
-    });
+    return notes
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snap) {
+          return snap.docs
+              .map((doc) => AppNote.fromMap(doc.id, doc.data()))
+              .toList();
+        });
   }
 
   Future<void> createNote({
@@ -703,7 +746,7 @@ class FirebaseRepo {
 
   Stream<List<HistoryRouteRecord>> watchHistoryRoutes(
     String vehicleId, {
-    int keepDays = FeatureConfig.historyKeepDays,
+    int keepDays = 30,
   }) {
     final vehicles = _vehicles;
     if (vehicles == null) {
@@ -719,40 +762,213 @@ class FirebaseRepo {
         .orderBy('startAt', descending: true)
         .snapshots()
         .map((snap) {
-          return snap.docs.map((doc) {
-            final m = doc.data();
-
-            final rawPoints = (m['points'] as List?) ?? const [];
-            final points = rawPoints.map((e) {
-              final p = Map<String, dynamic>.from(e as Map);
-              return LatLng(
-                ((p['lat'] ?? 0) as num).toDouble(),
-                ((p['lon'] ?? 0) as num).toDouble(),
-              );
-            }).toList();
-
-            return HistoryRouteRecord(
-              id: doc.id,
-              vehicleId: (m['vehicleId'] ?? vehicleId).toString(),
-              dayKey: (m['dayKey'] ?? '').toString(),
-              startAt: (m['startAt'] as Timestamp).toDate(),
-              endAt: m['endAt'] == null
-                  ? null
-                  : (m['endAt'] as Timestamp).toDate(),
-              isClosed: (m['isClosed'] ?? false) as bool,
-              startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
-              endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
-              distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
-              points: points,
-              tripId: m['tripId']?.toString(),
-            );
-          }).toList();
+          return snap.docs
+              .map((doc) => _historyRouteFromDoc(doc, fallbackVehicleId: vehicleId))
+              .whereType<HistoryRouteRecord>()
+              .toList();
         });
+  }
+
+  Stream<HistoryRouteRecord?> watchHistoryRoute(
+    String vehicleId,
+    String routeId,
+  ) {
+    final vehicles = _vehicles;
+    if (vehicles == null) return Stream<HistoryRouteRecord?>.value(null);
+
+    return vehicles
+        .doc(vehicleId)
+        .collection('history_routes')
+        .doc(routeId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          return _historyRouteFromDoc(doc, fallbackVehicleId: vehicleId);
+        });
+  }
+
+  Future<void> upsertHistoryRoutePointFromVehicle(
+    Vehicle vehicle, {
+    int keepDays = 30,
+    Duration staleAfter = const Duration(seconds: 20),
+    Duration minPointInterval = const Duration(seconds: 2),
+    double minDistanceMeters = 2.0,
+    int maxPoints = 1200,
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    final point = vehicle.lastLocation;
+    if (!_isUsefulLatLng(point.latitude, point.longitude)) return;
+
+    final now = vehicle.updatedAt.toLocal();
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayKey = _dailyUsageDocId(dayStart);
+    final routesRef = vehicles.doc(vehicle.id).collection('history_routes');
+
+    final openSnap = await routesRef
+        .where('isClosed', isEqualTo: false)
+        .limit(20)
+        .get();
+
+    final openRoutes = openSnap.docs.toList()
+      ..sort((a, b) {
+        final at = _timestampToDate(a.data()['startAt']) ?? DateTime(1970);
+        final bt = _timestampToDate(b.data()['startAt']) ?? DateTime(1970);
+        return bt.compareTo(at);
+      });
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? currentOpen;
+    for (final doc in openRoutes) {
+      final data = doc.data();
+      final lastSeen = _timestampToDate(data['lastSeenAt']) ??
+          _timestampToDate(data['startAt']) ??
+          DateTime(1970);
+
+      if (now.difference(lastSeen).abs() <= staleAfter &&
+          (data['dayKey'] ?? dayKey).toString() == dayKey) {
+        currentOpen = doc;
+        break;
+      }
+
+      await doc.reference.set({
+        'isClosed': true,
+        'endAt': Timestamp.fromDate(lastSeen),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    if (currentOpen == null) {
+      final id = 'route_${vehicle.id}_${now.millisecondsSinceEpoch}';
+      await routesRef.doc(id).set({
+        'vehicleId': vehicle.id,
+        'dayKey': dayKey,
+        'startAt': Timestamp.fromDate(now),
+        'endAt': null,
+        'isClosed': false,
+        'startTotalKm': vehicle.totalKm,
+        'endTotalKm': vehicle.totalKm,
+        'distanceKm': 0.0,
+        'lastSeenAt': Timestamp.fromDate(now),
+        'points': [
+          _historyPointMap(
+            point,
+            now,
+            batteryPercent: vehicle.batteryPercent,
+            speedKmh: vehicle.velocityKmh,
+          ),
+        ],
+        'expiresAt': Timestamp.fromDate(dayStart.add(Duration(days: keepDays))),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await pruneOldHistoryRoutes(vehicle.id, keepDays: keepDays);
+      return;
+    }
+
+    final data = currentOpen.data();
+    final rawPoints = (data['points'] as List?) ?? const [];
+    final points = rawPoints
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    final shouldAppend = _shouldAppendHistoryPoint(
+      points,
+      point,
+      now,
+      minPointInterval: minPointInterval,
+      minDistanceMeters: minDistanceMeters,
+    );
+
+    final nextPoints = shouldAppend
+        ? [
+            ...points,
+            _historyPointMap(
+              point,
+              now,
+              batteryPercent: vehicle.batteryPercent,
+              speedKmh: vehicle.velocityKmh,
+            ),
+          ]
+        : points;
+
+    final trimmedPoints = nextPoints.length > maxPoints
+        ? nextPoints.sublist(nextPoints.length - maxPoints)
+        : nextPoints;
+
+    final startKm = _asDouble(data['startTotalKm']) ?? vehicle.totalKm;
+    final distanceKm = vehicle.totalKm >= startKm ? vehicle.totalKm - startKm : 0.0;
+
+    await currentOpen.reference.set({
+      'endTotalKm': vehicle.totalKm,
+      'distanceKm': distanceKm,
+      'lastSeenAt': Timestamp.fromDate(now),
+      'points': trimmedPoints,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> closeStaleHistoryRoutes(
+    String vehicleId, {
+    Duration staleAfter = const Duration(seconds: 20),
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    final now = DateTime.now();
+    final snap = await vehicles
+        .doc(vehicleId)
+        .collection('history_routes')
+        .where('isClosed', isEqualTo: false)
+        .limit(20)
+        .get();
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final lastSeen = _timestampToDate(data['lastSeenAt']) ??
+          _timestampToDate(data['startAt']);
+      if (lastSeen == null) continue;
+
+      if (now.difference(lastSeen) >= staleAfter) {
+        await doc.reference.set({
+          'isClosed': true,
+          'endAt': Timestamp.fromDate(lastSeen),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
+  }
+
+  Future<void> pruneOldHistoryRoutes(String vehicleId, {int keepDays = 30}) async {
+    final db = _db;
+    final vehicles = _vehicles;
+    if (db == null || vehicles == null) return;
+
+    final now = DateTime.now().toLocal();
+    final keepFrom = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: keepDays - 1));
+
+    final query = await vehicles
+        .doc(vehicleId)
+        .collection('history_routes')
+        .where('startAt', isLessThan: Timestamp.fromDate(keepFrom))
+        .get();
+
+    if (query.docs.isEmpty) return;
+
+    final batch = db.batch();
+    for (final doc in query.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
   }
 
   Future<void> upsertDailyUsageFromOdo(
     Vehicle vehicle, {
-    int keepDays = FeatureConfig.historyKeepDays,
+    int keepDays = 30,
   }) async {
     final db = _db;
     final vehicles = _vehicles;
@@ -804,10 +1020,7 @@ class FirebaseRepo {
     await pruneOldDailyUsage(vehicle.id, keepDays: keepDays);
   }
 
-  Future<void> pruneOldDailyUsage(
-    String vehicleId, {
-    int keepDays = FeatureConfig.historyKeepDays,
-  }) async {
+  Future<void> pruneOldDailyUsage(String vehicleId, {int keepDays = 30}) async {
     final db = _db;
     final vehicles = _vehicles;
 
@@ -834,6 +1047,113 @@ class FirebaseRepo {
     }
     await batch.commit();
   }
+
+  HistoryRouteRecord? _historyRouteFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    required String fallbackVehicleId,
+  }) {
+    final m = doc.data();
+    if (m == null) return null;
+
+    final startAt = _timestampToDate(m['startAt']);
+    if (startAt == null) return null;
+
+    final rawPoints = (m['points'] as List?) ?? const [];
+    final points = rawPoints
+        .whereType<Map>()
+        .map((e) {
+          final p = Map<String, dynamic>.from(e);
+          final lat = _asDouble(p['lat']) ?? 0.0;
+          final lon = _asDouble(p['lon']) ?? 0.0;
+          if (!_isUsefulLatLng(lat, lon)) return null;
+          return LatLng(lat, lon);
+        })
+        .whereType<LatLng>()
+        .toList();
+
+    return HistoryRouteRecord(
+      id: doc.id,
+      vehicleId: (m['vehicleId'] ?? fallbackVehicleId).toString(),
+      dayKey: (m['dayKey'] ?? '').toString(),
+      startAt: startAt,
+      endAt: _timestampToDate(m['endAt']),
+      isClosed: _asBool(m['isClosed']) ?? false,
+      startTotalKm: _asDouble(m['startTotalKm']) ?? 0.0,
+      endTotalKm: _asDouble(m['endTotalKm']) ?? 0.0,
+      distanceKm: _asDouble(m['distanceKm']) ?? 0.0,
+      points: points,
+    );
+  }
+
+  Map<String, dynamic> _historyPointMap(
+    LatLng point,
+    DateTime time, {
+    required int batteryPercent,
+    required double speedKmh,
+  }) {
+    return {
+      'lat': point.latitude,
+      'lon': point.longitude,
+      'time': Timestamp.fromDate(time),
+      'batteryPercent': batteryPercent,
+      'speedKmh': speedKmh,
+    };
+  }
+
+  bool _shouldAppendHistoryPoint(
+    List<Map<String, dynamic>> points,
+    LatLng point,
+    DateTime time, {
+    required Duration minPointInterval,
+    required double minDistanceMeters,
+  }) {
+    if (points.isEmpty) return true;
+
+    final last = points.last;
+    final lastLat = _asDouble(last['lat']);
+    final lastLon = _asDouble(last['lon']);
+    final lastTime = _timestampToDate(last['time']);
+
+    if (lastLat == null || lastLon == null || lastTime == null) return true;
+
+    final elapsedOk = time.difference(lastTime).abs() >= minPointInterval;
+    final distanceOk = _distanceMeters(
+          lastLat,
+          lastLon,
+          point.latitude,
+          point.longitude,
+        ) >=
+        minDistanceMeters;
+
+    return elapsedOk && distanceOk;
+  }
+
+  DateTime? _timestampToDate(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString());
+  }
+
+  bool _isUsefulLatLng(double lat, double lon) {
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+    if (lat.abs() < 0.000001 && lon.abs() < 0.000001) return false;
+    return true;
+  }
+
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadiusMeters = 6371000.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final rLat1 = _degToRad(lat1);
+    final rLat2 = _degToRad(lat2);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(rLat1) * cos(rLat2) * sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadiusMeters * c;
+  }
+
+  double _degToRad(double degree) => degree * pi / 180.0;
 
   String _dailyUsageDocId(DateTime d) {
     final y = d.year.toString().padLeft(4, '0');
@@ -893,12 +1213,10 @@ class FirebaseRepo {
     final s = id.trim();
     // haq-trk-001 format
     final matchNew = RegExp(r'^haq-trk-(\d+)$').firstMatch(s);
-    if (matchNew != null)
-      return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
+    if (matchNew != null) return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
     // Legacy V1/V2 format
     final matchOld = RegExp(r'^(?:V|v)(\d+)$').firstMatch(s);
-    if (matchOld != null)
-      return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
+    if (matchOld != null) return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
     return 1 << 30;
   }
 
@@ -965,8 +1283,29 @@ class FirebaseRepo {
     final snap = await ref.limit(1).get();
     if (snap.docs.isNotEmpty) return;
 
+    final defaults = <MaintenanceItem>[
+      const MaintenanceItem(
+        id: 'oil',
+        name: 'Thay nhớt',
+        maintanceKm: 0,
+        cycleKm: 2000,
+      ),
+      const MaintenanceItem(
+        id: 'brake',
+        name: 'Tra/Thay nhớt thắng',
+        maintanceKm: 0,
+        cycleKm: 4000,
+      ),
+      const MaintenanceItem(
+        id: 'battery',
+        name: 'Kiểm tra/Thay pin',
+        maintanceKm: 0,
+        cycleKm: 12000,
+      ),
+    ];
+
     final batch = db.batch();
-    for (final item in MaintenanceItem.defaultSeed) {
+    for (final item in defaults) {
       batch.set(ref.doc(item.id), {
         'name': item.name,
         'maintanceKm': item.maintanceKm,
@@ -1065,65 +1404,6 @@ class FirebaseRepo {
           .toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-  }
-
-  // Merge a single GPS point into a rental trip doc, deduplicating and
-  // sorting by timestamp. Creates the doc if it doesn't exist yet.
-  Future<void> mergeTripPoint(
-    String vehicleId, {
-    required String tripId,
-    required String userId,
-    required DateTime startTime,
-    required Map<String, dynamic> point,
-  }) async {
-    final vehicles = _vehicles;
-    if (vehicles == null) return;
-
-    final ref = vehicles.doc(vehicleId).collection('trips').doc(tripId);
-    final snap = await ref.get();
-    final existing = snap.data() ?? {};
-
-    final prevPts =
-        (existing['points'] as List<dynamic>? ?? [])
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-
-    final timeKey = point['time'] as String;
-    final merged =
-        [...prevPts.where((p) => p['time'] != timeKey), point]
-          ..sort(
-            (a, b) =>
-                (a['time'] as String).compareTo(b['time'] as String),
-          );
-
-    await ref.set({
-      'vehicleId': vehicleId,
-      'userId': userId,
-      'startTime': startTime.toIso8601String(),
-      'points': merged,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  // Set endTime and mark a rental trip as closed.
-  Future<void> finalizeTripEntry(
-    String vehicleId, {
-    required String tripId,
-    required DateTime endTime,
-  }) async {
-    final vehicles = _vehicles;
-    if (vehicles == null) return;
-
-    await vehicles
-        .doc(vehicleId)
-        .collection('trips')
-        .doc(tripId)
-        .set({
-          'endTime': endTime.toIso8601String(),
-          'isClosed': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
   }
 }
 

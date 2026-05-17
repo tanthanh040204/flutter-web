@@ -7,7 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
-import '../utils/date_utils.dart';
+import '../providers/language_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
 class TripDetailScreen extends StatelessWidget {
@@ -17,18 +17,19 @@ class TripDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final points = trip.points.map((p) => p.latLng).toList();
-    final center = points.isEmpty
-        ? const LatLng(0, 0)
-        : points[points.length ~/ 2];
+    final center = points.isEmpty ? const LatLng(0, 0) : points[points.length ~/ 2];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Trip Details')),
+      appBar: AppBar(title: Text(context.tr('Chi tiết chuyến đi', 'Trip Details'))),
       body: Column(
         children: [
           _Summary(trip: trip),
           Expanded(
             child: FlutterMap(
-              options: MapOptions(initialCenter: center, initialZoom: 14),
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: 14,
+              ),
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -36,7 +37,9 @@ class TripDetailScreen extends StatelessWidget {
                 ),
                 if (points.length >= 2)
                   PolylineLayer(
-                    polylines: [Polyline(points: points, strokeWidth: 4)],
+                    polylines: [
+                      Polyline(points: points, strokeWidth: 4),
+                    ],
                   ),
                 MarkerLayer(
                   markers: [
@@ -80,18 +83,19 @@ class _Summary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${AppDateUtils.formatDate(trip.startTime)}  •  ${AppDateUtils.formatShortTime(trip.startTime)} → ${AppDateUtils.formatShortTime(trip.endTime)}',
+            '${_fmtDate(trip.startTime)}  •  ${_fmtTime(trip.startTime)} → ${_fmtTime(trip.endTime)}',
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          Text('Distance: ${trip.distanceKm.toStringAsFixed(2)} km'),
-          Text(
-            'Average Speed: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Max: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h',
-          ),
+          Text(context.tr('Quãng đường: ${trip.distanceKm.toStringAsFixed(2)} km', 'Distance: ${trip.distanceKm.toStringAsFixed(2)} km')),
+          Text(context.tr('Tốc độ TB: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Cao nhất: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h', 'Average Speed: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Max: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h')),
         ],
       ),
     );
   }
+
+  static String _fmtTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  static String _fmtDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
 }
 
 class _SpeedChips extends StatelessWidget {
@@ -118,20 +122,14 @@ class _SpeedChips extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Speed (Last Points)',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text(context.tr('Tốc độ (các điểm gần nhất)', 'Speed (Last Points)'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             runSpacing: 6,
             children: tail.map((p) {
-              final t =
-                  '${p.time.hour.toString().padLeft(2, '0')}:${p.time.minute.toString().padLeft(2, '0')}';
-              return Chip(
-                label: Text('$t • ${p.speedKmh.toStringAsFixed(0)} km/h'),
-              );
+              final t = '${p.time.hour.toString().padLeft(2, '0')}:${p.time.minute.toString().padLeft(2, '0')}';
+              return Chip(label: Text('$t • ${p.speedKmh.toStringAsFixed(0)} km/h'));
             }).toList(),
           ),
         ],

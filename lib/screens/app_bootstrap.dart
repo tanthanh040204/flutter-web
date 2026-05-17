@@ -90,10 +90,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
       // Bind RentalProvider handle rental: start, stop, add tokens, etc.
       rentalProvider.bindToMqtt(mqtt, deviceProvider);
 
-      // Bind RentalProvider to shared Firestore data (parking zones, users).
-      rentalProvider.bindToFirebase();
-
-      // subscribeFleetState() subscribes topics of defaultDevices
+      // subscribeFleetState() subscribe topics của defaultDevices
       await mqtt.subscribeFleetState();
     } catch (e) {
       debugPrint('[AppBootstrap] MQTT init failed: $e');

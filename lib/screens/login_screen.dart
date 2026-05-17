@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
 class LoginScreen extends StatefulWidget {
@@ -41,15 +42,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (!ok && auth.errorMessage != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(auth.errorMessage!)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.errorMessage!)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final language = context.watch<LanguageProvider>();
 
     return Scaffold(
       body: Center(
@@ -67,10 +69,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => context.read<LanguageProvider>().toggle(),
+                          icon: const Icon(Icons.translate_outlined, size: 18),
+                          label: Text(language.isVietnamese ? 'English' : 'Tiếng Việt'),
+                        ),
+                      ),
                       const Icon(Icons.lock_outline, size: 56),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Login',
+                      Text(
+                        context.tr('Đăng nhập', 'Login'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 24,
@@ -78,22 +88,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Enter your employee code and password to login.',
+                      Text(
+                        context.tr('Nhập mã nhân viên và mật khẩu để đăng nhập.', 'Enter your employee code and password to login.'),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
                       TextFormField(
                         controller: _employeeCodeCtrl,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Employee Code',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.badge_outlined),
+                        decoration: InputDecoration(
+                          labelText: context.tr('Mã nhân viên', 'Employee Code'),
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.badge_outlined),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your employee code.';
+                            return context.tr('Vui lòng nhập mã nhân viên.', 'Please enter your employee code.');
                           }
                           return null;
                         },
@@ -104,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         onFieldSubmitted: (_) => _submit(),
                         decoration: InputDecoration(
-                          labelText: 'Password',
+                          labelText: context.tr('Mật khẩu', 'Password'),
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.password_outlined),
                           suffixIcon: IconButton(
@@ -122,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your password.';
+                            return context.tr('Vui lòng nhập mật khẩu.', 'Please enter your password.');
                           }
                           return null;
                         },
@@ -136,11 +146,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text('Login'),
+                              : Text(context.tr('Đăng nhập', 'Login')),
                         ),
                       ),
                     ],

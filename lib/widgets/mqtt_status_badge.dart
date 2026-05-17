@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../config/feature_config.dart';
 import '../providers/device_provider.dart';
+import '../providers/language_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
 class MqttStatusBadge extends StatelessWidget {
@@ -35,7 +36,7 @@ class _CompactBadge extends StatelessWidget {
     return Tooltip(
       message: connected
           ? 'MQTT: ${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}'
-          : 'MQTT: Not connected',
+          : context.tr('MQTT: Chưa kết nối', 'MQTT: Not connected'),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -64,7 +65,7 @@ class _FullCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = connected ? Colors.green.shade700 : Colors.red.shade600;
     final bg = connected ? Colors.green.shade50 : Colors.red.shade50;
-    final label = connected ? 'Connected' : 'Not Connected';
+    final label = connected ? context.tr('Đã kết nối', 'Connected') : context.tr('Chưa kết nối', 'Not Connected');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -83,7 +84,7 @@ class _FullCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'MQTT Broker',
+                  context.tr('MQTT Broker', 'MQTT Broker'),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade600,
