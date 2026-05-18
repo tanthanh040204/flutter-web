@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/app_notification.dart';
+import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../services/firebase_repo.dart';
@@ -20,11 +21,15 @@ class NotificationsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
     final maint = context.watch<MaintenanceProvider>();
+    final deviceProvider = context.watch<DeviceProvider>();
 
     final maintenanceMessages = <String>[];
     for (final v in fleet.vehicles) {
       maintenanceMessages.addAll(maint.dueMessagesForVehicle(v));
     }
+
+    final helpDevices =
+        deviceProvider.devices.where((d) => d.helpRequested).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -37,7 +42,9 @@ class NotificationsTab extends StatelessWidget {
           final loginNotifications =
               snapshot.data ?? const <AppNotificationItem>[];
           final hasAny =
-              loginNotifications.isNotEmpty || maintenanceMessages.isNotEmpty;
+              helpDevices.isNotEmpty ||
+              loginNotifications.isNotEmpty ||
+              maintenanceMessages.isNotEmpty;
 
           if (!hasAny) {
             return const Center(child: Text('No notifications.'));
@@ -46,6 +53,35 @@ class NotificationsTab extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (helpDevices.isNotEmpty) ...[
+                const Text(
+                  'Help Requests',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ...helpDevices.map(
+                  (d) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    color: Colors.red.shade50,
+                    child: ListTile(
+                      leading: const Icon(Icons.sos, color: Colors.red),
+                      title: Text('Help requested from ${d.id}'),
+                      subtitle: const Text('User held the SOS button'),
+                      trailing: IconButton(
+                        tooltip: 'Dismiss alarm',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          context.read<DeviceProvider>().clearHelp(d.id);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Alarm dismissed.')),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
               if (loginNotifications.isNotEmpty) ...[
                 const Text(
                   'Recently Logged In',

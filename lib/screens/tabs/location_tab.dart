@@ -145,7 +145,9 @@ class _LocationTabState extends State<LocationTab> {
           point: loc,
           width: 50,
           height: 50,
-          child: Icon(Icons.location_on, size: 44, color: color),
+          child: (ds?.helpRequested ?? false)
+              ? const Icon(Icons.warning, size: 44, color: Colors.red)
+              : Icon(Icons.location_on, size: 44, color: color),
         ));
 
         if (_showRoute && ds != null) {
@@ -177,7 +179,9 @@ class _LocationTabState extends State<LocationTab> {
         point: loc,
         width: 50,
         height: 50,
-        child: const Icon(Icons.location_on, size: 44),
+        child: (ds?.helpRequested ?? false)
+            ? const Icon(Icons.warning, size: 44, color: Colors.red)
+            : const Icon(Icons.location_on, size: 44),
       ));
 
       if (_showRoute && routeLatLng.isNotEmpty) {

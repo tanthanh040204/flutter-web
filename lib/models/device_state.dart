@@ -69,6 +69,7 @@ class DeviceState {
   final DeviceLockState lockState;
   final DeviceData? latest;
   final List<RoutePoint> routePoints;
+  final bool helpRequested;
 
   const DeviceState({
     required this.id,
@@ -79,6 +80,7 @@ class DeviceState {
     this.lockState = DeviceLockState.active,
     this.latest,
     this.routePoints = const [],
+    this.helpRequested = false,
   });
 
   DeviceState copyWith({
@@ -89,6 +91,7 @@ class DeviceState {
     DeviceLockState? lockState,
     DeviceData? latest,
     List<RoutePoint>? routePoints,
+    bool? helpRequested,
   }) {
     return DeviceState(
       id: id,
@@ -99,6 +102,7 @@ class DeviceState {
       lockState: lockState ?? this.lockState,
       latest: latest ?? this.latest,
       routePoints: routePoints ?? this.routePoints,
+      helpRequested: helpRequested ?? this.helpRequested,
     );
   }
 }

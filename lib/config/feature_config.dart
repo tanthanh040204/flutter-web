@@ -68,7 +68,8 @@ class FeatureConfig {
   static const int offlineCheckIntervalMs = 5000;
 
   // Rental service
-  static const int rentalBlockDurationsSeconds = 3600;
+  static const int rentalBlockDurationsSeconds =
+      3600; // 1 hour block for rentals
   static const int minTokenToRent = 10000; // 10k VND
   static const int outOfZonePenaltyTokens = 5000;
   static const int rentalDebtMaxTokens = 50000; // 50k VND
