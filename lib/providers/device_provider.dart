@@ -185,6 +185,13 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearHelp(String deviceId) {
+    final s = _devices[deviceId];
+    if (s == null || !s.helpRequested) return;
+    _devices[deviceId] = s.copyWith(helpRequested: false);
+    notifyListeners();
+  }
+
   bool publishCommand(String deviceId, String command) {
     final mqtt = _mqttService;
     if (mqtt == null) {
@@ -427,6 +434,16 @@ class DeviceProvider extends ChangeNotifier {
           lockState: DeviceLockState.pause,
           lastSeen: now,
         );
+        break;
+
+      case 'NOTI_HELP':
+        // SOS — user held the help button; raise alarm until dismissed.
+        next = current.copyWith(
+          online: true,
+          lastSeen: now,
+          helpRequested: true,
+        );
+        debugPrint('[DeviceProvider] NOTI_HELP from $deviceId');
         break;
 
       default:
