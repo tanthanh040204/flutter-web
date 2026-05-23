@@ -13,6 +13,9 @@ import '../../services/firebase_repo.dart';
 /* Constants ---------------------------------------------------------- */
 const Color _kMarkerColor = Color(0xFF1557FF);
 const Color _kAccentColor = Color(0xFF1557FF);
+const Color _kZoneFillColor = Color(0x331557FF);
+const Color _kZoneBorderColor = Color(0xFF1557FF);
+const double _kZoneBorderWidth = 2.0;
 const String _kOsmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const String _kUserAgentPkg = 'com.example.flutter_tracking_manager_web';
 const LatLng _kFallbackCenter = LatLng(10.849908, 106.771621);
@@ -50,6 +53,20 @@ class StationsTab extends StatelessWidget {
                     TileLayer(
                       urlTemplate: _kOsmTileUrl,
                       userAgentPackageName: _kUserAgentPkg,
+                    ),
+                    CircleLayer(
+                      circles: zones
+                          .map(
+                            (zone) => CircleMarker(
+                              point: LatLng(zone.lat, zone.lng),
+                              radius: zone.radiusMeters,
+                              useRadiusInMeter: true,
+                              color: _kZoneFillColor,
+                              borderColor: _kZoneBorderColor,
+                              borderStrokeWidth: _kZoneBorderWidth,
+                            ),
+                          )
+                          .toList(),
                     ),
                     MarkerLayer(
                       markers: zones
