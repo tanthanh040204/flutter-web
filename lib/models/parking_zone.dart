@@ -61,10 +61,6 @@ class ParkingZone {
     return double.tryParse(value.toString());
   }
 
-  // Default seed list — used by `FirebaseRepo` to seed the `parking_zones`
-  // collection on first run, and by `RentalProvider` as the offline /
-  // pre-stream fallback. Keep in sync by always referencing this constant
-  // rather than duplicating literals.
   static const List<ParkingZone> defaultSeed = <ParkingZone>[
     ParkingZone(
       id: 'PZ001',
@@ -87,7 +83,32 @@ class ParkingZone {
       lng: 106.797446,
       radiusMeters: 60.0,
     ),
+    ParkingZone(
+      id: 'PZ004',
+      name: 'Khu C, UTE',
+      lat: 10.853257605857388,
+      lng: 106.77183955420634,
+      radiusMeters: 60.0,
+    ),
   ];
+
+  static List<ParkingZone> mergeRemoteAndLocal(
+    Iterable<ParkingZone> remote, {
+    Iterable<ParkingZone> local = defaultSeed,
+    bool includeLocal = true,
+  }) {
+    final byId = <String, ParkingZone>{};
+    for (final zone in remote) {
+      if (zone.isActive) byId[zone.id] = zone;
+    }
+    if (includeLocal) {
+      for (final zone in local) {
+        if (zone.isActive) byId[zone.id] = zone;
+      }
+    }
+    final merged = byId.values.toList()..sort((a, b) => a.id.compareTo(b.id));
+    return merged;
+  }
 }
 
 /* End of file -------------------------------------------------------- */

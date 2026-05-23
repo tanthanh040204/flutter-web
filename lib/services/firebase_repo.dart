@@ -99,21 +99,26 @@ class FirebaseRepo {
     }
   }
 
+  List<ParkingZone> _mergeParkingZones(List<ParkingZone> remote) {
+    return ParkingZone.mergeRemoteAndLocal(
+      remote,
+      includeLocal: FeatureConfig.parkingZonesLocal,
+    );
+  }
+
   Stream<List<ParkingZone>> watchParkingZones() {
     final zones = _parkingZones;
     if (zones == null) {
-      return Stream.value(List<ParkingZone>.from(ParkingZone.defaultSeed));
+      return Stream.value(_mergeParkingZones(const <ParkingZone>[]));
     }
 
     Future.microtask(_ensureSeedParkingZones);
 
     return zones.snapshots().map((snap) {
-      final list = snap.docs
+      final remote = snap.docs
           .map((doc) => ParkingZone.fromMap(doc.id, doc.data()))
-          .where((z) => z.isActive)
           .toList();
-      list.sort((a, b) => a.id.compareTo(b.id));
-      return list;
+      return _mergeParkingZones(remote);
     });
   }
 
@@ -197,8 +202,9 @@ class FirebaseRepo {
       'userId': userId,
       'tokens': tokens < 0 ? 0 : tokens,
       'debt': debt < 0 ? 0 : debt,
-      'debtStartedAt':
-          debtStartedAt == null ? null : Timestamp.fromDate(debtStartedAt),
+      'debtStartedAt': debtStartedAt == null
+          ? null
+          : Timestamp.fromDate(debtStartedAt),
       'isLocked': isLocked,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -1083,19 +1089,14 @@ class FirebaseRepo {
     final snap = await ref.get();
     final existing = snap.data() ?? {};
 
-    final prevPts =
-        (existing['points'] as List<dynamic>? ?? [])
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
+    final prevPts = (existing['points'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
 
     final timeKey = point['time'] as String;
-    final merged =
-        [...prevPts.where((p) => p['time'] != timeKey), point]
-          ..sort(
-            (a, b) =>
-                (a['time'] as String).compareTo(b['time'] as String),
-          );
+    final merged = [...prevPts.where((p) => p['time'] != timeKey), point]
+      ..sort((a, b) => (a['time'] as String).compareTo(b['time'] as String));
 
     await ref.set({
       'vehicleId': vehicleId,
@@ -1115,15 +1116,11 @@ class FirebaseRepo {
     final vehicles = _vehicles;
     if (vehicles == null) return;
 
-    await vehicles
-        .doc(vehicleId)
-        .collection('trips')
-        .doc(tripId)
-        .set({
-          'endTime': endTime.toIso8601String(),
-          'isClosed': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    await vehicles.doc(vehicleId).collection('trips').doc(tripId).set({
+      'endTime': endTime.toIso8601String(),
+      'isClosed': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }
 

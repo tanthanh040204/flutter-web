@@ -50,6 +50,7 @@ class FeatureConfig {
   // Features
   static const bool enableMqtt = true;
   static const bool enableFirebase = true;
+  static const bool parkingZonesLocal = true;
   static const bool enableNotifications = true;
   // Auto register device when receiving data from an unknown device topic
   static const bool enableAutoRegisterDevice = true;

@@ -139,7 +139,7 @@ class RentalProvider extends ChangeNotifier {
     _zones
       ..clear()
       ..addAll(zones);
-    debugPrint('[Rental] parking zones synced from Firestore: ${zones.length}');
+    debugPrint('[Rental] parking zones updated: ${zones.length}');
     notifyListeners();
   }
 

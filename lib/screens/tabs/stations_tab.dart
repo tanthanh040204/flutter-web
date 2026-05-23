@@ -38,8 +38,8 @@ class StationsTab extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
-                      'No stations yet. Add a document under Firestore '
-                      'collection "parking_zones" to display one.',
+                      'No stations yet. Add zones in Firestore parking_zones '
+                      'and/or ParkingZone.defaultSeed in parking_zone.dart.',
                       textAlign: TextAlign.center,
                     ),
                   ),
