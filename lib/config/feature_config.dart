@@ -67,6 +67,8 @@ class FeatureConfig {
   static const int keepaliveTimeoutMs = 60000;
   // Interval for checking offline devices (ms)
   static const int offlineCheckIntervalMs = 5000;
+  // Start rental interval (ms)
+  static const int rentalStartIntervalMs = 15 * 1000; // 15 seconds
 
   // Rental service
   static const int rentalBlockDurationsSeconds =

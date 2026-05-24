@@ -214,7 +214,7 @@ class DeviceProvider extends ChangeNotifier {
 
     final completer = Completer<bool>();
     final timer = Timer(
-      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
+      const Duration(milliseconds: FeatureConfig.rentalStartIntervalMs),
       () {
         _pendingLocks.remove(deviceId);
         if (!completer.isCompleted) completer.complete(false);
