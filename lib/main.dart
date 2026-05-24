@@ -1,4 +1,3 @@
-
 // @file       main.dart
 // @brief      App entry point.
 
@@ -17,7 +16,7 @@ import 'providers/maintenance_provider.dart';
 import 'providers/rental_provider.dart';
 import 'providers/stations_provider.dart';
 import 'providers/trip_provider.dart';
-import 'screens/app_bootstrap.dart';
+import 'screens/landing_shell.dart';
 import 'services/mqtt_service.dart';
 
 /* Entry point -------------------------------------------------------- */
@@ -64,7 +63,7 @@ class RouteTrackerApp extends StatelessWidget {
             title: language.tr('Theo dõi lộ trình', 'Route Tracker'),
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
-            home: const AppBootstrap(),
+            home: const LandingShell(),
           );
         },
       ),

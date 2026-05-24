@@ -500,17 +500,41 @@ class FirebaseRepo {
   }
 
   Future<void> deleteAppNotification(String notificationId) async {
-    final id = notificationId.trim();
-    if (id.isEmpty) return;
+    await deleteAppNotifications([notificationId]);
+  }
+
+  Future<void> deleteAppNotifications(Iterable<String> notificationIds) async {
+    final ids = notificationIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return;
 
     final notifications = _appNotifications;
     if (notifications == null) {
-      _localNotifications.removeWhere((item) => item.id == id);
+      _localNotifications.removeWhere((item) => ids.contains(item.id));
       _emitLocalNotifications();
       return;
     }
 
-    await notifications.doc(id).delete();
+    // Xóa từng document trực tiếp để hành vi giống nút X cũ.
+    // Dùng batch đôi khi khó biết document nào/rule nào làm fail,
+    // còn ở đây Firestore sẽ ném lỗi rõ nếu không đủ quyền xóa.
+    for (final id in ids) {
+      await notifications.doc(id).delete();
+    }
+  }
+
+  Future<void> deleteAllAppNotifications() async {
+    final notifications = _appNotifications;
+    if (notifications == null) {
+      _localNotifications.clear();
+      _emitLocalNotifications();
+      return;
+    }
+
+    await _deleteCollectionInBatches(notifications);
   }
 
   Stream<List<AppNote>> watchNotes() {
@@ -611,16 +635,44 @@ class FirebaseRepo {
   }
 
   Future<void> deleteHistoryRoute(String vehicleId, String routeId) async {
+    await deleteHistoryRoutes(vehicleId, [routeId]);
+  }
+
+  Future<void> deleteHistoryRoutes(
+    String vehicleId,
+    Iterable<String> routeIds,
+  ) async {
+    final safeVehicleId = vehicleId.trim();
+    final ids = routeIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (safeVehicleId.isEmpty || ids.isEmpty) return;
+
     final vehicles = _vehicles;
     if (vehicles == null) {
       throw StateError('Firestore has not been initialized.');
     }
 
-    await vehicles
-        .doc(vehicleId)
-        .collection('history_routes')
-        .doc(routeId)
-        .delete();
+    final routes = vehicles.doc(safeVehicleId).collection('history_routes');
+    for (final id in ids) {
+      await routes.doc(id).delete();
+    }
+  }
+
+  Future<void> deleteAllHistoryRoutes(String vehicleId) async {
+    final safeVehicleId = vehicleId.trim();
+    if (safeVehicleId.isEmpty) return;
+
+    final vehicles = _vehicles;
+    if (vehicles == null) {
+      throw StateError('Firestore has not been initialized.');
+    }
+
+    await _deleteCollectionInBatches(
+      vehicles.doc(safeVehicleId).collection('history_routes'),
+    );
   }
 
   Future<void> saveVehicle(Vehicle v) async {
@@ -1404,6 +1456,28 @@ class FirebaseRepo {
           .toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+
+  Future<void> _deleteCollectionInBatches(
+    CollectionReference<Map<String, dynamic>> collection, {
+    int batchSize = 400,
+  }) async {
+    final db = _db;
+    if (db == null) return;
+
+    while (true) {
+      final snap = await collection.limit(batchSize).get();
+      if (snap.docs.isEmpty) return;
+
+      final batch = db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snap.docs.length < batchSize) return;
+    }
   }
 }
 

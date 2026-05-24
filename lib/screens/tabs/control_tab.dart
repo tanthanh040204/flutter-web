@@ -12,6 +12,7 @@ import '../../models/device_state.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../widgets/vehicle_picker.dart';
 
 /* Public classes ----------------------------------------------------- */
 class ControlTab extends StatelessWidget {
@@ -46,7 +47,7 @@ class ControlTab extends StatelessWidget {
                 ? null
                 : () => _showAddVehicleDialog(context),
           ),
-          const _VehiclePicker(),
+          const VehiclePicker(),
           const SizedBox(width: 8),
         ],
       ),
