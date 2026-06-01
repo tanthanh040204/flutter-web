@@ -35,21 +35,23 @@ class MaintenanceProvider extends ChangeNotifier {
 
       if (_subs.containsKey(vehicle.id)) continue;
 
-      _subs[vehicle.id] = FirebaseRepo.instance.watchMaintenance(vehicle.id).listen(
-        (items) async {
-          if (items.isEmpty) {
-            await ensureDefaults(vehicle.id);
-            return;
-          }
-          _byVehicle[vehicle.id] = items;
-          notifyListeners();
-        },
-        onError: (_) async {
-          if (!_byVehicle.containsKey(vehicle.id)) {
-            await ensureDefaults(vehicle.id);
-          }
-        },
-      );
+      _subs[vehicle.id] = FirebaseRepo.instance
+          .watchMaintenance(vehicle.id)
+          .listen(
+            (items) async {
+              if (items.isEmpty) {
+                await ensureDefaults(vehicle.id);
+                return;
+              }
+              _byVehicle[vehicle.id] = items;
+              notifyListeners();
+            },
+            onError: (_) async {
+              if (!_byVehicle.containsKey(vehicle.id)) {
+                await ensureDefaults(vehicle.id);
+              }
+            },
+          );
     }
 
     notifyListeners();
@@ -145,11 +147,14 @@ class MaintenanceProvider extends ChangeNotifier {
     final list = _byVehicle[v.id] ?? const <MaintenanceItem>[];
     final msgs = <String>[];
 
+    final vehicleName = v.name.trim().isNotEmpty ? v.name.trim() : v.id;
+
     for (final it in list) {
       if (it.isDue) {
-        msgs.add('Đã đến lúc bảo dưỡng cho "${it.name}"');
+        msgs.add('Xe "$vehicleName" đã đến lúc bảo dưỡng cho "${it.name}"');
       }
     }
+
     return msgs;
   }
 

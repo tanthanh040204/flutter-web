@@ -84,7 +84,7 @@ class _FullCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  context.tr('MQTT Broker', 'MQTT Broker'),
+                  context.tr('Máy chủ MQTT', 'MQTT Broker'),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade600,

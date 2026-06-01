@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../models/device_state.dart';
 import '../models/vehicle.dart';
 import '../providers/device_provider.dart';
@@ -20,31 +21,51 @@ class VehiclePicker extends StatelessWidget {
     final devices = context.watch<DeviceProvider>();
     if (fleet.vehicles.isEmpty) return const SizedBox.shrink();
 
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<int>(
-        value: fleet.selectedIndex,
-        selectedItemBuilder: (context) {
-          return List.generate(fleet.vehicles.length, (i) {
+    return Container(
+      height: 42,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFDDEAF4)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDark.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: fleet.selectedIndex,
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          selectedItemBuilder: (context) {
+            return List.generate(fleet.vehicles.length, (i) {
+              final vehicle = fleet.vehicles[i];
+              final isOn = _isVehicleInUse(vehicle, devices);
+              return _VehicleDropdownItem(
+                name: vehicle.name,
+                isOn: isOn,
+                compact: true,
+              );
+            });
+          },
+          items: List.generate(fleet.vehicles.length, (i) {
             final vehicle = fleet.vehicles[i];
             final isOn = _isVehicleInUse(vehicle, devices);
-            return _VehicleDropdownItem(
-              name: vehicle.name,
-              isOn: isOn,
-              compact: true,
+            return DropdownMenuItem<int>(
+              value: i,
+              child: _VehicleDropdownItem(name: vehicle.name, isOn: isOn),
             );
-          });
-        },
-        items: List.generate(fleet.vehicles.length, (i) {
-          final vehicle = fleet.vehicles[i];
-          final isOn = _isVehicleInUse(vehicle, devices);
-          return DropdownMenuItem<int>(
-            value: i,
-            child: _VehicleDropdownItem(name: vehicle.name, isOn: isOn),
-          );
-        }),
-        onChanged: (i) {
-          if (i != null) context.read<FleetProvider>().selectVehicle(i);
-        },
+          }),
+          onChanged: (i) {
+            if (i != null) context.read<FleetProvider>().selectVehicle(i);
+          },
+        ),
       ),
     );
   }
@@ -65,6 +86,7 @@ bool _isVehicleInUse(
 
   return !vehicle.isLocked;
 }
+
 class _VehicleDropdownItem extends StatelessWidget {
   const _VehicleDropdownItem({
     required this.name,
@@ -79,15 +101,33 @@ class _VehicleDropdownItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: compact ? 190 : 240),
+      constraints: BoxConstraints(maxWidth: compact ? 210 : 260),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.electric_scooter_rounded,
+              color: AppColors.primaryDark,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: compact ? 14 : 15),
+              style: TextStyle(
+                fontSize: compact ? 14 : 15,
+                color: AppColors.dark,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -105,15 +145,15 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isOn ? Colors.green : Colors.red;
+    final color = isOn ? AppColors.success : AppColors.danger;
     final label = isOn ? 'ON' : 'OFF';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withOpacity(0.10),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.65)),
+        border: Border.all(color: color.withOpacity(0.50)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -129,7 +169,7 @@ class _StatusPill extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w900,
               letterSpacing: 0.2,
             ),
           ),

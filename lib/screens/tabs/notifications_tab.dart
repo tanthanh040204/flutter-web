@@ -80,6 +80,19 @@ class _NotificationsTabState extends State<NotificationsTab> {
     }
   }
 
+
+  String _notificationMessage(BuildContext context, AppNotificationItem item) {
+    if (item.type == 'login' && (item.employeeCode ?? '').isNotEmpty) {
+      final h = item.createdAt.hour.toString().padLeft(2, '0');
+      final m = item.createdAt.minute.toString().padLeft(2, '0');
+      return context.tr(
+        'Mã nhân viên ${item.employeeCode} đã đăng nhập lúc $h:$m',
+        'Employee code ${item.employeeCode} has logged in at $h:$m',
+      );
+    }
+    return item.message;
+  }
+
   Widget _buildBulkToolbar(List<AppNotificationItem> items) {
     final ids = items.map((item) => item.id).toSet();
     final selectedCount = _selectedNotificationIds.where(ids.contains).length;
@@ -197,7 +210,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                       });
                                     },
                             ),
-                            title: Text(item.message),
+                            title: Text(_notificationMessage(context, item)),
                             subtitle: Text(_formatDateTime(item.createdAt)),
                             onTap: _isDeleting
                                 ? null

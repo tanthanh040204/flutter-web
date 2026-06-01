@@ -452,7 +452,7 @@ class FirebaseRepo {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final message = 'Employee code $employeeCode has logged in at $hour:$minute';
+    final message = 'Mã nhân viên $employeeCode đã đăng nhập lúc $hour:$minute';
 
     final notifications = _appNotifications;
     if (notifications == null) {

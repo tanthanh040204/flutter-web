@@ -182,7 +182,7 @@ class ControlTab extends StatelessWidget {
               maxLength: 3,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: context.tr('Số xe (ví dụ: 001)', 'Vehicle Number (e.g. 001)'),
+                labelText: context.tr('Mã Xe (Vd: 001)', 'Vehicle Number (e.g. 001)'),
                 prefixText: 'haq-trk-',
                 border: const OutlineInputBorder(),
               ),
