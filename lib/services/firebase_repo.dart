@@ -774,15 +774,10 @@ class FirebaseRepo {
           return snap.docs.map((doc) {
             final m = doc.data();
 
-            final rawPoints = (m['points'] as List?) ?? const [];
-            final points = rawPoints.map((e) {
-              final p = Map<String, dynamic>.from(e as Map);
-              return LatLng(
-                ((p['lat'] ?? 0) as num).toDouble(),
-                ((p['lon'] ?? 0) as num).toDouble(),
-              );
-            }).toList();
-
+            // The history list only needs metadata; `points` (which the bridge
+            // appends to continuously while a bike is being ridden) are skipped
+            // here to keep each live re-emit cheap. The map screen loads the
+            // full points via watchHistoryRoute(vehicleId, routeId).
             return HistoryRouteRecord(
               id: doc.id,
               vehicleId: (m['vehicleId'] ?? vehicleId).toString(),
@@ -795,7 +790,7 @@ class FirebaseRepo {
               startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
               endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
               distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
-              points: points,
+              points: const <LatLng>[],
               tripId: m['tripId']?.toString(),
             );
           }).toList();

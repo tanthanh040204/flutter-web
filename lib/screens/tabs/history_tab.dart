@@ -26,6 +26,22 @@ class _HistoryTabState extends State<HistoryTab> {
   final Set<String> _hiddenDeletedRouteIds = <String>{};
   bool _isDeleting = false;
 
+  // Cache the Firestore stream per vehicle so it is not re-created on every
+  // rebuild (FleetProvider notifies on each MQTT telemetry tick). Recreating
+  // the stream would tear down / re-subscribe the StreamBuilder and flash the
+  // loading spinner continuously.
+  String? _streamVehicleId;
+  Stream<List<HistoryRouteRecord>>? _routesStream;
+
+  Stream<List<HistoryRouteRecord>> _routesStreamFor(String vehicleId) {
+    if (_routesStream == null || _streamVehicleId != vehicleId) {
+      _streamVehicleId = vehicleId;
+      _routesStream =
+          FirebaseRepo.instance.watchHistoryRoutes(vehicleId, keepDays: 30);
+    }
+    return _routesStream!;
+  }
+
   Future<void> _deleteSelected(String vehicleId) async {
     final ids = _selectedRouteIds.toList(growable: false);
     if (ids.isEmpty || _isDeleting) return;
@@ -124,21 +140,20 @@ class _HistoryTabState extends State<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final fleet = context.watch<FleetProvider>();
-    final v = fleet.selectedOrNull;
+    // Only rebuild when the selected vehicle id changes — not on every
+    // FleetProvider telemetry notify.
+    final vehicleId =
+        context.select<FleetProvider, String?>((f) => f.selectedOrNull?.id);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('Lịch sử (30 ngày)', 'History (30 days)')),
         actions: const [VehiclePicker(), SizedBox(width: 8)],
       ),
-      body: v == null
+      body: vehicleId == null
           ? Center(child: Text(context.tr('Chưa chọn xe.', 'No vehicle selected.')))
           : StreamBuilder<List<HistoryRouteRecord>>(
-              stream: FirebaseRepo.instance.watchHistoryRoutes(
-                v.id,
-                keepDays: 30,
-              ),
+              stream: _routesStreamFor(vehicleId),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -178,7 +193,7 @@ class _HistoryTabState extends State<HistoryTab> {
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         if (index == 0) {
-                          return _buildBulkToolbar(v.id, routes);
+                          return _buildBulkToolbar(vehicleId, routes);
                         }
 
                         final route = routes[index - 1];
@@ -265,7 +280,7 @@ class _HistoryTabState extends State<HistoryTab> {
 
                                         try {
                                           await FirebaseRepo.instance.deleteHistoryRoute(
-                                            v.id,
+                                            vehicleId,
                                             route.id,
                                           );
 
