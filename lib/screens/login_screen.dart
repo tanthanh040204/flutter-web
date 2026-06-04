@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_string.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/language_provider.dart';
@@ -195,10 +196,10 @@ class _LoginIntroPanel extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.electric_moped_rounded, color: Colors.white, size: 20),
+                Icon(Icons.pedal_bike, color: Colors.white, size: 20),
                 SizedBox(width: 8),
                 Text(
-                  'UTE Electric Vehicles',
+                  AppStrings.brandName,
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -210,10 +211,7 @@ class _LoginIntroPanel extends StatelessWidget {
           ),
           SizedBox(height: compact ? 18 : 36),
           Text(
-            context.tr(
-              'Quản lý xe điện thông minh, gọn gàng và trực quan.',
-              'Smart, clean and visual electric vehicle management.',
-            ),
+            context.loc(AppStrings.loginTagline),
             style: TextStyle(
               color: Colors.white,
               fontSize: compact ? 28 : 38,

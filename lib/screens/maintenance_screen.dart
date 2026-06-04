@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_string.dart';
 import '../providers/fleet_provider.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/language_provider.dart';
@@ -22,7 +23,7 @@ class MaintenanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Bảo trì', 'Maintenance')),
+        title: Text(context.loc(AppStrings.titleMaintenance)),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_string.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/fleet_provider.dart';
@@ -47,37 +48,37 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
       _NavItemData(
         icon: Icons.tune_rounded,
         selectedIcon: Icons.dashboard_customize_rounded,
-        label: lang.tr('Điều khiển', 'Controls'),
+        label: lang.loc(AppStrings.navControl),
       ),
       _NavItemData(
         icon: Icons.insights_rounded,
         selectedIcon: Icons.bar_chart_rounded,
-        label: lang.tr('Thống kê', 'Statistics'),
+        label: lang.loc(AppStrings.navStats),
       ),
       _NavItemData(
         icon: Icons.location_on_outlined,
         selectedIcon: Icons.location_on_rounded,
-        label: lang.tr('Trạm xe', 'Stations'),
+        label: lang.loc(AppStrings.navStations),
       ),
       _NavItemData(
         icon: Icons.route_outlined,
         selectedIcon: Icons.route_rounded,
-        label: lang.tr('Lịch sử', 'History'),
+        label: lang.loc(AppStrings.navHistory),
       ),
       _NavItemData(
         icon: Icons.notifications_none_rounded,
         selectedIcon: Icons.notifications_active_rounded,
-        label: lang.tr('Thông báo', 'Notifications'),
+        label: lang.loc(AppStrings.navNotifications),
       ),
       _NavItemData(
         icon: Icons.people_alt_outlined,
         selectedIcon: Icons.people_alt_rounded,
-        label: lang.tr('Người dùng', 'Users'),
+        label: lang.loc(AppStrings.navUsers),
       ),
       _NavItemData(
         icon: Icons.grid_view_rounded,
         selectedIcon: Icons.widgets_rounded,
-        label: lang.tr('Mở rộng', 'More'),
+        label: lang.loc(AppStrings.navMore),
       ),
     ];
 
@@ -146,11 +147,7 @@ class _DashboardBackground extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF7FCFF),
-            Color(0xFFEAF6FF),
-            Color(0xFFF8FAFC),
-          ],
+          colors: [Color(0xFFF7FCFF), Color(0xFFEAF6FF), Color(0xFFF8FAFC)],
         ),
       ),
       child: Stack(
@@ -181,7 +178,11 @@ class _DashboardPatternPainter extends CustomPainter {
 
     canvas.drawCircle(Offset(size.width * 0.92, size.height * 0.08), 160, cyan);
     canvas.drawCircle(Offset(size.width * 0.12, size.height * 0.92), 210, blue);
-    canvas.drawCircle(Offset(size.width * 0.74, size.height * 0.88), 130, green);
+    canvas.drawCircle(
+      Offset(size.width * 0.74, size.height * 0.88),
+      130,
+      green,
+    );
   }
 
   @override
@@ -276,11 +277,7 @@ class _BrandBlock extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          child: const Icon(
-            Icons.electric_moped_rounded,
-            color: Colors.white,
-            size: 28,
-          ),
+          child: const Icon(Icons.pedal_bike, color: Colors.white, size: 28),
         ),
         const SizedBox(width: 12),
         const Expanded(
@@ -288,7 +285,7 @@ class _BrandBlock extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'UTE EV',
+                AppStrings.brandShort,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -298,7 +295,7 @@ class _BrandBlock extends StatelessWidget {
               ),
               SizedBox(height: 2),
               Text(
-                'Electric Vehicle Manager',
+                AppStrings.brandManager,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Color(0xFFD9F5FF),
@@ -393,9 +390,7 @@ class _SideNavTile extends StatelessWidget {
             color: selected ? Colors.white : Colors.white.withOpacity(0.06),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected
-                  ? Colors.white
-                  : Colors.white.withOpacity(0.08),
+              color: selected ? Colors.white : Colors.white.withOpacity(0.08),
             ),
           ),
           child: Row(

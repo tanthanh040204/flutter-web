@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../config/feature_config.dart';
 import '../../models/app_note.dart';
 import '../../models/employee_account.dart';
@@ -1176,7 +1177,7 @@ class _MoreTabState extends State<MoreTab> {
       length: 6,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(context.tr('Mở rộng', 'More Options')),
+          title: Text(context.loc(AppStrings.titleMore)),
           actions: [
             const MqttStatusBadge(compact: true),
             const SizedBox(width: 8),

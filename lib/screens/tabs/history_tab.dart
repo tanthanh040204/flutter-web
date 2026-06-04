@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../models/history_route.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
@@ -147,7 +148,7 @@ class _HistoryTabState extends State<HistoryTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Lịch sử (30 ngày)', 'History (30 days)')),
+        title: Text(context.loc(AppStrings.titleHistory)),
         actions: const [VehiclePicker(), SizedBox(width: 8)],
       ),
       body: vehicleId == null

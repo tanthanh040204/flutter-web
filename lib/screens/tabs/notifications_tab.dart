@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../models/app_notification.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
@@ -156,7 +157,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Thông báo', 'Notifications')),
+        title: Text(context.loc(AppStrings.titleNotifications)),
         actions: const [VehiclePicker(), SizedBox(width: 8)],
       ),
       body: StreamBuilder<List<AppNotificationItem>>(

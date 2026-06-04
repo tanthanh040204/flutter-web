@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../config/app_string.dart';
 import 'app_bootstrap.dart';
 
 /* Public classes ----------------------------------------------------- */
@@ -109,10 +110,10 @@ class _TopBar extends StatelessWidget {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.electric_moped, color: Color(0xFF0A5B8F), size: 22),
+              Icon(Icons.pedal_bike, color: Color(0xFF0A5B8F), size: 22),
               SizedBox(width: 8),
               Text(
-                'UTE Electric Vehicles',
+                AppStrings.brandName,
                 style: TextStyle(
                   color: Color(0xFF073B5E),
                   fontWeight: FontWeight.w800,
@@ -319,7 +320,7 @@ class _WelcomeBadge extends StatelessWidget {
           Icon(Icons.verified_rounded, color: Color(0xFF9FE6FF), size: 18),
           SizedBox(width: 8),
           Text(
-            'Hệ thống quản lý xe điện',
+            AppStrings.brandSystemVi,
             style: TextStyle(
               color: Color(0xFFE9FAFF),
               fontWeight: FontWeight.w700,

@@ -113,7 +113,7 @@ class _VehicleDropdownItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
-              Icons.electric_scooter_rounded,
+              Icons.pedal_bike,
               color: AppColors.primaryDark,
               size: 17,
             ),

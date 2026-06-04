@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../models/device_state.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
@@ -38,7 +39,7 @@ class ControlTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Điều khiển', 'Control')),
+        title: Text(context.loc(AppStrings.titleControl)),
         actions: [
           IconButton(
             tooltip: context.tr('Thêm xe mới', 'Add new vehicle'),
@@ -606,7 +607,7 @@ class _VehicleLogoBadge extends StatelessWidget {
       ),
       child: Center(
         child: Icon(
-          Icons.electric_scooter,
+          Icons.pedal_bike,
           size: 98,
           color: Colors.white.withOpacity(0.92),
         ),

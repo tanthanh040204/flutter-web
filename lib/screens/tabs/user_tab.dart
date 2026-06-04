@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../models/rental_user_info.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
@@ -21,7 +22,7 @@ class UserTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Người dùng đang thuê xe', 'Active Users')),
+        title: Text(context.loc(AppStrings.titleUsers)),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -217,7 +218,7 @@ class _ActiveRentalCard extends StatelessWidget {
                       value: _money(user?.depositLocked ?? 0),
                     ),
                     _InfoTile(
-                      icon: Icons.electric_bike,
+                      icon: Icons.pedal_bike,
                       label: context.tr('Mã xe', 'Vehicle ID'),
                       value: rental.bikeId,
                     ),

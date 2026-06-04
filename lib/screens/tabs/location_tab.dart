@@ -9,6 +9,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../config/app_theme.dart';
 import '../../models/parking_zone.dart';
 import '../../providers/device_provider.dart';
@@ -237,7 +238,7 @@ class _LocationTabState extends State<LocationTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Location'),
+        title: Text(context.loc(AppStrings.titleLocation)),
         actions: [
           FilterChip(
             label: const Text('Track all'),
