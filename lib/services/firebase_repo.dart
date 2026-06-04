@@ -17,6 +17,7 @@ import '../models/history_route.dart';
 import '../models/maintenance_item.dart';
 import '../models/parking_zone.dart';
 import '../models/rental_user.dart';
+import '../models/rental_user_info.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
 
@@ -82,6 +83,37 @@ class FirebaseRepo {
 
   CollectionReference<Map<String, dynamic>>? get _rentalUsers =>
       _db?.collection('rental_users');
+
+  CollectionReference<Map<String, dynamic>>? get _users =>
+      _db?.collection('users');
+
+  // ---- Rental user profile (read-only, shown on web during a rental) ----
+  // Looks up a mobile user's profile by their MQTT wire user id: first in
+  // `rental_users/{id}`, then falling back to a `users` doc whose
+  // `wireUserId` matches. Returns null offline or when not found.
+  Future<RentalUserInfo?> getRentalUserInfo(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return null;
+
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) return null;
+
+    final rentalSnap = await rentalUsers.doc(id).get();
+    if (rentalSnap.exists) {
+      return RentalUserInfo.fromMap(rentalSnap.id, rentalSnap.data() ?? {});
+    }
+
+    final users = _users;
+    if (users != null) {
+      final userQuery =
+          await users.where('wireUserId', isEqualTo: id).limit(1).get();
+      if (userQuery.docs.isNotEmpty) {
+        return RentalUserInfo.fromMap(id, userQuery.docs.first.data());
+      }
+    }
+
+    return null;
+  }
 
   // ---- Parking zones (shared by web admin + mobile app) ----------------
   Future<void> _ensureSeedParkingZones() async {
@@ -479,6 +511,13 @@ class FirebaseRepo {
     await notifications.doc(id).delete();
   }
 
+  // Batch helper over deleteAppNotification for multi-select UI.
+  Future<void> deleteAppNotifications(List<String> notificationIds) async {
+    for (final id in notificationIds) {
+      await deleteAppNotification(id);
+    }
+  }
+
   Stream<List<AppNote>> watchNotes() {
     final notes = _appNotes;
     if (notes == null) {
@@ -584,6 +623,13 @@ class FirebaseRepo {
         .collection('history_routes')
         .doc(routeId)
         .delete();
+  }
+
+  // Batch helper over deleteHistoryRoute for multi-select UI.
+  Future<void> deleteHistoryRoutes(String vehicleId, List<String> ids) async {
+    for (final id in ids) {
+      await deleteHistoryRoute(vehicleId, id);
+    }
   }
 
   Future<void> saveVehicle(Vehicle v) async {
@@ -753,6 +799,50 @@ class FirebaseRepo {
               tripId: m['tripId']?.toString(),
             );
           }).toList();
+        });
+  }
+
+  // Watches a single history route doc for live updates (read-only).
+  Stream<HistoryRouteRecord?> watchHistoryRoute(
+    String vehicleId,
+    String routeId,
+  ) {
+    final vehicles = _vehicles;
+    if (vehicles == null) return Stream<HistoryRouteRecord?>.value(null);
+
+    return vehicles
+        .doc(vehicleId)
+        .collection('history_routes')
+        .doc(routeId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final m = doc.data() ?? const <String, dynamic>{};
+
+          final rawPoints = (m['points'] as List?) ?? const [];
+          final points = rawPoints.map((e) {
+            final p = Map<String, dynamic>.from(e as Map);
+            return LatLng(
+              ((p['lat'] ?? 0) as num).toDouble(),
+              ((p['lon'] ?? 0) as num).toDouble(),
+            );
+          }).toList();
+
+          return HistoryRouteRecord(
+            id: doc.id,
+            vehicleId: (m['vehicleId'] ?? vehicleId).toString(),
+            dayKey: (m['dayKey'] ?? '').toString(),
+            startAt: (m['startAt'] as Timestamp).toDate(),
+            endAt: m['endAt'] == null
+                ? null
+                : (m['endAt'] as Timestamp).toDate(),
+            isClosed: (m['isClosed'] ?? false) as bool,
+            startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
+            endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
+            distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
+            points: points,
+            tripId: m['tripId']?.toString(),
+          );
         });
   }
 

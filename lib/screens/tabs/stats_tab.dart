@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/vehicle.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/simple_bar_chart.dart';
 import '../../widgets/vehicle_picker.dart';
@@ -38,17 +39,17 @@ class _StatsTabState extends State<StatsTab> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Vehicle'),
-        content: Text('Delete "${v.name}" (${v.id})? This cannot be undone.'),
+        title: Text(context.tr('Xóa xe', 'Delete Vehicle')),
+        content: Text(context.tr('Xóa "${v.name}" (${v.id})? Hành động này không thể hoàn tác.', 'Delete "${v.name}" (${v.id})? This cannot be undone.')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.tr('Xóa', 'Delete')),
           ),
         ],
       ),
@@ -59,15 +60,15 @@ class _StatsTabState extends State<StatsTab> {
     try {
       await fleet.deleteVehicle(v.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${v.id} deleted.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Đã xóa ${v.id}.', '${v.id} deleted.'))),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Xóa thất bại: $e', 'Delete failed: $e'))),
+        );
       }
     }
   }
@@ -79,8 +80,8 @@ class _StatsTabState extends State<StatsTab> {
     final v = fleet.selectedOrNull;
 
     if (v == null) {
-      return const Scaffold(
-        body: Center(child: Text('No vehicle selected in Firebase.')),
+      return Scaffold(
+        body: Center(child: Text(context.tr('Chưa chọn xe trong Firebase.', 'No vehicle selected in Firebase.'))),
       );
     }
 
@@ -93,23 +94,23 @@ class _StatsTabState extends State<StatsTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stats'),
+        title: Text(context.tr('Thống kê', 'Stats')),
         actions: [
           const VehiclePicker(),
           const SizedBox(width: 4),
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: days,
-              items: const [
-                DropdownMenuItem(value: 7, child: Text('7 days')),
-                DropdownMenuItem(value: 30, child: Text('30 days')),
+              items: [
+                DropdownMenuItem(value: 7, child: Text(context.tr('7 ngày', '7 days'))),
+                DropdownMenuItem(value: 30, child: Text(context.tr('30 ngày', '30 days'))),
               ],
               onChanged: (v) => setState(() => days = v ?? 7),
             ),
           ),
           // Delete the currently selected vehicle
           IconButton(
-            tooltip: 'Delete selected vehicle',
+            tooltip: context.tr('Xóa xe đang chọn', 'Delete selected vehicle'),
             icon: const Icon(Icons.delete_outline),
             color: Colors.red.shade400,
             onPressed: () => _confirmDeleteVehicle(context, fleet, v),
@@ -128,8 +129,8 @@ class _StatsTabState extends State<StatsTab> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.build),
-            title: const Text('Maintenance'),
-            subtitle: Text('Battery ${v.batteryPercent}%'),
+            title: Text(context.tr('Bảo trì', 'Maintenance')),
+            subtitle: Text(context.tr('Pin ${v.batteryPercent}%', 'Battery ${v.batteryPercent}%')),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
@@ -137,22 +138,22 @@ class _StatsTabState extends State<StatsTab> {
           ),
           const Divider(),
           _MetricRow(
-            leftTitle: 'Total Distance',
+            leftTitle: context.tr('Tổng quãng đường', 'Total Distance'),
             leftValue: '${v.totalKm.toStringAsFixed(1)} km',
-            rightTitle: 'Days with Activity',
-            rightValue: '$runningDays days',
+            rightTitle: context.tr('Số ngày có chạy', 'Days with Activity'),
+            rightValue: context.tr('$runningDays ngày', '$runningDays days'),
           ),
           const SizedBox(height: 10),
           _MetricRow(
-            leftTitle: 'Current Battery',
+            leftTitle: context.tr('Pin hiện tại', 'Current Battery'),
             leftValue: '${v.batteryPercent} %',
-            rightTitle: 'Last Location',
+            rightTitle: context.tr('Vị trí cuối', 'Last Location'),
             rightValue:
                 '${v.lastLocation.latitude.toStringAsFixed(4)}, ${v.lastLocation.longitude.toStringAsFixed(4)}',
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Distance Chart',
+          Text(
+            context.tr('Biểu đồ quãng đường', 'Distance Chart'),
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
@@ -164,17 +165,17 @@ class _StatsTabState extends State<StatsTab> {
             maxValue: 150,
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Daily Details',
+          Text(
+            context.tr('Chi tiết theo ngày', 'Daily Details'),
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           if (runningDays == 0)
-            const ListTile(
+            ListTile(
               dense: true,
-              title: Text('No daily distance history available'),
+              title: Text(context.tr('Chưa có lịch sử quãng đường theo ngày', 'No daily distance history available')),
               subtitle: Text(
-                'When the app/web receives totalKm, Firebase will automatically save the data for up to 30 days.',
+                context.tr('Khi app/web nhận totalKm, Firebase sẽ tự lưu dữ liệu tối đa 30 ngày.', 'When the app/web receives totalKm, Firebase will automatically save the data for up to 30 days.'),
               ),
             )
           else
@@ -184,7 +185,7 @@ class _StatsTabState extends State<StatsTab> {
                 dense: true,
                 title: Text(dayText),
                 subtitle: Text(
-                  'Distance for the day: ${s.distanceKm.toStringAsFixed(1)} km',
+                  context.tr('Quãng đường trong ngày: ${s.distanceKm.toStringAsFixed(1)} km', 'Distance for the day: ${s.distanceKm.toStringAsFixed(1)} km'),
                 ),
               );
             }),
