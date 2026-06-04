@@ -2,15 +2,25 @@
 // @brief      Tab UI for Location — single-vehicle focus and track-all mode.
 
 /* Imports ------------------------------------------------------------ */
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
+import '../../models/parking_zone.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../services/firebase_repo.dart';
 import '../../widgets/vehicle_picker.dart';
+
+/* Constants ---------------------------------------------------------- */
+// Parking-zone overlay styling (matches the standalone stations map).
+const Color _kZoneFillColor = Color(0x331557FF);
+const Color _kZoneBorderColor = Color(0xFF1557FF);
+const double _kZoneBorderWidth = 2.0;
 
 /* Public classes ----------------------------------------------------- */
 class LocationTab extends StatefulWidget {
@@ -28,6 +38,19 @@ class _LocationTabState extends State<LocationTab> {
 
   // Used to detect VehiclePicker selection changes in track-all mode
   String? _lastSelectedId;
+
+  // Parking zones overlaid on the same map (rarely change → simple sub).
+  List<ParkingZone> _zones = const <ParkingZone>[];
+  StreamSubscription<List<ParkingZone>>? _zonesSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _zonesSub = FirebaseRepo.instance.watchParkingZones().listen((zones) {
+      if (!mounted) return;
+      setState(() => _zones = zones);
+    });
+  }
 
   // ---- private methods -----------------------------------------------
   Widget _buildLegend(List<dynamic> vehicles, DeviceProvider dp) {
@@ -106,6 +129,7 @@ class _LocationTabState extends State<LocationTab> {
 
   @override
   void dispose() {
+    _zonesSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -247,7 +271,42 @@ class _LocationTabState extends State<LocationTab> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.route_tracker',
               ),
+              if (_zones.isNotEmpty)
+                CircleLayer(
+                  circles: _zones
+                      .map(
+                        (zone) => CircleMarker(
+                          point: LatLng(zone.lat, zone.lng),
+                          radius: zone.radiusMeters,
+                          useRadiusInMeter: true,
+                          color: _kZoneFillColor,
+                          borderColor: _kZoneBorderColor,
+                          borderStrokeWidth: _kZoneBorderWidth,
+                        ),
+                      )
+                      .toList(),
+                ),
               if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              if (_zones.isNotEmpty)
+                MarkerLayer(
+                  markers: _zones
+                      .map(
+                        (zone) => Marker(
+                          point: LatLng(zone.lat, zone.lng),
+                          width: 40,
+                          height: 40,
+                          child: Tooltip(
+                            message: zone.name,
+                            child: const Icon(
+                              Icons.local_parking,
+                              color: _kZoneBorderColor,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
               MarkerLayer(markers: markers),
             ],
           ),
