@@ -499,6 +499,15 @@ async function saveVehicleState(topic, data) {
     return;
   }
 
+  // Offline-trip uploads arrive as a burst of distinct historical points, all
+  // tagged with the same trip_id. Each must be persisted, so they bypass the
+  // live-telemetry write throttle below (which would drop most of the burst).
+  // They also must not touch live vehicle state / odometer cache, hence return.
+  if (data.trip_id !== undefined && data.trip_id !== null) {
+    await saveOfflineTripData(vehicleId, data, new Date());
+    return;
+  }
+
   const now = Date.now();
   const last = lastWriteAt.get(vehicleId) || 0;
 
@@ -555,42 +564,38 @@ async function saveVehicleState(topic, data) {
 
   const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
 
-  if (data.trip_id !== undefined && data.trip_id !== null) {
-    // Offline trip upload: route into the trip-id-keyed history_routes doc.
-    await saveOfflineTripData(vehicleId, data, nowDate);
-  } else {
-    // Live data: maintain in-memory route segments as before.
-    const prevState = lastVehicleStateCache.get(vehicleId) || {
-      isLocked: true,
-      isRunning: false,
-    };
+  // Live data: maintain in-memory route segments as before.
+  // (Offline trip uploads were already handled and returned above.)
+  const prevState = lastVehicleStateCache.get(vehicleId) || {
+    isLocked: true,
+    isRunning: false,
+  };
 
-    const active = activeRoutes.get(vehicleId);
+  const active = activeRoutes.get(vehicleId);
 
-    // nếu qua ngày mới thì đóng route cũ và mở route mới
-    if (active && active.dayKey !== dayKeyOf(nowDate)) {
-      await closeRoute(vehicleId, point, totalKm, nowDate);
-    }
-
-    if (!activeRoutes.has(vehicleId)) {
-      await startRoute(vehicleId, point, totalKm, nowDate);
-    } else {
-      await appendRoutePoint(vehicleId, point, totalKm, nowDate);
-    }
-
-    const shouldCloseRoute =
-      activeRoutes.has(vehicleId) &&
-      ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
-
-    if (shouldCloseRoute) {
-      await closeRoute(vehicleId, point, totalKm, nowDate);
-    }
-
-    lastVehicleStateCache.set(vehicleId, {
-      isLocked,
-      isRunning,
-    });
+  // nếu qua ngày mới thì đóng route cũ và mở route mới
+  if (active && active.dayKey !== dayKeyOf(nowDate)) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
   }
+
+  if (!activeRoutes.has(vehicleId)) {
+    await startRoute(vehicleId, point, totalKm, nowDate);
+  } else {
+    await appendRoutePoint(vehicleId, point, totalKm, nowDate);
+  }
+
+  const shouldCloseRoute =
+    activeRoutes.has(vehicleId) &&
+    ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
+
+  if (shouldCloseRoute) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
+  }
+
+  lastVehicleStateCache.set(vehicleId, {
+    isLocked,
+    isRunning,
+  });
 
   const doc = {
     id: vehicleId,
