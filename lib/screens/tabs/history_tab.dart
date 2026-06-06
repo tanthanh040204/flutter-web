@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_string.dart';
+import '../../config/feature_config.dart';
 import '../../models/history_route.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
@@ -158,17 +159,27 @@ class _HistoryTabState extends State<HistoryTab> {
       body: vehicleId == null
           ? Center(child: Text(context.tr('Chưa chọn xe.', 'No vehicle selected.')))
           : StreamBuilder<List<HistoryRouteRecord>>(
-              stream: _routesStreamFor(vehicleId),
+              // Only subscribe to Firestore when its display source is enabled.
+              stream: FeatureConfig.showTripFirestore
+                  ? _routesStreamFor(vehicleId)
+                  : null,
               builder: (context, snap) {
-                final sessionRoutes =
-                    rental.sessionRoutesForVehicle(vehicleId);
+                final sessionRoutes = FeatureConfig.showTripLocal
+                    ? rental.sessionRoutesForVehicle(vehicleId)
+                    : const <HistoryRouteRecord>[];
+                final firestoreRoutes = FeatureConfig.showTripFirestore
+                    ? (snap.data ?? const <HistoryRouteRecord>[])
+                    : const <HistoryRouteRecord>[];
 
-                if (snap.connectionState == ConnectionState.waiting &&
+                if (FeatureConfig.showTripFirestore &&
+                    snap.connectionState == ConnectionState.waiting &&
                     sessionRoutes.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snap.hasError && sessionRoutes.isEmpty) {
+                if (FeatureConfig.showTripFirestore &&
+                    snap.hasError &&
+                    sessionRoutes.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -186,7 +197,7 @@ class _HistoryTabState extends State<HistoryTab> {
                 for (final r in sessionRoutes) {
                   byId[r.id] = r;
                 }
-                for (final r in (snap.data ?? const <HistoryRouteRecord>[])) {
+                for (final r in firestoreRoutes) {
                   byId[r.id] = r;
                 }
                 final routes = byId.values

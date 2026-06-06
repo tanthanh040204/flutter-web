@@ -3,10 +3,12 @@
 
 /* Imports ------------------------------------------------------------ */
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/feature_config.dart';
 import '../models/device_data.dart';
 import '../models/history_route.dart';
@@ -92,15 +94,71 @@ class RentalProvider extends ChangeNotifier {
   final Map<String, List<LatLng>> _rentalPoints = {};
   final Map<String, double> _rentalStartKm = {};
   final Map<String, double> _rentalLastKm = {};
-  // Completed routes for this session, keyed by bikeId. Lost on web reload;
-  // also best-effort persisted to Firestore.
+  // Completed routes keyed by bikeId. Persisted locally (survives reload) and
+  // best-effort to Firestore — saved in parallel.
   final Map<String, List<HistoryRouteRecord>> _sessionRoutes = {};
+
+  static const String _kSessionRoutesKey = 'session_routes_v1';
+  static const int _kSessionRoutesKeepDays = 30;
+
+  RentalProvider() {
+    _restoreSessionRoutes();
+  }
 
   // Session routes for a vehicle, newest first (shown in the History tab).
   List<HistoryRouteRecord> sessionRoutesForVehicle(String vehicleId) {
     final list = _sessionRoutes[vehicleId];
     if (list == null || list.isEmpty) return const <HistoryRouteRecord>[];
     return List.unmodifiable(list.reversed.toList());
+  }
+
+  // Drops session routes older than the keep window (in place).
+  void _pruneOldSessionRoutes() {
+    final keepFrom = DateTime.now().subtract(
+      const Duration(days: _kSessionRoutesKeepDays),
+    );
+    _sessionRoutes.removeWhere((_, list) {
+      list.removeWhere((r) => r.startAt.isBefore(keepFrom));
+      return list.isEmpty;
+    });
+  }
+
+  // Load persisted session routes from local storage on startup.
+  Future<void> _restoreSessionRoutes() async {
+    if (!FeatureConfig.saveTripLocal) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kSessionRoutesKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      decoded.forEach((bikeId, value) {
+        final list = (value as List)
+            .map((e) =>
+                HistoryRouteRecord.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        if (list.isNotEmpty) _sessionRoutes[bikeId] = list;
+      });
+      _pruneOldSessionRoutes();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[Rental] restore session routes failed: $e');
+    }
+  }
+
+  // Persist current session routes to local storage.
+  Future<void> _persistSessionRoutes() async {
+    try {
+      _pruneOldSessionRoutes();
+      final prefs = await SharedPreferences.getInstance();
+      final map = _sessionRoutes.map(
+        (bikeId, list) =>
+            MapEntry(bikeId, list.map((r) => r.toJson()).toList()),
+      );
+      await prefs.setString(_kSessionRoutesKey, jsonEncode(map));
+    } catch (e) {
+      debugPrint('[Rental] persist session routes failed: $e');
+    }
   }
 
   String _toVietnamTime(DateTime value) {
@@ -766,7 +824,9 @@ class RentalProvider extends ChangeNotifier {
     // Active rental — data belongs to current trip
     final active = _activeRentals[bikeId];
     if (active != null && !data.timestamp.isBefore(active.startTime)) {
-      _accumulateRentalPoint(bikeId, data);
+      if (FeatureConfig.saveTripLocal || FeatureConfig.saveTripFirestore) {
+        _accumulateRentalPoint(bikeId, data);
+      }
       unawaited(
         FirebaseRepo.instance.mergeTripPoint(
           bikeId,
@@ -838,9 +898,15 @@ class RentalProvider extends ChangeNotifier {
       points: points,
     );
 
-    (_sessionRoutes[bikeId] ??= <HistoryRouteRecord>[]).add(record);
-    notifyListeners();
-    unawaited(FirebaseRepo.instance.upsertHistoryRouteFromWeb(record));
+    // Save in parallel, each gated by its own config flag.
+    if (FeatureConfig.saveTripLocal) {
+      (_sessionRoutes[bikeId] ??= <HistoryRouteRecord>[]).add(record);
+      notifyListeners();
+      unawaited(_persistSessionRoutes());
+    }
+    if (FeatureConfig.saveTripFirestore) {
+      unawaited(FirebaseRepo.instance.upsertHistoryRouteFromWeb(record));
+    }
   }
 }
 
