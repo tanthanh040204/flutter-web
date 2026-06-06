@@ -382,12 +382,16 @@ class MqttService {
           (parsed.velocityMs != null ? parsed.velocityMs! * 3.6 : null);
       final payload = <String, dynamic>{
         'id': deviceId,
-        'batteryPercent': (parsed.battery ?? 0).toInt(),
         'lat': parsed.lat ?? 0.0,
         'lon': parsed.lng ?? 0.0,
         'isLocked': false,
         'isRunning': (vKmh ?? 0) > 0,
       };
+      // Battery now arrives via the KEEPALIVE noti; only let /data set it when
+      // the telemetry JSON still carries it, so it never clobbers it with 0.
+      if (parsed.battery != null) {
+        payload['batteryPercent'] = parsed.battery!.toInt();
+      }
       if (parsed.totalKm != null) {
         payload['totalKm'] = parsed.totalKm;
       }
@@ -410,7 +414,30 @@ class MqttService {
       _notiController.add(
         MqttNotiMessage(deviceId: deviceId, message: message),
       );
+
+      // Backward-compat: "KEEPALIVE=<n>%" carries battery % → FleetProvider.
+      final battery = _parseKeepaliveBattery(message);
+      if (battery != null) {
+        _vehicleStateController.add(
+          MqttVehicleState(
+            topic: topic,
+            payload: {'id': deviceId, 'batteryPercent': battery},
+          ),
+        );
+      }
     }
+  }
+
+  // Extract battery % from a "KEEPALIVE=<n>%" noti payload.
+  // Returns null when the message is not in that form.
+  int? _parseKeepaliveBattery(String message) {
+    final m = message.trim();
+    if (!m.toUpperCase().startsWith('KEEPALIVE=')) return null;
+    final value = double.tryParse(
+      m.substring(m.indexOf('=') + 1).replaceAll('%', '').trim(),
+    );
+    if (value == null) return null;
+    return value.round().clamp(0, 100).toInt();
   }
 }
 
