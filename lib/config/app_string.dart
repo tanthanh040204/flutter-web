@@ -57,6 +57,13 @@ class AppStrings {
     vi: 'Quản lý xe đạp thông minh, gọn gàng và trực quan.',
     en: 'Smart, clean and visual bicycle management.',
   );
+
+  // ---- Map ----
+  static const AppText locationUpdate = (vi: 'Cập nhật', en: 'Update');
+  static const AppText showRoute = (vi: 'Hiển thị chuyến đi', en: 'Show route');
+  static const AppText hideRoute = (vi: 'Ẩn chuyến đi', en: 'Hide route');
+  static const AppText fitMap = (vi: 'Căn chỉnh bản đồ', en: 'Fit map');
+  static const AppText trackAll = (vi: 'Theo dõi tất cả', en: 'Track all ');
 }
 
 /* Public extensions -------------------------------------------------- */

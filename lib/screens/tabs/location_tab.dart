@@ -261,7 +261,7 @@ class _LocationTabState extends State<LocationTab> {
         title: Text(context.loc(AppStrings.titleLocation)),
         actions: [
           FilterChip(
-            label: const Text('Track all'),
+            label: Text(context.loc(AppStrings.trackAll)),
             selected: _trackAll,
             onSelected: (val) {
               setState(() => _trackAll = val);
@@ -355,7 +355,7 @@ class _LocationTabState extends State<LocationTab> {
                 _fitAll(allPoints);
               },
               icon: const Icon(Icons.fit_screen),
-              label: const Text('Fit all'),
+              label: Text(context.loc(AppStrings.fitMap)),
             )
           else
             FloatingActionButton.extended(
@@ -381,7 +381,7 @@ class _LocationTabState extends State<LocationTab> {
                 );
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Update'),
+              label: Text(context.loc(AppStrings.locationUpdate)),
             ),
           const SizedBox(width: 12),
           FloatingActionButton.extended(
@@ -401,7 +401,11 @@ class _LocationTabState extends State<LocationTab> {
               setState(() => _showRoute = !_showRoute);
             },
             icon: Icon(_showRoute ? Icons.visibility_off : Icons.alt_route),
-            label: Text(_showRoute ? 'Hide route' : 'Show route'),
+            label: Text(
+              _showRoute
+                  ? context.loc(AppStrings.hideRoute)
+                  : context.loc(AppStrings.showRoute),
+            ),
           ),
         ],
       ),
