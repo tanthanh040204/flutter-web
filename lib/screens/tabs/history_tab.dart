@@ -9,6 +9,7 @@ import '../../config/app_string.dart';
 import '../../models/history_route.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../providers/rental_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../../widgets/vehicle_picker.dart';
 import '../history_route_map_screen.dart';
@@ -145,6 +146,9 @@ class _HistoryTabState extends State<HistoryTab> {
     // FleetProvider telemetry notify.
     final vehicleId =
         context.select<FleetProvider, String?>((f) => f.selectedOrNull?.id);
+    // Session routes built by the web from rentals (shown even without the
+    // bridge). Watch so the list updates when a rental ends.
+    final rental = context.watch<RentalProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -156,11 +160,15 @@ class _HistoryTabState extends State<HistoryTab> {
           : StreamBuilder<List<HistoryRouteRecord>>(
               stream: _routesStreamFor(vehicleId),
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
+                final sessionRoutes =
+                    rental.sessionRoutesForVehicle(vehicleId);
+
+                if (snap.connectionState == ConnectionState.waiting &&
+                    sessionRoutes.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snap.hasError) {
+                if (snap.hasError && sessionRoutes.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -172,9 +180,19 @@ class _HistoryTabState extends State<HistoryTab> {
                   );
                 }
 
-                final routes = (snap.data ?? const <HistoryRouteRecord>[])
+                // Merge Firestore routes with session routes (Firestore wins
+                // on the same id), then filter, dedupe and sort newest-first.
+                final byId = <String, HistoryRouteRecord>{};
+                for (final r in sessionRoutes) {
+                  byId[r.id] = r;
+                }
+                for (final r in (snap.data ?? const <HistoryRouteRecord>[])) {
+                  byId[r.id] = r;
+                }
+                final routes = byId.values
                     .where((route) => !_hiddenDeletedRouteIds.contains(route.id))
-                    .toList();
+                    .toList()
+                  ..sort((a, b) => b.startAt.compareTo(a.startAt));
 
                 _selectedRouteIds.removeWhere(
                   (id) => !routes.any((route) => route.id == id),

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
-import '../models/device_state.dart';
 import '../models/vehicle.dart';
 import '../providers/device_provider.dart';
 import '../providers/fleet_provider.dart';
@@ -46,20 +45,20 @@ class VehiclePicker extends StatelessWidget {
           selectedItemBuilder: (context) {
             return List.generate(fleet.vehicles.length, (i) {
               final vehicle = fleet.vehicles[i];
-              final isOn = _isVehicleInUse(vehicle, devices);
+              final isOnline = _isVehicleOnline(vehicle, devices);
               return _VehicleDropdownItem(
                 name: vehicle.name,
-                isOn: isOn,
+                isOn: isOnline,
                 compact: true,
               );
             });
           },
           items: List.generate(fleet.vehicles.length, (i) {
             final vehicle = fleet.vehicles[i];
-            final isOn = _isVehicleInUse(vehicle, devices);
+            final isOnline = _isVehicleOnline(vehicle, devices);
             return DropdownMenuItem<int>(
               value: i,
-              child: _VehicleDropdownItem(name: vehicle.name, isOn: isOn),
+              child: _VehicleDropdownItem(name: vehicle.name, isOn: isOnline),
             );
           }),
           onChanged: (i) {
@@ -72,19 +71,13 @@ class VehiclePicker extends StatelessWidget {
 }
 
 /* Private helpers ---------------------------------------------------- */
-bool _isVehicleInUse(
+bool _isVehicleOnline(
   Vehicle vehicle,
   DeviceProvider devices,
 ) {
-  final state = devices.deviceById(vehicle.id);
-
-  // ON/OFF must follow the physical lock state only.
-  // Opened/unlocked => ON. Locked or pause/locked => OFF.
-  if (state != null) {
-    return state.lockState == DeviceLockState.active;
-  }
-
-  return !vehicle.isLocked;
+  // ON/OFF reflects device connectivity, matching the Control tab's
+  // Online/Offline indicator (same `DeviceState.online` source).
+  return devices.deviceById(vehicle.id)?.online ?? false;
 }
 
 class _VehicleDropdownItem extends StatelessWidget {

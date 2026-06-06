@@ -3,11 +3,10 @@
     "serviceAccountPath": "./serviceAccountKey.json"
   },
   "mqtt": {
-    "host": "flutter-app-1d64c6a1.a01.euc1.aws.hivemq.cloud",
-    "port": 8883,
-    "username": "tanthanh1",
-    "password": "Tao040204@",
-    "topic": "vehicles/+/state",
+    "protocol": "mqtt",
+    "host": "broker.emqx.io",
+    "port": 1883,
+    "topic": "+/data",
     "clientIdPrefix": "bridge_node"
   },
   "firestore": {

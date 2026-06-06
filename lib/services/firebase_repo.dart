@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../config/feature_config.dart';
@@ -625,6 +626,38 @@ class FirebaseRepo {
         .delete();
   }
 
+  // Best-effort persist of a web-built session route. The Node bridge is the
+  // primary writer of history_routes; this is a fallback used when the bridge
+  // is not running, so failures are swallowed. Idempotent by route id.
+  Future<void> upsertHistoryRouteFromWeb(HistoryRouteRecord route) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+    try {
+      await vehicles
+          .doc(route.vehicleId)
+          .collection('history_routes')
+          .doc(route.id)
+          .set({
+            'vehicleId': route.vehicleId,
+            'dayKey': route.dayKey,
+            'startAt': Timestamp.fromDate(route.startAt),
+            'endAt':
+                route.endAt == null ? null : Timestamp.fromDate(route.endAt!),
+            'isClosed': route.isClosed,
+            'startTotalKm': route.startTotalKm,
+            'endTotalKm': route.endTotalKm,
+            'distanceKm': route.distanceKm,
+            'points': route.points
+                .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+                .toList(),
+            'source': 'web',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[FirebaseRepo] upsertHistoryRouteFromWeb failed: $e');
+    }
+  }
+
   // Batch helper over deleteHistoryRoute for multi-select UI.
   Future<void> deleteHistoryRoutes(String vehicleId, List<String> ids) async {
     for (final id in ids) {
@@ -774,10 +807,15 @@ class FirebaseRepo {
           return snap.docs.map((doc) {
             final m = doc.data();
 
-            // The history list only needs metadata; `points` (which the bridge
-            // appends to continuously while a bike is being ridden) are skipped
-            // here to keep each live re-emit cheap. The map screen loads the
-            // full points via watchHistoryRoute(vehicleId, routeId).
+            final rawPoints = (m['points'] as List?) ?? const [];
+            final points = rawPoints.map((e) {
+              final p = Map<String, dynamic>.from(e as Map);
+              return LatLng(
+                ((p['lat'] ?? 0) as num).toDouble(),
+                ((p['lon'] ?? 0) as num).toDouble(),
+              );
+            }).toList();
+
             return HistoryRouteRecord(
               id: doc.id,
               vehicleId: (m['vehicleId'] ?? vehicleId).toString(),
@@ -790,7 +828,7 @@ class FirebaseRepo {
               startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
               endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
               distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
-              points: const <LatLng>[],
+              points: points,
               tripId: m['tripId']?.toString(),
             );
           }).toList();
