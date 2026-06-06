@@ -76,9 +76,7 @@ class _LocationTabState extends State<LocationTab> {
                         size: 18,
                         color: () {
                           final ds = dp.deviceById(vehicle.id as String);
-                          return ds != null
-                              ? _hexColor(ds.color)
-                              : Colors.blue;
+                          return ds != null ? _hexColor(ds.color) : Colors.blue;
                         }(),
                       ),
                       const SizedBox(width: 4),
@@ -166,32 +164,42 @@ class _LocationTabState extends State<LocationTab> {
         final color = ds != null ? _hexColor(ds.color) : Colors.blue;
         final loc = vehicle.lastLocation;
 
-        markers.add(Marker(
-          point: loc,
-          width: 50,
-          height: 50,
-          child: (ds?.helpRequested ?? false)
-              ? const Icon(Icons.warning, size: 44, color: Colors.red)
-              : Icon(Icons.location_on, size: 44, color: color),
-        ));
+        markers.add(
+          Marker(
+            point: loc,
+            width: 50,
+            height: 50,
+            child: (ds?.helpRequested ?? false)
+                ? const Icon(Icons.warning, size: 44, color: Colors.red)
+                : Icon(Icons.location_on, size: 44, color: color),
+          ),
+        );
 
         if (_showRoute && ds != null) {
           final pts = ds.routePoints.map((p) => p.latLng).toList();
           if (pts.length >= 2) {
             polylines.add(Polyline(points: pts, strokeWidth: 4, color: color));
-            markers.add(Marker(
-              point: pts.first,
-              width: 44,
-              height: 44,
-              child: Icon(Icons.flag, size: 28, color: color),
-            ));
-            markers.add(Marker(
-              point: pts.last,
-              width: 44,
-              height: 44,
-              // ignore: deprecated_member_use
-              child: Icon(Icons.location_on, size: 28, color: color.withOpacity(0.7)),
-            ));
+            markers.add(
+              Marker(
+                point: pts.first,
+                width: 44,
+                height: 44,
+                child: Icon(Icons.flag, size: 28, color: color),
+              ),
+            );
+            markers.add(
+              Marker(
+                point: pts.last,
+                width: 44,
+                height: 44,
+                // ignore: deprecated_member_use
+                child: Icon(
+                  Icons.location_on,
+                  size: 28,
+                  color: color.withOpacity(0.7),
+                ),
+              ),
+            );
           }
         }
       }
@@ -200,38 +208,50 @@ class _LocationTabState extends State<LocationTab> {
       final routeLatLng = ds?.routePoints.map((p) => p.latLng).toList() ?? [];
       final loc = v.lastLocation;
 
-      markers.add(Marker(
-        point: loc,
-        width: 50,
-        height: 50,
-        child: (ds?.helpRequested ?? false)
-            ? const Icon(Icons.warning, size: 44, color: Colors.red)
-            : const Icon(Icons.location_on, size: 44),
-      ));
+      markers.add(
+        Marker(
+          point: loc,
+          width: 50,
+          height: 50,
+          child: (ds?.helpRequested ?? false)
+              ? const Icon(Icons.warning, size: 44, color: Colors.red)
+              : const Icon(Icons.location_on, size: 44),
+        ),
+      );
 
       if (_showRoute && routeLatLng.isNotEmpty) {
-        markers.add(Marker(
-          point: routeLatLng.first,
-          width: 44,
-          height: 44,
-          child: const Icon(Icons.flag, size: 28, color: AppColors.startMarker),
-        ));
-        if (routeLatLng.length >= 2) {
-          polylines.add(Polyline(
-            points: routeLatLng,
-            strokeWidth: 4,
-            color: AppColors.routeLine,
-          ));
-          markers.add(Marker(
-            point: routeLatLng.last,
+        markers.add(
+          Marker(
+            point: routeLatLng.first,
             width: 44,
             height: 44,
             child: const Icon(
-              Icons.location_on,
+              Icons.flag,
               size: 28,
-              color: AppColors.endMarker,
+              color: AppColors.startMarker,
             ),
-          ));
+          ),
+        );
+        if (routeLatLng.length >= 2) {
+          polylines.add(
+            Polyline(
+              points: routeLatLng,
+              strokeWidth: 4,
+              color: AppColors.routeLine,
+            ),
+          );
+          markers.add(
+            Marker(
+              point: routeLatLng.last,
+              width: 44,
+              height: 44,
+              child: const Icon(
+                Icons.location_on,
+                size: 28,
+                color: AppColors.endMarker,
+              ),
+            ),
+          );
         }
       }
     }
@@ -246,10 +266,12 @@ class _LocationTabState extends State<LocationTab> {
             onSelected: (val) {
               setState(() => _trackAll = val);
               if (val) {
-                final allPoints =
-                    fleet.vehicles.map((ve) => ve.lastLocation).toList();
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _fitAll(allPoints));
+                final allPoints = fleet.vehicles
+                    .map((ve) => ve.lastLocation)
+                    .toList();
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _fitAll(allPoints),
+                );
               } else {
                 WidgetsBinding.instance.addPostFrameCallback(
                   (_) => _mapController.move(v.lastLocation, 15),
@@ -327,8 +349,9 @@ class _LocationTabState extends State<LocationTab> {
             FloatingActionButton.extended(
               heroTag: 'location-fit-all',
               onPressed: () {
-                final allPoints =
-                    fleet.vehicles.map((ve) => ve.lastLocation).toList();
+                final allPoints = fleet.vehicles
+                    .map((ve) => ve.lastLocation)
+                    .toList();
                 _fitAll(allPoints);
               },
               icon: const Icon(Icons.fit_screen),
@@ -338,10 +361,21 @@ class _LocationTabState extends State<LocationTab> {
             FloatingActionButton.extended(
               heroTag: 'location-update',
               onPressed: () {
+                // Center on the freshest live GPS straight from device data
+                // (MQTT), falling back to the last known location.
+                final live = deviceProvider.deviceById(v.id)?.latest;
+                final hasLive = live != null && live.hasGps;
+                final target = hasLive
+                    ? LatLng(live.lat!, live.lng!)
+                    : v.lastLocation;
+                _mapController.move(target, _mapController.camera.zoom);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
+                    duration: const Duration(seconds: 2),
                     content: Text(
-                      'Location on the map will update when Firestore updates lastLocation.',
+                      hasLive
+                          ? 'Centered on the latest live position.'
+                          : 'No fresh GPS yet — showing last known position.',
                     ),
                   ),
                 );
