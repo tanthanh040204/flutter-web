@@ -91,6 +91,9 @@ class FeatureConfig {
   // Polling cadence for GPS while the user is in the out-of-balance grace
   // window — drives how quickly we detect a successful return-to-zone.
   static const int outOfBalanceGracePollSeconds = 30;
+  // Enable the pause time limit. When false, a paused rental is never
+  // force-ended by the pause timeout (pauseTimeoutHours is ignored).
+  static const bool enablePauseTimeLimit = true;
   // Maximum time a rental may stay paused before being force-ended.
   static const int pauseTimeoutHours = 1;
 

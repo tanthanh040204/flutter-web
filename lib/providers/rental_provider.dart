@@ -643,6 +643,7 @@ class RentalProvider extends ChangeNotifier {
   // ---- Pause timeout (1 hour) ----------------------------------------
 
   void _startPauseTimeout(String bikeId, String userId) {
+    if (!FeatureConfig.enablePauseTimeLimit) return;
     _pauseTimeoutTimers[bikeId]?.cancel();
     _pauseTimeoutTimers[bikeId] = Timer(
       const Duration(hours: FeatureConfig.pauseTimeoutHours),
