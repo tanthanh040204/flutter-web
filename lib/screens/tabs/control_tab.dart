@@ -8,10 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../models/device_state.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
-import '../../utils/date_utils.dart';
+import '../../providers/language_provider.dart';
+import '../../widgets/vehicle_picker.dart';
 
 /* Public classes ----------------------------------------------------- */
 class ControlTab extends StatelessWidget {
@@ -37,16 +39,16 @@ class ControlTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Control'),
+        title: Text(context.loc(AppStrings.titleControl)),
         actions: [
           IconButton(
-            tooltip: 'Add new vehicle',
+            tooltip: context.tr('Thêm xe mới', 'Add new vehicle'),
             icon: const Icon(Icons.add),
             onPressed: fleet.isAddingVehicle
                 ? null
                 : () => _showAddVehicleDialog(context),
           ),
-          const _VehiclePicker(),
+          const VehiclePicker(),
           const SizedBox(width: 8),
         ],
       ),
@@ -74,7 +76,7 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.thermostat,
-                            title: 'Temperature',
+                            title: context.tr('Nhiệt độ', 'Temperature'),
                             value: fleet.selectedTemp == null
                                 ? '--'
                                 : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
@@ -84,7 +86,7 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.water_drop,
-                            title: 'Humidity',
+                            title: context.tr('Độ ẩm', 'Humidity'),
                             value: fleet.selectedHum == null
                                 ? '--'
                                 : '${fleet.selectedHum!.toStringAsFixed(1)} %',
@@ -94,7 +96,7 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.air,
-                            title: 'Dust value',
+                            title: context.tr('Bụi', 'Dust value'),
                             value: fleet.selectedDust == null
                                 ? '--'
                                 : fleet.selectedDust!.toStringAsFixed(1),
@@ -108,7 +110,7 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.speed,
-                            title: 'Speed',
+                            title: context.tr('Tốc độ', 'Speed'),
                             value: controlSpeedStr,
                           ),
                         ),
@@ -116,7 +118,7 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.route,
-                            title: 'Trip distance',
+                            title: context.tr('Quãng đường chuyến', 'Trip distance'),
                             value: controlTripKmStr,
                           ),
                         ),
@@ -125,8 +127,8 @@ class ControlTab extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Quick Control',
+                Text(
+                  context.tr('Điều khiển nhanh', 'Quick Control'),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 10),
@@ -138,11 +140,11 @@ class ControlTab extends StatelessWidget {
                     Expanded(
                       child: _SquareButton(
                         icon: Icons.edit,
-                        label: 'Edit Name',
+                        label: context.tr('Sửa tên', 'Edit Name'),
                         onTap: () async {
                           final name = await _askVehicleName(
                             context,
-                            title: 'Edit Vehicle Name',
+                            title: context.tr('Sửa tên xe', 'Edit Vehicle Name'),
                             initial: v.name,
                           );
                           if (name != null && name.trim().isNotEmpty) {
@@ -161,18 +163,17 @@ class ControlTab extends StatelessWidget {
   // Dialog accepts 3-digit vehicle number; ID becomes haq-trk-xxx.
   static Future<void> _showAddVehicleDialog(BuildContext context) async {
     final numCtl = TextEditingController();
-    final fleet = context.read<FleetProvider>();
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Add New Vehicle'),
+        title: Text(context.tr('Thêm xe mới', 'Add New Vehicle')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX',
+            Text(
+              context.tr('Nhập số xe gồm 3 chữ số.\nID sẽ là: haq-trk-XXX', 'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX'),
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -181,10 +182,10 @@ class ControlTab extends StatelessWidget {
               keyboardType: TextInputType.number,
               maxLength: 3,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: 'Vehicle Number (e.g. 001)',
+              decoration: InputDecoration(
+                labelText: context.tr('Mã Xe (Vd: 001)', 'Vehicle Number (e.g. 001)'),
                 prefixText: 'haq-trk-',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -192,11 +193,11 @@ class ControlTab extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Add'),
+            child: Text(context.tr('Thêm', 'Add')),
           ),
         ],
       ),
@@ -208,18 +209,18 @@ class ControlTab extends StatelessWidget {
     if (number.isEmpty || number.length != 3) return;
 
     try {
-      await fleet.addVehicle(vehicleNumber: number);
+      await context.read<FleetProvider>().addVehicle(vehicleNumber: number);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added haq-trk-$number to Firebase.')),
+          SnackBar(content: Text(context.tr('Đã thêm haq-trk-$number vào Firebase.', 'Added haq-trk-$number to Firebase.'))),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Cannot add vehicle: $e')));
+        ).showSnackBar(SnackBar(content: Text(context.tr('Không thể thêm xe: $e', 'Cannot add vehicle: $e'))));
       }
     }
   }
@@ -236,16 +237,16 @@ class ControlTab extends StatelessWidget {
         title: Text(title),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Vehicle Name'),
+          decoration: InputDecoration(labelText: context.tr('Tên xe', 'Vehicle Name')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: Text(context.tr('Lưu', 'Save')),
           ),
         ],
       ),
@@ -263,8 +264,8 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = isSyncing
-        ? 'Adding new vehicle...'
-        : 'No vehicles to display.';
+        ? context.tr('Đang thêm xe mới...', 'Adding new vehicle...')
+        : context.tr('Chưa có xe để hiển thị.', 'No vehicles to display.');
 
     return Center(
       child: Padding(
@@ -300,9 +301,9 @@ class _InlineError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.08),
+        color: Colors.red.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.red.withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -376,14 +377,11 @@ class _HeroCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                primary.withValues(alpha: 0.98),
-                primary.withValues(alpha: 0.58),
-              ],
+              colors: [primary.withOpacity(0.98), primary.withOpacity(0.58)],
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
+                color: Colors.black.withOpacity(0.10),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -435,7 +433,7 @@ class _HeroCard extends StatelessWidget {
                           Text(
                             online ? 'Online' : 'Offline',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
+                              color: Colors.white.withOpacity(0.85),
                               fontSize: 12,
                             ),
                           ),
@@ -447,9 +445,9 @@ class _HeroCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Total: ${odoKm.toStringAsFixed(1)} km',
+                        'Tổng: ${odoKm.toStringAsFixed(1)} km',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.92),
+                          color: Colors.white.withOpacity(0.92),
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -497,7 +495,7 @@ class _GlowCircle extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: opacity),
+        color: Colors.white.withOpacity(opacity),
       ),
     );
   }
@@ -529,10 +527,12 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
     super.dispose();
   }
 
+  String _two(int n) => n.toString().padLeft(2, '0');
+
   @override
   Widget build(BuildContext context) {
-    final date = AppDateUtils.formatDate(_now);
-    final time = AppDateUtils.formatTime(_now);
+    final date = '${_two(_now.day)}/${_two(_now.month)}/${_now.year}';
+    final time = '${_two(_now.hour)}:${_two(_now.minute)}:${_two(_now.second)}';
 
     return Container(
       decoration: BoxDecoration(
@@ -541,17 +541,14 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white.withValues(alpha: 0.16),
-            Colors.white.withValues(alpha: 0.09),
+            Colors.white.withOpacity(0.16),
+            Colors.white.withOpacity(0.09),
           ],
         ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.18),
-          width: 1.2,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -564,7 +561,7 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
             Text(
               date,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.96),
+                color: Colors.white.withOpacity(0.96),
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
@@ -574,7 +571,7 @@ class _LiveDateTimeCardState extends State<_LiveDateTimeCard> {
             Text(
               time,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.98),
+                color: Colors.white.withOpacity(0.98),
                 fontSize: 44,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.4,
@@ -602,17 +599,17 @@ class _VehicleLogoBadge extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: 0.10),
-            Colors.white.withValues(alpha: 0.03),
+            Colors.white.withOpacity(0.10),
+            Colors.white.withOpacity(0.03),
           ],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Center(
         child: Icon(
-          Icons.electric_scooter,
+          Icons.pedal_bike,
           size: 98,
-          color: Colors.white.withValues(alpha: 0.92),
+          color: Colors.white.withOpacity(0.92),
         ),
       ),
     );
@@ -630,8 +627,8 @@ class _BatteryPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: Colors.white.withValues(alpha: 0.12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        color: Colors.white.withOpacity(0.12),
+        border: Border.all(color: Colors.white.withOpacity(0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -703,18 +700,23 @@ class _SquareButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool active;
 
   const _SquareButton({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.active = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bg = Theme.of(context).colorScheme.surface;
-    final border = Colors.transparent;
-    final fg = Theme.of(context).colorScheme.onSurface;
+    final activeColor = Colors.green;
+    final bg = active
+        ? activeColor.withOpacity(0.14)
+        : Theme.of(context).colorScheme.surface;
+    final border = active ? activeColor.withOpacity(0.40) : Colors.transparent;
+    final fg = active ? activeColor : Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -750,9 +752,9 @@ class _LockStateBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
-      DeviceLockState.active => ('Active', Colors.greenAccent),
-      DeviceLockState.locked => ('Locked', Colors.redAccent),
-      DeviceLockState.pause => ('Pause', Colors.orangeAccent),
+      DeviceLockState.active => (context.tr('Đang hoạt động', 'Active'), Colors.greenAccent),
+      DeviceLockState.locked => (context.tr('Đang khóa', 'Locked'), Colors.redAccent),
+      DeviceLockState.pause => (context.tr('Tạm dừng', 'Pause'), Colors.orangeAccent),
     };
 
     return Container(
@@ -791,7 +793,7 @@ class _InlockButtonState extends State<_InlockButton> {
     final device = deviceProvider.deviceById(widget.vehicleId);
     if (device == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device not found in MQTT registry.')),
+        SnackBar(content: Text(context.tr('Không tìm thấy thiết bị trong MQTT.', 'Device not found in MQTT registry.'))),
       );
       return;
     }
@@ -805,8 +807,8 @@ class _InlockButtonState extends State<_InlockButton> {
       SnackBar(
         content: Text(
           ok
-              ? 'Command acknowledged by device.'
-              : 'No response — timeout (30 s).',
+              ? context.tr('Thiết bị đã xác nhận lệnh.', 'Command acknowledged by device.')
+              : context.tr('Không có phản hồi - hết thời gian chờ (30 giây).', 'No response - timeout (30 s).'),
         ),
         backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
         duration: const Duration(seconds: 3),
@@ -831,12 +833,12 @@ class _InlockButtonState extends State<_InlockButton> {
               ? Icons.play_circle_outline
               : Icons.lock);
     final label = _loading || isPending
-        ? 'Waiting…'
+        ? context.tr('Đang chờ...', 'Waiting...')
         : (isLocked
-              ? 'Unlock'
+              ? context.tr('Mở khóa', 'Unlock')
               : isPause
-              ? 'Resume'
-              : 'Lock');
+              ? context.tr('Tiếp tục', 'Resume')
+              : context.tr('Khóa', 'Lock'));
 
     final bg = (isLocked || isPause)
         ? Colors.orange.withValues(alpha: 0.15)

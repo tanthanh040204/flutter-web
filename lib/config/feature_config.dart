@@ -57,6 +57,14 @@ class FeatureConfig {
   static const bool enableOfflineDetection = true;
   static const bool enableFusionData = true;
 
+  // Trip route history (web-built per-rental routes) — save + display toggles.
+  // Saving: write each finished rental route to the target.
+  static const bool saveTripLocal = true; // local storage (survives reload)
+  static const bool saveTripFirestore = true; // Firestore history_routes/rental_<id>
+  // Display: include this source in the History tab.
+  static const bool showTripLocal = true; // local/session routes
+  static const bool showTripFirestore = true; // Firestore stream routes
+
   // Debug logs
   static const bool debugMqttLog = true;
   static const bool debugParserLog = true;
@@ -83,6 +91,9 @@ class FeatureConfig {
   // Polling cadence for GPS while the user is in the out-of-balance grace
   // window — drives how quickly we detect a successful return-to-zone.
   static const int outOfBalanceGracePollSeconds = 30;
+  // Enable the pause time limit. When false, a paused rental is never
+  // force-ended by the pause timeout (pauseTimeoutHours is ignored).
+  static const bool enablePauseTimeLimit = true;
   // Maximum time a rental may stay paused before being force-ended.
   static const int pauseTimeoutHours = 1;
 

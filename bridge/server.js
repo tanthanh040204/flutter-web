@@ -42,13 +42,16 @@ const vehiclesCollection = config.firestore?.vehiclesCollection || 'vehicles';
 const writeIntervalMs = Number(config.firestore?.writeIntervalMs || 5000);
 const verbose = Boolean(config.logging?.verbose);
 
-if (!mqttHost || !mqttUsername || !mqttPassword) {
-  console.error('[FATAL] Thiếu cấu hình MQTT trong config.json');
+if (!mqttHost) {
+  console.error('[FATAL] Thiếu cấu hình MQTT host trong config.json');
   process.exit(1);
 }
 
 const clientId = `${clientIdPrefix}_${Date.now()}`;
-const mqttUrl = `mqtts://${mqttHost}:${mqttPort}`;
+// Protocol is configurable: 'mqtts' (TLS, e.g. HiveMQ:8883) or 'mqtt'
+// (plain TCP, e.g. broker.emqx.io:1883). Defaults to mqtts for back-compat.
+const mqttProtocol = config.mqtt?.protocol || 'mqtts';
+const mqttUrl = `${mqttProtocol}://${mqttHost}:${mqttPort}`;
 
 const lastWriteAt = new Map();
 const lastTotalKmCache = new Map();
@@ -78,14 +81,20 @@ function parseBoolean(value, fallback = false) {
 }
 
 function resolveVehicleId(topic, data) {
-  const parts = topic.split('/');
-  const topicVehicleId =
-    parts.length >= 2 && parts[1] ? String(parts[1]).trim() : '';
+  const parts = topic.split('/').filter(Boolean);
+
+  // Supports both topic conventions:
+  //   "<id>/data"            -> id at parts[0]   (device → web/bridge)
+  //   "vehicles/<id>/state"  -> id at parts[1]   (legacy bridge feed)
+  let topicVehicleId = '';
+  if (parts.length >= 2) {
+    topicVehicleId = (parts[0] === 'vehicles' ? parts[1] : parts[0]).trim();
+  }
 
   if (topicVehicleId) return topicVehicleId;
 
   if (data && typeof data.id === 'string' && data.id.trim()) {
-    return data.id.trim().toUpperCase();
+    return data.id.trim();
   }
 
   return '';
@@ -475,6 +484,30 @@ async function saveVehicleState(topic, data) {
     return;
   }
 
+  // "broker.emqx.io" is a shared public broker, so the "+/data" subscription
+  // can also receive unrelated topics. Only accept payloads that look like
+  // this project's device telemetry (or an offline-trip upload).
+  const looksLikeTelemetry =
+    data &&
+    (Array.isArray(data.position) ||
+      data.totalKm !== undefined ||
+      data.time !== undefined ||
+      data.lat !== undefined ||
+      data.trip_id !== undefined);
+  if (!looksLikeTelemetry) {
+    log(`[SKIP] ${topic} không phải telemetry hợp lệ — bỏ qua`);
+    return;
+  }
+
+  // Offline-trip uploads arrive as a burst of distinct historical points, all
+  // tagged with the same trip_id. Each must be persisted, so they bypass the
+  // live-telemetry write throttle below (which would drop most of the burst).
+  // They also must not touch live vehicle state / odometer cache, hence return.
+  if (data.trip_id !== undefined && data.trip_id !== null) {
+    await saveOfflineTripData(vehicleId, data, new Date());
+    return;
+  }
+
   const now = Date.now();
   const last = lastWriteAt.get(vehicleId) || 0;
 
@@ -485,24 +518,44 @@ async function saveVehicleState(topic, data) {
 
   lastWriteAt.set(vehicleId, now);
 
-  const lat = parseNumber(data.lat, 0);
-  const lon = parseNumber(data.lon, 0);
+  // Device "<id>/data" payload (firmware v2) uses: position:[lat,lng],
+  // velocity_kmh, battery, time. Legacy "vehicles/<id>/state" used flat
+  // lat/lon, speedKmh, batteryPercent, ts. Support both via fallbacks.
+  const position = Array.isArray(data.position) ? data.position : null;
+  const lat = parseNumber(position ? position[0] : data.lat, 0);
+  const lon = parseNumber(
+    position ? position[1] : (data.lon !== undefined ? data.lon : data.lng),
+    0
+  );
   const batteryPercent = Math.max(
     0,
-    Math.min(100, parseNumber(data.batteryPercent, 0))
+    Math.min(
+      100,
+      parseNumber(
+        data.batteryPercent !== undefined ? data.batteryPercent : data.battery,
+        0
+      )
+    )
   );
   const totalKm = parseNumber(data.totalKm, 0);
-  const speedKmh = parseNumber(data.speedKmh, 0);
+  const speedKmh = parseNumber(
+    data.speedKmh !== undefined ? data.speedKmh : data.velocity_kmh,
+    0
+  );
   const avgSpeedKmh = parseNumber(data.avgSpeedKmh, 0);
 
   const temp = parseNumber(data.temp, 0);
   const hum = parseNumber(data.hum, 0);
   const dust = parseNumber(data.dust, 0);
 
+  // Lock/running are not present in the device "/data" payload; default false.
   const isLocked = parseBoolean(data.isLocked, false);
   const isRunning = parseBoolean(data.isRunning, false);
 
-  const mqttTs = parseNumber(data.ts, Date.now());
+  // Timestamp: "ts" (ms) if present, else firmware "time" string, else now.
+  const mqttTs = data.ts !== undefined
+    ? parseNumber(data.ts, Date.now())
+    : (parseFirmwareOrIsoTime(data.time)?.getTime() ?? Date.now());
   const nowDate = new Date();
 
   const previousTotalKm = await getPreviousTotalKm(vehicleId, totalKm);
@@ -511,42 +564,38 @@ async function saveVehicleState(topic, data) {
 
   const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
 
-  if (data.trip_id !== undefined && data.trip_id !== null) {
-    // Offline trip upload: route into the trip-id-keyed history_routes doc.
-    await saveOfflineTripData(vehicleId, data, nowDate);
-  } else {
-    // Live data: maintain in-memory route segments as before.
-    const prevState = lastVehicleStateCache.get(vehicleId) || {
-      isLocked: true,
-      isRunning: false,
-    };
+  // Live data: maintain in-memory route segments as before.
+  // (Offline trip uploads were already handled and returned above.)
+  const prevState = lastVehicleStateCache.get(vehicleId) || {
+    isLocked: true,
+    isRunning: false,
+  };
 
-    const active = activeRoutes.get(vehicleId);
+  const active = activeRoutes.get(vehicleId);
 
-    // nếu qua ngày mới thì đóng route cũ và mở route mới
-    if (active && active.dayKey !== dayKeyOf(nowDate)) {
-      await closeRoute(vehicleId, point, totalKm, nowDate);
-    }
-
-    if (!activeRoutes.has(vehicleId)) {
-      await startRoute(vehicleId, point, totalKm, nowDate);
-    } else {
-      await appendRoutePoint(vehicleId, point, totalKm, nowDate);
-    }
-
-    const shouldCloseRoute =
-      activeRoutes.has(vehicleId) &&
-      ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
-
-    if (shouldCloseRoute) {
-      await closeRoute(vehicleId, point, totalKm, nowDate);
-    }
-
-    lastVehicleStateCache.set(vehicleId, {
-      isLocked,
-      isRunning,
-    });
+  // nếu qua ngày mới thì đóng route cũ và mở route mới
+  if (active && active.dayKey !== dayKeyOf(nowDate)) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
   }
+
+  if (!activeRoutes.has(vehicleId)) {
+    await startRoute(vehicleId, point, totalKm, nowDate);
+  } else {
+    await appendRoutePoint(vehicleId, point, totalKm, nowDate);
+  }
+
+  const shouldCloseRoute =
+    activeRoutes.has(vehicleId) &&
+    ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
+
+  if (shouldCloseRoute) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
+  }
+
+  lastVehicleStateCache.set(vehicleId, {
+    isLocked,
+    isRunning,
+  });
 
   const doc = {
     id: vehicleId,

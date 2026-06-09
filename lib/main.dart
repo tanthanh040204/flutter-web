@@ -11,10 +11,11 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/fleet_provider.dart';
+import 'providers/language_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/rental_provider.dart';
 import 'providers/trip_provider.dart';
-import 'screens/app_bootstrap.dart';
+import 'screens/landing_shell.dart';
 import 'services/mqtt_service.dart';
 
 /* Entry point -------------------------------------------------------- */
@@ -52,12 +53,17 @@ class RouteTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TripProvider()),
         ChangeNotifierProvider(create: (_) => MaintenanceProvider()),
         ChangeNotifierProvider(create: (_) => RentalProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
-      child: MaterialApp(
-        title: 'Route Tracker',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const AppBootstrap(),
+      child: Consumer<LanguageProvider>(
+        builder: (context, language, _) {
+          return MaterialApp(
+            title: language.tr('Theo dõi lộ trình', 'Route Tracker'),
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            home: const LandingShell(),
+          );
+        },
       ),
     );
   }

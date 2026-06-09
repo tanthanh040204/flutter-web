@@ -372,9 +372,12 @@ class DeviceProvider extends ChangeNotifier {
     _appendLog(_rawNotiLog, deviceId, AppDateUtils.formatTime(now), message);
 
     final token = message.trim().toUpperCase();
+    // KEEPALIVE may carry a battery suffix ("KEEPALIVE=<n>%"); collapse it so it
+    // still drives online/lastSeen. Battery % is applied via FleetProvider.
+    final normalized = token.startsWith('KEEPALIVE') ? 'KEEPALIVE' : token;
 
     DeviceState next;
-    switch (token) {
+    switch (normalized) {
       case 'KEEPALIVE':
         // Only KEEPALIVE drives online; lock state unchanged
         next = current.copyWith(

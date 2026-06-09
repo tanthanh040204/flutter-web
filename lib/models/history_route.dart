@@ -49,6 +49,42 @@ class HistoryRouteRecord {
     }
     return '$prefix${_fmt(startAt)} → ${_fmt(end)}';
   }
+
+  // ---- JSON (used for local session persistence) ----
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'vehicleId': vehicleId,
+    'dayKey': dayKey,
+    'startAt': startAt.millisecondsSinceEpoch,
+    'endAt': endAt?.millisecondsSinceEpoch,
+    'isClosed': isClosed,
+    'startTotalKm': startTotalKm,
+    'endTotalKm': endTotalKm,
+    'distanceKm': distanceKm,
+    'points': points.map((p) => [p.latitude, p.longitude]).toList(),
+    'tripId': tripId,
+  };
+
+  static HistoryRouteRecord fromJson(Map<String, dynamic> m) {
+    return HistoryRouteRecord(
+      id: m['id'].toString(),
+      vehicleId: (m['vehicleId'] ?? '').toString(),
+      dayKey: (m['dayKey'] ?? '').toString(),
+      startAt: DateTime.fromMillisecondsSinceEpoch((m['startAt'] as num).toInt()),
+      endAt: m['endAt'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch((m['endAt'] as num).toInt()),
+      isClosed: (m['isClosed'] ?? false) as bool,
+      startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
+      endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
+      distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
+      points: ((m['points'] as List?) ?? const []).map((e) {
+        final p = e as List;
+        return LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble());
+      }).toList(),
+      tripId: m['tripId']?.toString(),
+    );
+  }
 }
 
 /* End of file -------------------------------------------------------- */

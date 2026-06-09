@@ -1,7 +1,7 @@
 name: flutter_tracking_manager_web
 description: A Flutter application for tracking management on the web, using by manager.
 publish_to: none
-version: 1.0.1+1
+version: 1.0.2+1
 environment:
   sdk: ^3.10.8
 dependencies:
@@ -19,6 +19,7 @@ dependencies:
   mqtt_client: ^10.11.10
   intl: ^0.19.0
   url_launcher: ^6.3.2
+  shared_preferences: ^2.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

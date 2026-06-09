@@ -3,10 +3,15 @@
 
 /* Imports ------------------------------------------------------------ */
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/feature_config.dart';
+import '../models/device_data.dart';
+import '../models/history_route.dart';
 import '../models/parking_zone.dart';
 import '../models/rental_user.dart';
 import '../services/firebase_repo.dart';
@@ -83,6 +88,78 @@ class RentalProvider extends ChangeNotifier {
   final Map<String, List<_RentalWindow>> _completedWindows = {};
   MqttService? _mqtt;
   DeviceProvider? _deviceProvider;
+
+  // ---- Session route history (web-side fallback when the bridge is off) ----
+  // GPS points / odometer accumulated for each in-progress rental.
+  final Map<String, List<LatLng>> _rentalPoints = {};
+  final Map<String, double> _rentalStartKm = {};
+  final Map<String, double> _rentalLastKm = {};
+  // Completed routes keyed by bikeId. Persisted locally (survives reload) and
+  // best-effort to Firestore — saved in parallel.
+  final Map<String, List<HistoryRouteRecord>> _sessionRoutes = {};
+
+  static const String _kSessionRoutesKey = 'session_routes_v1';
+  static const int _kSessionRoutesKeepDays = 30;
+
+  RentalProvider() {
+    _restoreSessionRoutes();
+  }
+
+  // Session routes for a vehicle, newest first (shown in the History tab).
+  List<HistoryRouteRecord> sessionRoutesForVehicle(String vehicleId) {
+    final list = _sessionRoutes[vehicleId];
+    if (list == null || list.isEmpty) return const <HistoryRouteRecord>[];
+    return List.unmodifiable(list.reversed.toList());
+  }
+
+  // Drops session routes older than the keep window (in place).
+  void _pruneOldSessionRoutes() {
+    final keepFrom = DateTime.now().subtract(
+      const Duration(days: _kSessionRoutesKeepDays),
+    );
+    _sessionRoutes.removeWhere((_, list) {
+      list.removeWhere((r) => r.startAt.isBefore(keepFrom));
+      return list.isEmpty;
+    });
+  }
+
+  // Load persisted session routes from local storage on startup.
+  Future<void> _restoreSessionRoutes() async {
+    if (!FeatureConfig.saveTripLocal) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kSessionRoutesKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      decoded.forEach((bikeId, value) {
+        final list = (value as List)
+            .map((e) =>
+                HistoryRouteRecord.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        if (list.isNotEmpty) _sessionRoutes[bikeId] = list;
+      });
+      _pruneOldSessionRoutes();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[Rental] restore session routes failed: $e');
+    }
+  }
+
+  // Persist current session routes to local storage.
+  Future<void> _persistSessionRoutes() async {
+    try {
+      _pruneOldSessionRoutes();
+      final prefs = await SharedPreferences.getInstance();
+      final map = _sessionRoutes.map(
+        (bikeId, list) =>
+            MapEntry(bikeId, list.map((r) => r.toJson()).toList()),
+      );
+      await prefs.setString(_kSessionRoutesKey, jsonEncode(map));
+    } catch (e) {
+      debugPrint('[Rental] persist session routes failed: $e');
+    }
+  }
 
   String _toVietnamTime(DateTime value) {
     final vn = value.toUtc().add(const Duration(hours: 7));
@@ -566,6 +643,7 @@ class RentalProvider extends ChangeNotifier {
   // ---- Pause timeout (1 hour) ----------------------------------------
 
   void _startPauseTimeout(String bikeId, String userId) {
+    if (!FeatureConfig.enablePauseTimeLimit) return;
     _pauseTimeoutTimers[bikeId]?.cancel();
     _pauseTimeoutTimers[bikeId] = Timer(
       const Duration(hours: FeatureConfig.pauseTimeoutHours),
@@ -607,6 +685,9 @@ class RentalProvider extends ChangeNotifier {
     _blockTimers.remove(bikeId);
     _blockHundredths.remove(bikeId);
     notifyListeners();
+
+    // Build a session route from the GPS collected during this rental.
+    _finalizeSessionRoute(bikeId, rental, endTime);
 
     // Record completed window so late-arriving GPS data can be merged
     final tripId = _toRentalTs(rental.startTime);
@@ -744,6 +825,9 @@ class RentalProvider extends ChangeNotifier {
     // Active rental — data belongs to current trip
     final active = _activeRentals[bikeId];
     if (active != null && !data.timestamp.isBefore(active.startTime)) {
+      if (FeatureConfig.saveTripLocal || FeatureConfig.saveTripFirestore) {
+        _accumulateRentalPoint(bikeId, data);
+      }
       unawaited(
         FirebaseRepo.instance.mergeTripPoint(
           bikeId,
@@ -771,6 +855,58 @@ class RentalProvider extends ChangeNotifier {
         );
         return;
       }
+    }
+  }
+
+  // Collect a GPS point (and odometer bounds) for the in-progress rental.
+  void _accumulateRentalPoint(String bikeId, DeviceData data) {
+    final lat = data.lat, lng = data.lng;
+    if (lat != null && lng != null) {
+      (_rentalPoints[bikeId] ??= <LatLng>[]).add(LatLng(lat, lng));
+    }
+    final km = data.totalKm;
+    if (km != null) {
+      _rentalStartKm.putIfAbsent(bikeId, () => km);
+      _rentalLastKm[bikeId] = km;
+    }
+  }
+
+  // Build a session HistoryRouteRecord from the points collected during the
+  // rental, store it (newest-first display), and best-effort persist it.
+  void _finalizeSessionRoute(
+    String bikeId,
+    ActiveRental rental,
+    DateTime endTime,
+  ) {
+    final points = _rentalPoints.remove(bikeId) ?? const <LatLng>[];
+    final startKm = _rentalStartKm.remove(bikeId) ?? 0.0;
+    final endKm = _rentalLastKm.remove(bikeId) ?? startKm;
+    if (points.isEmpty) return;
+
+    final start = rental.startTime;
+    final dayKey =
+        '${start.year.toString().padLeft(4, '0')}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+    final record = HistoryRouteRecord(
+      id: 'rental_${_toRentalTs(start)}',
+      vehicleId: bikeId,
+      dayKey: dayKey,
+      startAt: start,
+      endAt: endTime,
+      isClosed: true,
+      startTotalKm: startKm,
+      endTotalKm: endKm,
+      distanceKm: (endKm - startKm) < 0 ? 0 : (endKm - startKm),
+      points: points,
+    );
+
+    // Save in parallel, each gated by its own config flag.
+    if (FeatureConfig.saveTripLocal) {
+      (_sessionRoutes[bikeId] ??= <HistoryRouteRecord>[]).add(record);
+      notifyListeners();
+      unawaited(_persistSessionRoutes());
+    }
+    if (FeatureConfig.saveTripFirestore) {
+      unawaited(FirebaseRepo.instance.upsertHistoryRouteFromWeb(record));
     }
   }
 }
