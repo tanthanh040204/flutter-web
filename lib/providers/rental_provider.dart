@@ -112,6 +112,22 @@ class RentalProvider extends ChangeNotifier {
     return List.unmodifiable(list.reversed.toList());
   }
 
+  // Permanently drop locally-stored session routes by id (in-memory + persisted
+  // copy). Returns true if any matched. No-op for ids not held locally — those
+  // live only in Firestore and are removed via FirebaseRepo.
+  bool deleteSessionRoutes(String vehicleId, Iterable<String> ids) {
+    final list = _sessionRoutes[vehicleId];
+    if (list == null || list.isEmpty) return false;
+    final idSet = ids.toSet();
+    final before = list.length;
+    list.removeWhere((r) => idSet.contains(r.id));
+    if (list.length == before) return false;
+    if (list.isEmpty) _sessionRoutes.remove(vehicleId);
+    notifyListeners();
+    unawaited(_persistSessionRoutes());
+    return true;
+  }
+
   // Drops session routes older than the keep window (in place).
   void _pruneOldSessionRoutes() {
     final keepFrom = DateTime.now().subtract(

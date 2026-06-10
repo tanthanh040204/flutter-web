@@ -55,7 +55,12 @@ class _HistoryTabState extends State<HistoryTab> {
     });
 
     try {
-      await FirebaseRepo.instance.deleteHistoryRoutes(vehicleId, ids);
+      // Remove locally-stored copies first (survives reload); never throws.
+      context.read<RentalProvider>().deleteSessionRoutes(vehicleId, ids);
+      // Remove Firestore copies only when that source is in use.
+      if (FeatureConfig.showTripFirestore) {
+        await FirebaseRepo.instance.deleteHistoryRoutes(vehicleId, ids);
+      }
       if (!mounted) return;
       setState(() {
         _selectedRouteIds.removeAll(ids);
@@ -309,10 +314,21 @@ class _HistoryTabState extends State<HistoryTab> {
                                         });
 
                                         try {
-                                          await FirebaseRepo.instance.deleteHistoryRoute(
-                                            vehicleId,
-                                            route.id,
-                                          );
+                                          // Remove the local copy first
+                                          // (survives reload); never throws.
+                                          context
+                                              .read<RentalProvider>()
+                                              .deleteSessionRoutes(
+                                                vehicleId,
+                                                [route.id],
+                                              );
+                                          if (FeatureConfig.showTripFirestore) {
+                                            await FirebaseRepo.instance
+                                                .deleteHistoryRoute(
+                                              vehicleId,
+                                              route.id,
+                                            );
+                                          }
 
                                           if (context.mounted) {
                                             setState(() {
