@@ -135,8 +135,8 @@ function routeIdOf(date = new Date()) {
   return `${day}_${hh}${mm}${ss}`;
 }
 
-function makePoint(lat, lon, ts, speedKmh, totalKm) {
-  return { lat, lon, ts, speedKmh, totalKm };
+function makePoint(lat, lon, ts, speedKmh, totalKm, distanceM = null) {
+  return { lat, lon, ts, speedKmh, totalKm, distanceM };
 }
 
 function distanceMetersApprox(a, b) {
@@ -275,6 +275,13 @@ async function pruneOldDailyUsage(vehicleId, keepDays = 30) {
 }
 
 async function createRouteDoc(vehicleId, route) {
+  // Trip distance = the device's last distance_m (meters -> km). Falls back to
+  // the odometer delta only when no distance_m was received for this route.
+  const distanceKm =
+    route.lastDistanceM != null
+      ? route.lastDistanceM / 1000
+      : Math.max(0, route.endTotalKm - route.startTotalKm);
+
   await db
     .collection(vehiclesCollection)
     .doc(vehicleId)
@@ -291,7 +298,7 @@ async function createRouteDoc(vehicleId, route) {
         isClosed: route.isClosed,
         startTotalKm: route.startTotalKm,
         endTotalKm: route.endTotalKm,
-        distanceKm: Math.max(0, route.endTotalKm - route.startTotalKm),
+        distanceKm,
         points: route.points,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -308,6 +315,7 @@ async function startRoute(vehicleId, point, totalKm, nowDate) {
     isClosed: false,
     startTotalKm: totalKm,
     endTotalKm: totalKm,
+    lastDistanceM: point.distanceM,
     lastPacketAt: nowDate,
     timeoutHandle: null,
     points: [point],
@@ -326,6 +334,7 @@ async function appendRoutePoint(vehicleId, point, totalKm, nowDate) {
 
   route.lastPacketAt = nowDate;
   route.endTotalKm = totalKm;
+  if (point.distanceM != null) route.lastDistanceM = point.distanceM;
 
   const lastPoint = route.points[route.points.length - 1];
   const movedEnough = !lastPoint || distanceMetersApprox(lastPoint, point) >= 5;
@@ -351,6 +360,7 @@ async function closeRoute(vehicleId, point, totalKm, nowDate) {
   route.endAt = nowDate;
   route.isClosed = true;
   route.endTotalKm = totalKm;
+  if (point.distanceM != null) route.lastDistanceM = point.distanceM;
 
   const lastPoint = route.points[route.points.length - 1];
   if (!lastPoint || distanceMetersApprox(lastPoint, point) >= 1) {
@@ -415,7 +425,9 @@ async function saveOfflineTripData(vehicleId, data, nowDate) {
   const mqttTs = parseNumber(data.ts, nowDate.getTime());
   const speedKmh = parseNumber(data.speedKmh || data.velocity_kmh || data.velocityKmh, 0);
   const totalKm = parseNumber(data.totalKm, 0);
-  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
+  const distanceM =
+    data.distance_m !== undefined ? parseNumber(data.distance_m, 0) : null;
+  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm, distanceM);
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(docRef);
@@ -459,6 +471,15 @@ async function saveOfflineTripData(vehicleId, data, nowDate) {
     const endTotalKm = merged.length > 0 ? merged[merged.length - 1].totalKm : totalKm;
     const dayKey = dayKeyOf(startAt ? startAt.toDate() : nowDate);
 
+    // Trip distance = the last point's distance_m (meters -> km), falling back
+    // to the odometer delta when no distance_m is present in the upload.
+    const lastDistanceM = merged.length > 0
+      ? merged[merged.length - 1].distanceM
+      : null;
+    const distanceKm = lastDistanceM != null
+      ? lastDistanceM / 1000
+      : Math.max(0, endTotalKm - startTotalKm);
+
     log(`[TRIP] ${vehicleId} trip_id=${tripId} points=${merged.length} isClosed=${isClosed}`);
 
     tx.set(docRef, {
@@ -470,7 +491,7 @@ async function saveOfflineTripData(vehicleId, data, nowDate) {
       isClosed,
       startTotalKm,
       endTotalKm,
-      distanceKm: Math.max(0, endTotalKm - startTotalKm),
+      distanceKm,
       points: merged,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -562,7 +583,10 @@ async function saveVehicleState(topic, data) {
   const deltaKm = Math.max(0, totalKm - previousTotalKm);
   lastTotalKmCache.set(vehicleId, totalKm);
 
-  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
+  // Device trip distance (meters); null when the firmware doesn't send it.
+  const distanceM =
+    data.distance_m !== undefined ? parseNumber(data.distance_m, 0) : null;
+  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm, distanceM);
 
   // Live data: maintain in-memory route segments as before.
   // (Offline trip uploads were already handled and returned above.)
