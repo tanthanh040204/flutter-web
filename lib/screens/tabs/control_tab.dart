@@ -896,8 +896,8 @@ class _InlockButtonState extends State<_InlockButton> {
                   'Command acknowledged by device.',
                 )
               : context.trRead(
-                  'Không có phản hồi - hết thời gian chờ (30 giây).',
-                  'No response - timeout (30 s).',
+                  'Không có phản hồi - hết thời gian chờ.',
+                  'No response - timeout.',
                 ),
         ),
         backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,

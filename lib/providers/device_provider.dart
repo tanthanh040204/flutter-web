@@ -420,6 +420,14 @@ class DeviceProvider extends ChangeNotifier {
         }
         break;
 
+      case 'K':
+        // Modem sometimes truncates its "OK" ack to a bare "K"; treat it as a
+        // faulty modem and reset it. The pending LOCK/UNLOCK is left to time out.
+        _mqttService?.publish(deviceId, 'RESET');
+        debugPrint('[DeviceProvider] Got "K" from $deviceId → sent RESET');
+        next = current.copyWith(online: true, lastSeen: now);
+        break;
+
       case 'STATE_ACTIVE':
         next = current.copyWith(
           online: true,
