@@ -48,6 +48,9 @@ class RentalProvider extends ChangeNotifier {
     ParkingZone.defaultSeed,
   );
 
+  // Full rental-user list from Firestore (for the user management tab).
+  List<RentalUser> _allUsers = List<RentalUser>.from(RentalUser.defaultSeed);
+
   // User tokens from Firestore.
   final Map<String, int> _userTokens = {
     for (final u in RentalUser.defaultSeed) u.userId: u.tokens,
@@ -196,6 +199,15 @@ class RentalProvider extends ChangeNotifier {
   List<ActiveRental> get activeRentals =>
       List.unmodifiable(_activeRentals.values.toList());
 
+  // All rental users (for the user management tab), sorted by userId.
+  List<RentalUser> get rentalUsers => List.unmodifiable(_allUsers);
+
+  // Delete a user from Firebase (rental_users + app-owned users profile).
+  // The watchRentalUsers stream refreshes the list afterwards.
+  Future<void> deleteUser(String userId) {
+    return FirebaseRepo.instance.deleteRentalUserCompletely(userId);
+  }
+
   ActiveRental? activeRentalForBike(String bikeId) => _activeRentals[bikeId];
   bool isBikeRented(String bikeId) => _activeRentals.containsKey(bikeId);
   bool isBikePaused(String bikeId) => _pausedBikes.contains(bikeId);
@@ -238,6 +250,7 @@ class RentalProvider extends ChangeNotifier {
 
   void _onRentalUsersUpdated(List<RentalUser> users) {
     if (users.isEmpty) return;
+    _allUsers = List<RentalUser>.from(users);
     _userTokens.clear();
     _userDebt.clear();
     _debtStartedAt.clear();

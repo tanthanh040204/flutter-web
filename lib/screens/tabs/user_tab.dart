@@ -1,16 +1,15 @@
 // @file       user_tab.dart
-// @brief      Shows mobile users who are currently renting vehicles.
+// @brief      Lists all rental users with profile, balance, status and rental.
 
 /* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_string.dart';
-import '../../models/rental_user_info.dart';
+import '../../models/rental_user.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/rental_provider.dart';
-import '../../services/firebase_repo.dart';
 
 /* Public classes ----------------------------------------------------- */
 class UserTab extends StatelessWidget {
@@ -18,17 +17,23 @@ class UserTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rentals = context.watch<RentalProvider>().activeRentals;
+    final rental = context.watch<RentalProvider>();
+    final users = rental.rentalUsers;
+
+    // Cross-reference active rentals (keyed by bikeId) by userId so each
+    // user row can show its current session + vehicle, if any.
+    final rentalByUser = <String, ActiveRental>{
+      for (final r in rental.activeRentals) r.userId: r,
+    };
+    final activeCount = rentalByUser.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.loc(AppStrings.titleUsers)),
-      ),
+      appBar: AppBar(title: Text(context.loc(AppStrings.titleUsers))),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future<void>.delayed(const Duration(milliseconds: 250));
         },
-        child: rentals.isEmpty
+        child: users.isEmpty
             ? ListView(
                 padding: const EdgeInsets.all(24),
                 children: [
@@ -40,10 +45,7 @@ class UserTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    context.tr(
-                      'Chưa có người dùng nào đang thuê xe',
-                      'No active rental users yet',
-                    ),
+                    context.tr('Chưa có người dùng nào', 'No users yet'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
@@ -53,8 +55,8 @@ class UserTab extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     context.tr(
-                      'Khi người dùng quét QR và mở khóa xe thành công, thông tin người dùng và thời gian bắt đầu thuê sẽ hiện ở đây.',
-                      'When a user scans a QR code and unlocks a vehicle successfully, their profile and rental start time will appear here.',
+                      'Người dùng sẽ xuất hiện ở đây sau khi đăng ký trên ứng dụng di động.',
+                      'Users will appear here after they sign up on the mobile app.',
                     ),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade700),
@@ -63,13 +65,21 @@ class UserTab extends StatelessWidget {
               )
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
-                itemCount: rentals.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemCount: users.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   if (index == 0) {
-                    return _SummaryCard(activeCount: rentals.length);
+                    return _SummaryCard(
+                      totalCount: users.length,
+                      activeCount: activeCount,
+                    );
                   }
-                  return _ActiveRentalCard(rental: rentals[index - 1]);
+                  final user = users[index - 1];
+                  return _UserCard(
+                    key: ValueKey(user.userId),
+                    user: user,
+                    activeRental: rentalByUser[user.userId],
+                  );
                 },
               ),
       ),
@@ -79,8 +89,9 @@ class UserTab extends StatelessWidget {
 
 /* Private classes ---------------------------------------------------- */
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.activeCount});
+  const _SummaryCard({required this.totalCount, required this.activeCount});
 
+  final int totalCount;
   final int activeCount;
 
   @override
@@ -90,34 +101,18 @@ class _SummaryCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(Icons.people_alt, color: Colors.blue.shade700),
+            _SummaryStat(
+              icon: Icons.people_alt,
+              color: Colors.blue,
+              label: context.tr('Tổng người dùng', 'Total users'),
+              value: '$totalCount',
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.tr('Tổng phiên thuê đang chạy', 'Current active rentals'),
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$activeCount',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(width: 24),
+            _SummaryStat(
+              icon: Icons.directions_bike,
+              color: Colors.green,
+              label: context.tr('Đang thuê xe', 'Currently renting'),
+              value: '$activeCount',
             ),
           ],
         ),
@@ -126,134 +121,256 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _ActiveRentalCard extends StatelessWidget {
-  const _ActiveRentalCard({required this.rental});
+class _SummaryStat extends StatelessWidget {
+  const _SummaryStat({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+  });
 
-  final ActiveRental rental;
+  final IconData icon;
+  final MaterialColor color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color.shade700),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// All fields (profile, balance, status, contact) come straight from the
+// streamed RentalUser, so the card updates live. Stateful only to track the
+// in-flight delete.
+class _UserCard extends StatefulWidget {
+  const _UserCard({super.key, required this.user, this.activeRental});
+
+  final RentalUser user;
+  final ActiveRental? activeRental;
+
+  @override
+  State<_UserCard> createState() => _UserCardState();
+}
+
+class _UserCardState extends State<_UserCard> {
+  bool _deleting = false;
+
+  Future<void> _confirmDelete(String displayName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ctx.tr('Xóa người dùng?', 'Delete user?')),
+        content: Text(
+          ctx.tr(
+            'Người dùng "$displayName" sẽ bị xóa khỏi Firebase (rental_users và hồ sơ users). Hành động này không thể hoàn tác.',
+            'User "$displayName" will be deleted from Firebase (rental_users and the users profile). This cannot be undone.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(ctx.tr('Hủy', 'Cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(ctx.tr('Xóa', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final doneText = context.trRead('Đã xóa người dùng', 'User deleted');
+    final failText = context.trRead(
+      'Xóa người dùng thất bại',
+      'Failed to delete user',
+    );
+    setState(() => _deleting = true);
+    try {
+      await context.read<RentalProvider>().deleteUser(widget.user.userId);
+      messenger.showSnackBar(SnackBar(content: Text(doneText)));
+    } catch (_) {
+      if (mounted) setState(() => _deleting = false);
+      messenger.showSnackBar(SnackBar(content: Text(failText)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
-    final vehicleName = _vehicleName(fleet, rental.bikeId);
+    final user = widget.user;
+    final rental = widget.activeRental;
+    final renting = rental != null;
+    final name = user.displayName.trim().isNotEmpty
+        ? user.displayName
+        : user.userId;
+    final vehicleName = renting ? _vehicleName(fleet, rental.bikeId) : '--';
 
-    return FutureBuilder<RentalUserInfo?>(
-      future: FirebaseRepo.instance.getRentalUserInfo(rental.userId),
-      builder: (context, snap) {
-        final user = snap.data;
-        final loading = snap.connectionState == ConnectionState.waiting;
-        final title = loading
-            ? context.tr('Đang tải thông tin người dùng...', 'Loading user info...')
-            : user?.displayName ?? rental.userId;
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: Colors.green.shade50,
-                      child: Icon(Icons.person, color: Colors.green.shade700),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            context.tr('Đang sử dụng $vehicleName', 'Using $vehicleName'),
-                            style: TextStyle(color: Colors.grey.shade700),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _StatusPill(label: context.tr('Đang thuê', 'Active')),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _InfoTile(
-                      icon: Icons.qr_code,
-                      label: context.tr('Mã user MQTT', 'MQTT user ID'),
-                      value: rental.userId,
-                    ),
-                    _InfoTile(
-                      icon: Icons.badge,
-                      label: context.tr('Mã nhân viên', 'Employee code'),
-                      value: user?.employeeCode ?? '--',
-                    ),
-                    _InfoTile(
-                      icon: Icons.email,
-                      label: 'Email',
-                      value: user?.email ?? '--',
-                    ),
-                    _InfoTile(
-                      icon: Icons.phone,
-                      label: context.tr('Số điện thoại', 'Phone'),
-                      value: user?.phone ?? '--',
-                    ),
-                    _InfoTile(
-                      icon: Icons.account_balance_wallet,
-                      label: context.tr('Số dư hiện tại', 'Current balance'),
-                      value: _money(user?.balance ?? 0),
-                    ),
-                    _InfoTile(
-                      icon: Icons.lock_clock,
-                      label: context.tr('Tiền cọc đang giữ', 'Deposit locked'),
-                      value: _money(user?.depositLocked ?? 0),
-                    ),
-                    _InfoTile(
-                      icon: Icons.pedal_bike,
-                      label: context.tr('Mã xe', 'Vehicle ID'),
-                      value: rental.bikeId,
-                    ),
-                    _InfoTile(
-                      icon: Icons.schedule,
-                      label: context.tr('Bắt đầu thuê', 'Rental started at'),
-                      value: _dateTime(rental.startTime),
-                    ),
-                    _InfoTile(
-                      icon: Icons.timer,
-                      label: context.tr('Thời lượng hiện tại', 'Current duration'),
-                      value: _duration(DateTime.now().difference(rental.startTime)),
-                    ),
-                    _InfoTile(
-                      icon: Icons.payments,
-                      label: context.tr('Đã trừ', 'Charged'),
-                      value: _money(rental.chargedTokens),
-                    ),
-                  ],
-                ),
-                if (snap.hasError) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    context.tr(
-                      'Không đọc được hồ sơ người dùng từ Firebase. Web vẫn hiển thị userId từ MQTT.',
-                      'Could not read the user profile from Firebase. The web still shows the MQTT user ID.',
-                    ),
-                    style: TextStyle(color: Colors.orange.shade800),
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: user.isLocked
+                      ? Colors.red.shade50
+                      : Colors.green.shade50,
+                  child: Icon(
+                    Icons.person,
+                    color: user.isLocked
+                        ? Colors.red.shade700
+                        : Colors.green.shade700,
                   ),
-                ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        renting
+                            ? context.tr(
+                                'Đang sử dụng $vehicleName',
+                                'Using $vehicleName',
+                              )
+                            : context.tr(
+                                'Không có phiên thuê',
+                                'No active rental',
+                              ),
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+                _AccountStatusPill(
+                  locked: user.isLocked,
+                  active: user.isActive,
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: _deleting ? null : () => _confirmDelete(name),
+                  tooltip: context.tr('Xóa người dùng', 'Delete user'),
+                  icon: _deleting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.delete_outline, color: Colors.red.shade600),
+                ),
               ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            _InfoRow(
+              icon: Icons.qr_code,
+              label: context.tr('Mã người dùng', 'User ID'),
+              value: user.userId,
+            ),
+            _InfoRow(
+              icon: Icons.email,
+              label: 'Email',
+              value: user.email ?? '--',
+            ),
+            _InfoRow(
+              icon: Icons.phone,
+              label: context.tr('Số điện thoại', 'Phone'),
+              value: user.phone ?? '--',
+            ),
+            _InfoRow(
+              icon: Icons.account_balance_wallet,
+              label: context.tr('Số dư ví', 'Wallet balance'),
+              value: _money(user.tokens),
+            ),
+            _InfoRow(
+              icon: Icons.verified_user,
+              label: context.tr('Trạng thái tài khoản', 'Account status'),
+              value: user.isLocked
+                  ? context.tr('Bị khóa', 'Locked')
+                  : (user.isActive
+                        ? context.tr('Đang hoạt động', 'Active')
+                        : context.tr('Ngừng hoạt động', 'Inactive')),
+            ),
+            _InfoRow(
+              icon: Icons.directions_bike,
+              label: context.tr('Phiên thuê hiện tại', 'Current rental'),
+              value: renting
+                  ? context.tr('Đang thuê', 'Renting')
+                  : context.tr('Không có', 'None'),
+            ),
+            _InfoRow(
+              icon: Icons.pedal_bike,
+              label: context.tr('Xe đang thuê', 'Vehicle in use'),
+              value: renting ? vehicleName : '--',
+            ),
+            if (renting) ...[
+              _InfoRow(
+                icon: Icons.schedule,
+                label: context.tr('Bắt đầu thuê', 'Rental started at'),
+                value: _dateTime(rental.startTime),
+              ),
+              _InfoRow(
+                icon: Icons.timer,
+                label: context.tr('Thời lượng hiện tại', 'Current duration'),
+                value: _duration(DateTime.now().difference(rental.startTime)),
+              ),
+              _InfoRow(
+                icon: Icons.payments,
+                label: context.tr('Đã trừ', 'Charged'),
+                value: _money(rental.chargedTokens),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -289,8 +406,8 @@ class _ActiveRentalCard extends StatelessWidget {
   }
 }
 
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
@@ -302,35 +419,24 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Colors.blueGrey.shade600),
+          Icon(icon, size: 18, color: Colors.blueGrey.shade600),
           const SizedBox(width: 10),
+          SizedBox(
+            width: 160,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+          ),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-              ],
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -339,24 +445,38 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
+class _AccountStatusPill extends StatelessWidget {
+  const _AccountStatusPill({required this.locked, required this.active});
 
-  final String label;
+  final bool locked;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
+    final MaterialColor color;
+    final String label;
+    if (locked) {
+      color = Colors.red;
+      label = context.tr('Bị khóa', 'Locked');
+    } else if (active) {
+      color = Colors.green;
+      label = context.tr('Hoạt động', 'Active');
+    } else {
+      color = Colors.grey;
+      label = context.tr('Ngừng', 'Inactive');
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: color.shade50,
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: color.shade200),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: Colors.green.shade800,
+          color: color.shade800,
           fontSize: 12,
           fontWeight: FontWeight.w800,
         ),

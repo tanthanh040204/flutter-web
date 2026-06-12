@@ -14,6 +14,8 @@ class RentalUser {
     this.isLocked = false,
     this.displayName = '',
     this.isActive = true,
+    this.phone,
+    this.email,
     this.updatedAt,
   });
 
@@ -24,6 +26,10 @@ class RentalUser {
   final bool isLocked;
   final String displayName;
   final bool isActive;
+  // Contact fields mirrored from the app-owned `users` profile. Read-only on
+  // web (not written back via toMap), so web never clobbers them.
+  final String? phone;
+  final String? email;
   final DateTime? updatedAt;
 
   factory RentalUser.fromMap(String id, Map<String, dynamic> map) {
@@ -48,6 +54,8 @@ class RentalUser {
       isLocked: map['isLocked'] is bool ? map['isLocked'] as bool : false,
       displayName: (map['displayName'] ?? '').toString(),
       isActive: map['isActive'] is bool ? map['isActive'] as bool : true,
+      phone: _asString(map['phone']),
+      email: _asString(map['email']),
       updatedAt: updatedAt,
     );
   }
@@ -56,8 +64,9 @@ class RentalUser {
     'userId': userId,
     'tokens': tokens,
     'debt': debt,
-    'debtStartedAt':
-        debtStartedAt == null ? null : Timestamp.fromDate(debtStartedAt!),
+    'debtStartedAt': debtStartedAt == null
+        ? null
+        : Timestamp.fromDate(debtStartedAt!),
     'isLocked': isLocked,
     'displayName': displayName,
     'isActive': isActive,
@@ -68,6 +77,12 @@ class RentalUser {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
+  }
+
+  static String? _asString(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
   }
 
   // Default seed list — used by `FirebaseRepo` to seed the `rental_users`

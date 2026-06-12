@@ -89,9 +89,12 @@ class FirebaseRepo {
       _db?.collection('users');
 
   // ---- Rental user profile (read-only, shown on web during a rental) ----
-  // Looks up a mobile user's profile by their MQTT wire user id: first in
-  // `rental_users/{id}`, then falling back to a `users` doc whose
-  // `wireUserId` matches. Returns null offline or when not found.
+  // Looks up a mobile user's profile by their MQTT wire user id. Contact
+  // fields (email/phone/full name) live only in the app-owned `users/{uid}`
+  // profile, so the `rental_users/{id}` doc is merged *under* the `users`
+  // doc (resolved by its `uid`, then by a `wireUserId` lookup). The
+  // rental_users values win on overlapping keys (tokens/lock are web-owned).
+  // Returns null offline or when neither doc exists.
   Future<RentalUserInfo?> getRentalUserInfo(String wireUserId) async {
     final id = wireUserId.trim();
     if (id.isEmpty) return null;
@@ -100,20 +103,31 @@ class FirebaseRepo {
     if (rentalUsers == null) return null;
 
     final rentalSnap = await rentalUsers.doc(id).get();
-    if (rentalSnap.exists) {
-      return RentalUserInfo.fromMap(rentalSnap.id, rentalSnap.data() ?? {});
-    }
+    final rentalData = rentalSnap.exists
+        ? (rentalSnap.data() ?? <String, dynamic>{})
+        : null;
 
+    Map<String, dynamic>? userData;
     final users = _users;
     if (users != null) {
-      final userQuery =
-          await users.where('wireUserId', isEqualTo: id).limit(1).get();
-      if (userQuery.docs.isNotEmpty) {
-        return RentalUserInfo.fromMap(id, userQuery.docs.first.data());
+      final uid = rentalData?['uid']?.toString().trim();
+      if (uid != null && uid.isNotEmpty) {
+        final snap = await users.doc(uid).get();
+        if (snap.exists) userData = snap.data();
+      }
+      if (userData == null) {
+        final query =
+            await users.where('wireUserId', isEqualTo: id).limit(1).get();
+        if (query.docs.isNotEmpty) userData = query.docs.first.data();
       }
     }
 
-    return null;
+    if (rentalData == null && userData == null) return null;
+
+    return RentalUserInfo.fromMap(id, <String, dynamic>{
+      ...?userData,
+      ...?rentalData,
+    });
   }
 
   // ---- Parking zones (shared by web admin + mobile app) ----------------
@@ -247,6 +261,35 @@ class FirebaseRepo {
     final users = _rentalUsers;
     if (users == null) return;
     await users.doc(userId).delete();
+  }
+
+  // Full removal used by the user management tab: deletes the web-owned
+  // `rental_users/{wireUserId}` doc and the app-owned `users` profile
+  // (resolved via the doc's `uid` field, then by a `wireUserId` lookup).
+  Future<void> deleteRentalUserCompletely(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return;
+
+    final rentalUsers = _rentalUsers;
+    String? uid;
+    if (rentalUsers != null) {
+      final snap = await rentalUsers.doc(id).get();
+      if (snap.exists) {
+        uid = snap.data()?['uid']?.toString().trim();
+      }
+      await rentalUsers.doc(id).delete();
+    }
+
+    final users = _users;
+    if (users == null) return;
+
+    if (uid != null && uid.isNotEmpty) {
+      await users.doc(uid).delete();
+    }
+    final query = await users.where('wireUserId', isEqualTo: id).get();
+    for (final doc in query.docs) {
+      await doc.reference.delete();
+    }
   }
 
   List<Vehicle> _sortedLocalVehicles() {
