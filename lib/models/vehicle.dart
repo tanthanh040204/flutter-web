@@ -9,6 +9,9 @@ class Vehicle {
   final String id;
   final String name;
 
+  /// Admin-managed device serial number (Firestore metadata).
+  final String serialNumber;
+
   final int batteryPercent;
   final bool isLocked;
   final bool isRunning;
@@ -27,6 +30,7 @@ class Vehicle {
   const Vehicle({
     required this.id,
     required this.name,
+    this.serialNumber = '',
     required this.batteryPercent,
     required this.isLocked,
     required this.isRunning,
@@ -41,6 +45,7 @@ class Vehicle {
 
   Vehicle copyWith({
     String? name,
+    String? serialNumber,
     int? batteryPercent,
     bool? isLocked,
     bool? isRunning,
@@ -55,6 +60,7 @@ class Vehicle {
     return Vehicle(
       id: id,
       name: name ?? this.name,
+      serialNumber: serialNumber ?? this.serialNumber,
       batteryPercent: batteryPercent ?? this.batteryPercent,
       isLocked: isLocked ?? this.isLocked,
       isRunning: isRunning ?? this.isRunning,

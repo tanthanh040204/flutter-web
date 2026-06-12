@@ -56,6 +56,9 @@ class FeatureConfig {
   static const bool enableAutoRegisterDevice = true;
   static const bool enableOfflineDetection = true;
   static const bool enableFusionData = true;
+  // Allow editing vehicle name + serial number directly from the Overview tab
+  // (writes Firestore only, sends no MQTT command).
+  static const bool enableOverviewManualEdit = true;
 
   // Trip route history (web-built per-rental routes) — save + display toggles.
   // Saving: write each finished rental route to the target.

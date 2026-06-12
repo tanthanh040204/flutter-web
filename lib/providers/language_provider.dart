@@ -2,6 +2,7 @@
 // @brief      Simple app language state for Vietnamese / English UI.
 
 /* Imports ------------------------------------------------------------ */
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -33,7 +34,17 @@ class LanguageProvider extends ChangeNotifier {
 
 /* Public extensions -------------------------------------------------- */
 extension LanguageBuildContext on BuildContext {
-  String tr(String vi, String en) => watch<LanguageProvider>().tr(vi, en);
+  // `watch` asserts when called outside a build (event handlers, post-await).
+  // During a build we want reactivity (rebuild on language change); elsewhere
+  // fall back to a non-listening read. In release builds asserts are stripped,
+  // so keep the listening path to preserve the current behavior.
+  String tr(String vi, String en) {
+    if (kDebugMode && !debugDoingBuild) {
+      return read<LanguageProvider>().tr(vi, en);
+    }
+    return watch<LanguageProvider>().tr(vi, en);
+  }
+
   String trRead(String vi, String en) => read<LanguageProvider>().tr(vi, en);
 }
 

@@ -116,8 +116,10 @@ class FirebaseRepo {
         if (snap.exists) userData = snap.data();
       }
       if (userData == null) {
-        final query =
-            await users.where('wireUserId', isEqualTo: id).limit(1).get();
+        final query = await users
+            .where('wireUserId', isEqualTo: id)
+            .limit(1)
+            .get();
         if (query.docs.isNotEmpty) userData = query.docs.first.data();
       }
     }
@@ -684,8 +686,9 @@ class FirebaseRepo {
             'vehicleId': route.vehicleId,
             'dayKey': route.dayKey,
             'startAt': Timestamp.fromDate(route.startAt),
-            'endAt':
-                route.endAt == null ? null : Timestamp.fromDate(route.endAt!),
+            'endAt': route.endAt == null
+                ? null
+                : Timestamp.fromDate(route.endAt!),
             'isClosed': route.isClosed,
             'startTotalKm': route.startTotalKm,
             'endTotalKm': route.endTotalKm,
@@ -720,6 +723,7 @@ class FirebaseRepo {
       await vehicles.doc(v.id).set({
         'id': v.id,
         'name': v.name,
+        'serialNumber': v.serialNumber,
         'batteryPercent': v.batteryPercent,
         'isLocked': v.isLocked,
         'isRunning': v.isRunning,
@@ -1048,6 +1052,7 @@ class FirebaseRepo {
     return Vehicle(
       id: d.id,
       name: vehicleName,
+      serialNumber: _asString(m['serialNumber']) ?? '',
       batteryPercent: batteryPercent.clamp(0, 100).toInt(),
       isLocked: isLocked,
       isRunning: isRunning,

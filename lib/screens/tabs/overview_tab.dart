@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/feature_config.dart';
 import '../../models/vehicle.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
@@ -221,6 +222,16 @@ class _VehicleCard extends StatelessWidget {
                 _OnlineDot(online: online),
                 const SizedBox(width: 8),
                 _StatusPill(color: status.color, label: status.label),
+                if (FeatureConfig.enableOverviewManualEdit)
+                  IconButton(
+                    tooltip: context.tr('Sửa thông tin', 'Edit info'),
+                    icon: Icon(
+                      Icons.edit,
+                      size: 20,
+                      color: Colors.blueGrey.shade600,
+                    ),
+                    onPressed: () => _showEditDialog(context),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -230,6 +241,11 @@ class _VehicleCard extends StatelessWidget {
               icon: Icons.qr_code,
               label: context.tr('Mã xe', 'Vehicle ID'),
               value: vehicle.id,
+            ),
+            _InfoRow(
+              icon: Icons.tag,
+              label: context.tr('Serial number', 'Serial number'),
+              value: vehicle.serialNumber.isEmpty ? '--' : vehicle.serialNumber,
             ),
             _InfoRow(
               icon: online ? Icons.wifi : Icons.wifi_off,
@@ -273,6 +289,59 @@ class _VehicleCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // Manual edit of name + serial — writes Firestore via the provider, sends no
+  // MQTT command. Gated by FeatureConfig.enableOverviewManualEdit.
+  Future<void> _showEditDialog(BuildContext context) async {
+    final nameCtl = TextEditingController(text: vehicle.name);
+    final serialCtl = TextEditingController(text: vehicle.serialNumber);
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(context.tr('Sửa thông tin xe', 'Edit vehicle info')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtl,
+              decoration: InputDecoration(
+                labelText: context.tr('Tên xe', 'Vehicle name'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: serialCtl,
+              decoration: InputDecoration(
+                labelText: context.tr('Serial number', 'Serial number'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.tr('Hủy', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.tr('Lưu', 'Save')),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true || !context.mounted) return;
+
+    final name = nameCtl.text.trim();
+    await context.read<FleetProvider>().editVehicleInfo(
+      vehicle.id,
+      name: name.isEmpty ? null : name,
+      serialNumber: serialCtl.text.trim(),
     );
   }
 

@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_string.dart';
 import '../../models/device_state.dart';
+import '../../models/vehicle.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
@@ -118,7 +119,10 @@ class ControlTab extends StatelessWidget {
                         Expanded(
                           child: _SensorCard(
                             icon: Icons.route,
-                            title: context.tr('Quãng đường chuyến', 'Trip distance'),
+                            title: context.tr(
+                              'Quãng đường chuyến',
+                              'Trip distance',
+                            ),
                             value: controlTripKmStr,
                           ),
                         ),
@@ -139,18 +143,9 @@ class ControlTab extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _SquareButton(
-                        icon: Icons.edit,
-                        label: context.tr('Sửa tên', 'Edit Name'),
-                        onTap: () async {
-                          final name = await _askVehicleName(
-                            context,
-                            title: context.tr('Sửa tên xe', 'Edit Vehicle Name'),
-                            initial: v.name,
-                          );
-                          if (name != null && name.trim().isNotEmpty) {
-                            await fleet.renameSelected(name.trim());
-                          }
-                        },
+                        icon: Icons.settings_remote,
+                        label: context.tr('Cài đặt thiết bị', 'Set Device'),
+                        onTap: () => _showSetDeviceDialog(context, v),
                       ),
                     ),
                   ],
@@ -173,7 +168,10 @@ class ControlTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr('Nhập số xe gồm 3 chữ số.\nID sẽ là: haq-trk-XXX', 'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX'),
+              context.tr(
+                'Nhập số xe gồm 3 chữ số.\nID sẽ là: haq-trk-XXX',
+                'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX',
+              ),
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -183,7 +181,10 @@ class ControlTab extends StatelessWidget {
               maxLength: 3,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: context.tr('Mã Xe (Vd: 001)', 'Vehicle Number (e.g. 001)'),
+                labelText: context.tr(
+                  'Mã Xe (Vd: 001)',
+                  'Vehicle Number (e.g. 001)',
+                ),
                 prefixText: 'haq-trk-',
                 border: const OutlineInputBorder(),
               ),
@@ -213,42 +214,117 @@ class ControlTab extends StatelessWidget {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('Đã thêm haq-trk-$number vào Firebase.', 'Added haq-trk-$number to Firebase.'))),
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Đã thêm haq-trk-$number vào Firebase.',
+                'Added haq-trk-$number to Firebase.',
+              ),
+            ),
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(context.tr('Không thể thêm xe: $e', 'Cannot add vehicle: $e'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr('Không thể thêm xe: $e', 'Cannot add vehicle: $e'),
+            ),
+          ),
+        );
       }
     }
   }
 
-  static Future<String?> _askVehicleName(
-    BuildContext context, {
-    required String title,
-    required String initial,
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
+  // Sends SET_DEVICE=<id>,<serial> to <vehicleId>/cmd (sets the device's id +
+  // serial on the firmware). Does not write Firestore.
+  static Future<void> _showSetDeviceDialog(
+    BuildContext context,
+    Vehicle v,
+  ) async {
+    final initialNum =
+        RegExp(r'(\d+)$').firstMatch(v.id)?.group(1)?.padLeft(3, '0') ?? '';
+    final numCtl = TextEditingController(text: initialNum);
+    final serialCtl = TextEditingController(text: v.serialNumber);
+
+    final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(labelText: context.tr('Tên xe', 'Vehicle Name')),
+        title: Text(context.tr('Cài đặt thiết bị', 'Set Device')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr(
+                'Gửi lệnh SET_DEVICE tới thiết bị (mã 3 số + serial number).',
+                'Sends SET_DEVICE to the device (3-digit id + serial number).',
+              ),
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: numCtl,
+              keyboardType: TextInputType.number,
+              maxLength: 3,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: context.tr(
+                  'Mã thiết bị (Vd: 001)',
+                  'Device id (e.g. 001)',
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: serialCtl,
+              decoration: InputDecoration(
+                labelText: context.tr('Serial number', 'Serial number'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: Text(context.tr('Lưu', 'Save')),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.tr('Gửi', 'Send')),
           ),
         ],
+      ),
+    );
+
+    if (ok != true || !context.mounted) return;
+
+    final number = numCtl.text.trim().padLeft(3, '0');
+    final serial = serialCtl.text.trim();
+    if (number.length != 3 || serial.isEmpty) return;
+
+    final sent = context.read<DeviceProvider>().publishCommand(
+      v.id,
+      'SET_DEVICE=$number,$serial',
+    );
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sent
+              ? context.trRead(
+                  'Đã gửi SET_DEVICE tới ${v.id}.',
+                  'SET_DEVICE sent to ${v.id}.',
+                )
+              : context.trRead(
+                  'Gửi lệnh thất bại (chưa kết nối MQTT).',
+                  'Failed to send (MQTT not connected).',
+                ),
+        ),
       ),
     );
   }
@@ -700,23 +776,16 @@ class _SquareButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
 
   const _SquareButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = Colors.green;
-    final bg = active
-        ? activeColor.withOpacity(0.14)
-        : Theme.of(context).colorScheme.surface;
-    final border = active ? activeColor.withOpacity(0.40) : Colors.transparent;
-    final fg = active ? activeColor : Theme.of(context).colorScheme.onSurface;
+    final fg = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -725,8 +794,7 @@ class _SquareButton extends StatelessWidget {
         height: 82,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: bg,
-          border: Border.all(color: border),
+          color: Theme.of(context).colorScheme.surface,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -752,9 +820,18 @@ class _LockStateBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (state) {
-      DeviceLockState.active => (context.tr('Đang hoạt động', 'Active'), Colors.greenAccent),
-      DeviceLockState.locked => (context.tr('Đang khóa', 'Locked'), Colors.redAccent),
-      DeviceLockState.pause => (context.tr('Tạm dừng', 'Pause'), Colors.orangeAccent),
+      DeviceLockState.active => (
+        context.tr('Đang hoạt động', 'Active'),
+        Colors.greenAccent,
+      ),
+      DeviceLockState.locked => (
+        context.tr('Đang khóa', 'Locked'),
+        Colors.redAccent,
+      ),
+      DeviceLockState.pause => (
+        context.tr('Tạm dừng', 'Pause'),
+        Colors.orangeAccent,
+      ),
     };
 
     return Container(
@@ -793,7 +870,14 @@ class _InlockButtonState extends State<_InlockButton> {
     final device = deviceProvider.deviceById(widget.vehicleId);
     if (device == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('Không tìm thấy thiết bị trong MQTT.', 'Device not found in MQTT registry.'))),
+        SnackBar(
+          content: Text(
+            context.trRead(
+              'Không tìm thấy thiết bị trong MQTT.',
+              'Device not found in MQTT registry.',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -807,8 +891,14 @@ class _InlockButtonState extends State<_InlockButton> {
       SnackBar(
         content: Text(
           ok
-              ? context.tr('Thiết bị đã xác nhận lệnh.', 'Command acknowledged by device.')
-              : context.tr('Không có phản hồi - hết thời gian chờ (30 giây).', 'No response - timeout (30 s).'),
+              ? context.trRead(
+                  'Thiết bị đã xác nhận lệnh.',
+                  'Command acknowledged by device.',
+                )
+              : context.trRead(
+                  'Không có phản hồi - hết thời gian chờ (30 giây).',
+                  'No response - timeout (30 s).',
+                ),
         ),
         backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
         duration: const Duration(seconds: 3),

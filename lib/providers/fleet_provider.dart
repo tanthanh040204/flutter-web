@@ -131,6 +131,34 @@ class FleetProvider extends ChangeNotifier {
     );
   }
 
+  // Manual edit of vehicle metadata (name / serial) by id — Firestore only,
+  // no MQTT command. Used by the Overview tab's manual-edit feature.
+  Future<void> editVehicleInfo(
+    String vehicleId, {
+    String? name,
+    String? serialNumber,
+  }) async {
+    final index = _vehicles.indexWhere((v) => v.id == vehicleId);
+    if (index < 0) return;
+
+    final current = _vehicles[index];
+    final next = current.copyWith(
+      name: name ?? current.name,
+      serialNumber: serialNumber ?? current.serialNumber,
+      updatedAt: DateTime.now(),
+    );
+
+    _vehicles[index] = next;
+    notifyListeners();
+
+    try {
+      await FirebaseRepo.instance.saveVehicle(next);
+    } catch (e) {
+      _lastError = e.toString();
+      notifyListeners();
+    }
+  }
+
   Future<void> toggleLock() async {
     final current = selectedOrNull;
     if (current == null) return;
