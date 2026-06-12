@@ -114,7 +114,10 @@ class TripProvider extends ChangeNotifier {
     ).subtract(Duration(days: days - 1));
 
     final current = _dailyUsageByVehicle[vehicleId] ?? const <DailyStat>[];
+    // Count only days the vehicle actually moved (distance > 0), not just days
+    // that happen to have a daily_usage doc.
     final keys = current
+        .where((s) => s.distanceKm > 0)
         .map((s) => _dayKey(DateTime(s.day.year, s.day.month, s.day.day)))
         .toSet();
 
