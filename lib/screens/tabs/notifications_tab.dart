@@ -210,6 +210,10 @@ class _NotificationsTabState extends State<NotificationsTab> {
         ? deviceProvider.devices.where((d) => d.helpRequested).toList()
         : const <DeviceState>[];
 
+    final List<DeviceState> lowBatteryDevices = showMaint
+        ? deviceProvider.devices.where((d) => d.lowBattery).toList()
+        : const <DeviceState>[];
+
     return Scaffold(
       appBar: AppBar(
         title: Text(context.loc(AppStrings.titleNotifications)),
@@ -240,7 +244,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
                 final hasAny =
                     helpDevices.isNotEmpty ||
                     visibleLoginNotifications.isNotEmpty ||
-                    maintenanceMessages.isNotEmpty;
+                    maintenanceMessages.isNotEmpty ||
+                    lowBatteryDevices.isNotEmpty;
 
                 if (!hasAny) {
                   return Center(
@@ -434,7 +439,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
                           }),
                           const SizedBox(height: 20),
                         ],
-                        if (maintenanceMessages.isNotEmpty) ...[
+                        if (maintenanceMessages.isNotEmpty ||
+                            lowBatteryDevices.isNotEmpty) ...[
                           Text(
                             context.tr('Bảo trì', 'Maintenance'),
                             style: const TextStyle(
@@ -443,31 +449,79 @@ class _NotificationsTabState extends State<NotificationsTab> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              context.tr(
-                                'Thông báo bảo trì được tạo từ số km bảo dưỡng, không phải bản ghi riêng trong Firebase.',
-                                'Maintenance warnings are generated from service mileage, not separate Firebase records.',
-                              ),
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          ...maintenanceMessages.map(
-                            (message) => Card(
+                          ...lowBatteryDevices.map(
+                            (d) => Card(
                               margin: const EdgeInsets.only(bottom: 10),
+                              color: Colors.red.shade50,
                               child: ListTile(
                                 leading: const Icon(
-                                  Icons.notifications_active,
-                                  color: Colors.orange,
+                                  Icons.battery_alert,
+                                  color: Colors.red,
                                 ),
-                                title: Text(message),
+                                title: Text(
+                                  context.tr(
+                                    'Pin yếu - ${d.id}',
+                                    'Low battery - ${d.id}',
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  context.tr(
+                                    'Thiết bị báo pin yếu, cần kiểm tra/sạc.',
+                                    'Device reported a low battery; check or charge it.',
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  tooltip: context.tr(
+                                    'Tắt cảnh báo',
+                                    'Dismiss alarm',
+                                  ),
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    context
+                                        .read<DeviceProvider>()
+                                        .clearLowBattery(d.id);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          context.tr(
+                                            'Đã tắt cảnh báo.',
+                                            'Alarm dismissed.',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
+                          if (maintenanceMessages.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                context.tr(
+                                  'Thông báo bảo trì được tạo từ số km bảo dưỡng, không phải bản ghi riêng trong Firebase.',
+                                  'Maintenance warnings are generated from service mileage, not separate Firebase records.',
+                                ),
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            ...maintenanceMessages.map(
+                              (message) => Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                child: ListTile(
+                                  leading: const Icon(
+                                    Icons.notifications_active,
+                                    color: Colors.orange,
+                                  ),
+                                  title: Text(message),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),

@@ -192,6 +192,13 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearLowBattery(String deviceId) {
+    final s = _devices[deviceId];
+    if (s == null || !s.lowBattery) return;
+    _devices[deviceId] = s.copyWith(lowBattery: false);
+    notifyListeners();
+  }
+
   bool publishCommand(String deviceId, String command) {
     final mqtt = _mqttService;
     if (mqtt == null) {
@@ -447,6 +454,12 @@ class DeviceProvider extends ChangeNotifier {
           helpRequested: true,
         );
         debugPrint('[DeviceProvider] NOTI_HELP from $deviceId');
+        break;
+
+      case 'NOTI_LOW_BATT':
+        // Device reported low battery; raise a maintenance alert until dismissed.
+        next = current.copyWith(online: true, lastSeen: now, lowBattery: true);
+        debugPrint('[DeviceProvider] NOTI_LOW_BATT from $deviceId');
         break;
 
       default:

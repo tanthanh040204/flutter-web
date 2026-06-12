@@ -70,6 +70,8 @@ class DeviceState {
   final DeviceData? latest;
   final List<RoutePoint> routePoints;
   final bool helpRequested;
+  // Raised by a NOTI_LOW_BATT event; cleared from the Notifications tab.
+  final bool lowBattery;
 
   const DeviceState({
     required this.id,
@@ -81,6 +83,7 @@ class DeviceState {
     this.latest,
     this.routePoints = const [],
     this.helpRequested = false,
+    this.lowBattery = false,
   });
 
   DeviceState copyWith({
@@ -92,6 +95,7 @@ class DeviceState {
     DeviceData? latest,
     List<RoutePoint>? routePoints,
     bool? helpRequested,
+    bool? lowBattery,
   }) {
     return DeviceState(
       id: id,
@@ -103,6 +107,7 @@ class DeviceState {
       latest: latest ?? this.latest,
       routePoints: routePoints ?? this.routePoints,
       helpRequested: helpRequested ?? this.helpRequested,
+      lowBattery: lowBattery ?? this.lowBattery,
     );
   }
 }

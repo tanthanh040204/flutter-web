@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../config/feature_config.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_repo.dart';
 import '../services/mqtt_service.dart';
@@ -22,6 +23,9 @@ class FleetProvider extends ChangeNotifier {
 
   // Last seen totalKm per vehicle — used to compute delta for maintenance
   final Map<String, double> _lastSeenTotalKm = {};
+
+  // Per-vehicle low-battery state with hysteresis (see _applyBatteryHysteresis).
+  final Map<String, bool> _lowBattery = {};
 
   // Vehicles awaiting OK ack for CLEAR_TOTAL_DISTANCE
   final Set<String> _pendingClearTotal = {};
@@ -52,6 +56,22 @@ class FleetProvider extends ChangeNotifier {
       throw StateError('No vehicles available');
     }
     return value;
+  }
+
+  // True when the vehicle is in the low-battery state (hysteresis applied).
+  bool isLowBattery(String vehicleId) => _lowBattery[vehicleId] ?? false;
+
+  // Enter "low" below the enter threshold; only clear at/above the exit
+  // threshold. Between the two, keep the previous state (no flicker).
+  void _applyBatteryHysteresis(Vehicle v) {
+    final wasLow = _lowBattery[v.id] ?? false;
+    if (v.batteryPercent < FeatureConfig.lowBatteryEnterPercent) {
+      _lowBattery[v.id] = true;
+    } else if (v.batteryPercent >= FeatureConfig.lowBatteryExitPercent) {
+      _lowBattery[v.id] = false;
+    } else {
+      _lowBattery[v.id] = wasLow;
+    }
   }
 
   double? get selectedTemp => selectedOrNull?.temp;
@@ -204,6 +224,10 @@ class FleetProvider extends ChangeNotifier {
           ..clear()
           ..addAll(remote);
 
+        for (final v in _vehicles) {
+          _applyBatteryHysteresis(v);
+        }
+
         // Auto-subscribe MQTT topics for all vehicles from Firebase
         for (final v in _vehicles) {
           _mqttService?.subscribeDevice(v.id);
@@ -346,6 +370,7 @@ class FleetProvider extends ChangeNotifier {
     );
 
     _vehicles[index] = next;
+    _applyBatteryHysteresis(next);
     notifyListeners();
 
     // Persist latest sensor/location data to Firebase for all devices

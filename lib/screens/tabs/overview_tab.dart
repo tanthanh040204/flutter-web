@@ -65,6 +65,7 @@ class OverviewTab extends StatelessWidget {
                     renting: rental.isBikeRented(v.id),
                     paused: rental.isBikePaused(v.id),
                     online: devices.deviceById(v.id)?.online ?? false,
+                    lowBattery: fleet.isLowBattery(v.id),
                   );
                 },
               ),
@@ -163,12 +164,14 @@ class _VehicleCard extends StatelessWidget {
     required this.renting,
     required this.paused,
     required this.online,
+    required this.lowBattery,
   });
 
   final Vehicle vehicle;
   final bool renting;
   final bool paused;
   final bool online;
+  final bool lowBattery;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +211,13 @@ class _VehicleCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (lowBattery) ...[
+                  _StatusPill(
+                    color: Colors.red,
+                    label: context.tr('Pin yếu', 'Low battery'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 _OnlineDot(online: online),
                 const SizedBox(width: 8),
                 _StatusPill(color: status.color, label: status.label),
@@ -229,9 +239,14 @@ class _VehicleCard extends StatelessWidget {
                   : context.tr('Ngoại tuyến', 'Offline'),
             ),
             _InfoRow(
-              icon: Icons.battery_full,
+              icon: lowBattery ? Icons.battery_alert : Icons.battery_full,
               label: context.tr('Pin', 'Battery'),
-              value: '${vehicle.batteryPercent}%',
+              value: lowBattery
+                  ? context.tr(
+                      '${vehicle.batteryPercent}% · Yếu pin',
+                      '${vehicle.batteryPercent}% · Low',
+                    )
+                  : '${vehicle.batteryPercent}%',
             ),
             _InfoRow(
               icon: Icons.speed,

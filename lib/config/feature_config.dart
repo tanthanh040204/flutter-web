@@ -60,7 +60,8 @@ class FeatureConfig {
   // Trip route history (web-built per-rental routes) — save + display toggles.
   // Saving: write each finished rental route to the target.
   static const bool saveTripLocal = true; // local storage (survives reload)
-  static const bool saveTripFirestore = true; // Firestore history_routes/rental_<id>
+  static const bool saveTripFirestore =
+      true; // Firestore history_routes/rental_<id>
   // Display: include this source in the History tab.
   static const bool showTripLocal = true; // local/session routes
   static const bool showTripFirestore = true; // Firestore stream routes
@@ -68,6 +69,11 @@ class FeatureConfig {
   // Debug logs
   static const bool debugMqttLog = true;
   static const bool debugParserLog = true;
+
+  // Low-battery status with hysteresis: enter "low" below enter%, only return
+  // to normal at/above exit%. The gap avoids flicker around the threshold.
+  static const int lowBatteryEnterPercent = 15;
+  static const int lowBatteryExitPercent = 20;
 
   // Timeout
   static const int offlineTimeoutMs = 30000;

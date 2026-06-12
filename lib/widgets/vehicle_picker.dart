@@ -49,6 +49,7 @@ class VehiclePicker extends StatelessWidget {
               return _VehicleDropdownItem(
                 name: vehicle.name,
                 isOn: isOnline,
+                lowBattery: fleet.isLowBattery(vehicle.id),
                 compact: true,
               );
             });
@@ -58,7 +59,11 @@ class VehiclePicker extends StatelessWidget {
             final isOnline = _isVehicleOnline(vehicle, devices);
             return DropdownMenuItem<int>(
               value: i,
-              child: _VehicleDropdownItem(name: vehicle.name, isOn: isOnline),
+              child: _VehicleDropdownItem(
+                name: vehicle.name,
+                isOn: isOnline,
+                lowBattery: fleet.isLowBattery(vehicle.id),
+              ),
             );
           }),
           onChanged: (i) {
@@ -71,10 +76,7 @@ class VehiclePicker extends StatelessWidget {
 }
 
 /* Private helpers ---------------------------------------------------- */
-bool _isVehicleOnline(
-  Vehicle vehicle,
-  DeviceProvider devices,
-) {
+bool _isVehicleOnline(Vehicle vehicle, DeviceProvider devices) {
   // ON/OFF reflects device connectivity, matching the Control tab's
   // Online/Offline indicator (same `DeviceState.online` source).
   return devices.deviceById(vehicle.id)?.online ?? false;
@@ -84,11 +86,13 @@ class _VehicleDropdownItem extends StatelessWidget {
   const _VehicleDropdownItem({
     required this.name,
     required this.isOn,
+    this.lowBattery = false,
     this.compact = false,
   });
 
   final String name;
   final bool isOn;
+  final bool lowBattery;
   final bool compact;
 
   @override
@@ -124,7 +128,40 @@ class _VehicleDropdownItem extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _StatusPill(isOn: isOn),
+          if (lowBattery) const _LowBatteryPill() else _StatusPill(isOn: isOn),
+        ],
+      ),
+    );
+  }
+}
+
+class _LowBatteryPill extends StatelessWidget {
+  const _LowBatteryPill();
+
+  @override
+  Widget build(BuildContext context) {
+    const color = AppColors.danger;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.50)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.battery_alert, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            'Pin yếu',
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.2,
+            ),
+          ),
         ],
       ),
     );
