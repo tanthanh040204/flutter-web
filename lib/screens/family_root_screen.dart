@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/fleet_provider.dart';
 import '../providers/language_provider.dart';
 
+import 'tabs/overview_tab.dart';
 import 'tabs/control_tab.dart';
 import 'tabs/stats_tab.dart';
 import 'tabs/location_tab.dart';
@@ -32,6 +33,7 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
   int index = 0;
 
   static const _pages = [
+    OverviewTab(),
     ControlTab(),
     StatsTab(),
     LocationTab(),
@@ -45,6 +47,11 @@ class _FamilyRootScreenState extends State<FamilyRootScreen> {
   Widget build(BuildContext context) {
     final lang = context.watch<LanguageProvider>();
     final items = [
+      _NavItemData(
+        icon: Icons.space_dashboard_outlined,
+        selectedIcon: Icons.space_dashboard_rounded,
+        label: lang.tr('Tổng quan', 'Overview'),
+      ),
       _NavItemData(
         icon: Icons.tune_rounded,
         selectedIcon: Icons.dashboard_customize_rounded,

@@ -97,6 +97,9 @@ class RentalProvider extends ChangeNotifier {
   final Map<String, List<LatLng>> _rentalPoints = {};
   final Map<String, double> _rentalStartKm = {};
   final Map<String, double> _rentalLastKm = {};
+  // Last device `distance_m` (meters) seen during the rental — used as the
+  // authoritative trip distance when finalizing the session route.
+  final Map<String, double> _rentalLastDistanceM = {};
   // Completed routes keyed by bikeId. Persisted locally (survives reload) and
   // best-effort to Firestore — saved in parallel.
   final Map<String, List<HistoryRouteRecord>> _sessionRoutes = {};
@@ -153,8 +156,11 @@ class RentalProvider extends ChangeNotifier {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       decoded.forEach((bikeId, value) {
         final list = (value as List)
-            .map((e) =>
-                HistoryRouteRecord.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map(
+              (e) => HistoryRouteRecord.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
             .toList();
         if (list.isNotEmpty) _sessionRoutes[bikeId] = list;
       });
@@ -898,6 +904,10 @@ class RentalProvider extends ChangeNotifier {
       _rentalStartKm.putIfAbsent(bikeId, () => km);
       _rentalLastKm[bikeId] = km;
     }
+    final dm = data.distanceM;
+    if (dm != null) {
+      _rentalLastDistanceM[bikeId] = dm;
+    }
   }
 
   // Build a session HistoryRouteRecord from the points collected during the
@@ -910,7 +920,15 @@ class RentalProvider extends ChangeNotifier {
     final points = _rentalPoints.remove(bikeId) ?? const <LatLng>[];
     final startKm = _rentalStartKm.remove(bikeId) ?? 0.0;
     final endKm = _rentalLastKm.remove(bikeId) ?? startKm;
+    final lastDistanceM = _rentalLastDistanceM.remove(bikeId);
     if (points.isEmpty) return;
+
+    // Trip distance = the final device `distance_m` (meters → km). Falls back
+    // to the odometer delta when no distance_m was received.
+    final odoDistanceKm = (endKm - startKm) < 0 ? 0.0 : (endKm - startKm);
+    final distanceKm = lastDistanceM != null
+        ? lastDistanceM / 1000.0
+        : odoDistanceKm;
 
     final start = rental.startTime;
     final dayKey =
@@ -924,7 +942,7 @@ class RentalProvider extends ChangeNotifier {
       isClosed: true,
       startTotalKm: startKm,
       endTotalKm: endKm,
-      distanceKm: (endKm - startKm) < 0 ? 0 : (endKm - startKm),
+      distanceKm: distanceKm,
       points: points,
     );
 
