@@ -214,6 +214,11 @@ class RentalProvider extends ChangeNotifier {
     return FirebaseRepo.instance.deleteRentalUserCompletely(userId);
   }
 
+  // Add or update a user in local mode
+  Future<void> upsertUser(RentalUser user) {
+    return FirebaseRepo.instance.upsertRentalUser(user);
+  }
+
   ActiveRental? activeRentalForBike(String bikeId) => _activeRentals[bikeId];
   bool isBikeRented(String bikeId) => _activeRentals.containsKey(bikeId);
   bool isBikePaused(String bikeId) => _pausedBikes.contains(bikeId);

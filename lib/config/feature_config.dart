@@ -58,7 +58,7 @@ class FeatureConfig {
   static const bool enableFusionData = true;
   // Allow editing vehicle name + serial number directly from the Overview tab
   // (writes Firestore only, sends no MQTT command).
-  static const bool enableOverviewManualEdit = true;
+  static const bool enableOverviewManualEdit = false;
 
   // Trip route history (web-built per-rental routes) — save + display toggles.
   // Saving: write each finished rental route to the target.
@@ -68,6 +68,9 @@ class FeatureConfig {
   // Display: include this source in the History tab.
   static const bool showTripLocal = true; // local/session routes
   static const bool showTripFirestore = true; // Firestore stream routes
+
+  // Force local mode: if true, the app ignores Firestore
+  static const bool forceLocalMode = true;
 
   // Debug logs
   static const bool debugMqttLog = true;
@@ -79,7 +82,7 @@ class FeatureConfig {
   static const int lowBatteryExitPercent = 20;
 
   // Timeout
-  static const int offlineTimeoutMs = 30000;
+  static const int offlineTimeoutMs = 15000;
   // Device keepalive timeout (ms)
   static const int keepaliveTimeoutMs = 60000;
   // Interval for checking offline devices (ms)
@@ -108,7 +111,7 @@ class FeatureConfig {
 
   // Device command service
   // Timeout for commands like UNLOCK / LOCK before considering it failed.
-  static const int unlockCommandTimeoutSeconds = 30;
+  static const int unlockCommandTimeoutSeconds = 5;
 
   // History retention
   // History routes and daily-usage docs older than this are filtered out

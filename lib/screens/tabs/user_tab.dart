@@ -29,6 +29,11 @@ class UserTab extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(context.loc(AppStrings.titleUsers))),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddUserDialog(context),
+        icon: const Icon(Icons.person_add),
+        label: Text(context.tr('Thêm người dùng', 'Add user')),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -87,7 +92,120 @@ class UserTab extends StatelessWidget {
   }
 }
 
+/* Private functions -------------------------------------------------- */
+Future<void> _showAddUserDialog(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => const _AddUserDialog(),
+  );
+}
+
 /* Private classes ---------------------------------------------------- */
+class _AddUserDialog extends StatefulWidget {
+  const _AddUserDialog();
+
+  @override
+  State<_AddUserDialog> createState() => _AddUserDialogState();
+}
+
+class _AddUserDialogState extends State<_AddUserDialog> {
+  final _userIdCtl = TextEditingController();
+  final _nameCtl = TextEditingController();
+  final _tokensCtl = TextEditingController(text: '0');
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _userIdCtl.dispose();
+    _nameCtl.dispose();
+    _tokensCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final userId = _userIdCtl.text.trim();
+    if (userId.isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final doneText = context.trRead('Đã thêm người dùng', 'User added');
+    final failText = context.trRead(
+      'Thêm người dùng thất bại',
+      'Failed to add user',
+    );
+
+    setState(() => _saving = true);
+    try {
+      await context.read<RentalProvider>().upsertUser(
+        RentalUser(
+          userId: userId,
+          tokens: int.tryParse(_tokensCtl.text.trim()) ?? 0,
+          displayName: _nameCtl.text.trim(),
+        ),
+      );
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(doneText)));
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      messenger.showSnackBar(SnackBar(content: Text(failText)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.tr('Thêm người dùng', 'Add user')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _userIdCtl,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: context.tr('Mã người dùng', 'User ID'),
+              hintText: 'user_1234567890',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameCtl,
+            decoration: InputDecoration(
+              labelText: context.tr(
+                'Tên hiển thị (tùy chọn)',
+                'Display name (optional)',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _tokensCtl,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: context.tr('Số dư ban đầu', 'Initial balance'),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text(context.tr('Hủy', 'Cancel')),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(context.tr('Thêm', 'Add')),
+        ),
+      ],
+    );
+  }
+}
+
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({required this.totalCount, required this.activeCount});
 
