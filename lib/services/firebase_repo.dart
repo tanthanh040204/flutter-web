@@ -1576,8 +1576,10 @@ class FirebaseRepo {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
-    final timeKey = point['time'] as String;
-    final merged = [...prevPts.where((p) => p['time'] != timeKey), point]
+    String keyOf(Map<String, dynamic> p) =>
+        '${p['time']}_${p['lat']}_${p['lon']}';
+    final newKey = keyOf(point);
+    final merged = [...prevPts.where((p) => keyOf(p) != newKey), point]
       ..sort((a, b) => (a['time'] as String).compareTo(b['time'] as String));
 
     await ref.set({
