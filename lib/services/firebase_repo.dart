@@ -1576,6 +1576,8 @@ class FirebaseRepo {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
+    // Key on time+position, not time alone: the MCU polls ~0.7s but "time" is
+    // second-resolution, so distinct samples can share a second.
     String keyOf(Map<String, dynamic> p) =>
         '${p['time']}_${p['lat']}_${p['lon']}';
     final newKey = keyOf(point);

@@ -82,6 +82,12 @@ class MqttService {
   // Set of currently subscribed topics to avoid duplicate subscriptions, re-subscribe on reconnect.
   final Set<String> _subscribedTopics = {};
 
+  // ---- Telemetry receipt counters (diagnostics) ----
+  // Compare _dataRxCount against the device-side sent count to measure transport loss.
+  int _dataRxCount = 0;
+  int _dataParseFailCount = 0;
+  int _dataRxAtConnect = 0;
+
   // ---- Streams ----
   final _dataController = StreamController<MqttDataMessage>.broadcast();
   final _notiController = StreamController<MqttNotiMessage>.broadcast();
@@ -112,6 +118,10 @@ class MqttService {
   Stream<MqttVehicleState> get vehicleStates => _vehicleStateController.stream;
 
   bool get isConnected => _isConnected;
+
+  // Total `/data` messages received / failed to parse since startup.
+  int get dataRxCount => _dataRxCount;
+  int get dataParseFailCount => _dataParseFailCount;
 
   /* Public functions --------------------------------------------------- */
   // Connect to MQTT broker with configured settings.
@@ -318,6 +328,7 @@ class MqttService {
   // ---- Private methods ----
   void _onConnected() {
     _isConnected = true;
+    _dataRxAtConnect = _dataRxCount;
     if (FeatureConfig.debugMqttLog) debugPrint('[MQTT] Connected');
 
     // Re-subscribe all topics after reconnect
@@ -333,7 +344,13 @@ class MqttService {
 
   void _onDisconnected() {
     _isConnected = false;
-    if (FeatureConfig.debugMqttLog) debugPrint('[MQTT] Disconnected');
+    if (FeatureConfig.debugMqttLog) {
+      final spanRx = _dataRxCount - _dataRxAtConnect;
+      debugPrint(
+        '[MQTT] Disconnected — data RX this span: $spanRx '
+        '(total: $_dataRxCount, parse-fail: $_dataParseFailCount)',
+      );
+    }
     _connectionController.add(false);
   }
 
@@ -376,9 +393,13 @@ class MqttService {
 
     if (topic.endsWith(dataSuffix)) {
       // ---- DATA message ----
+      _dataRxCount++;
       final deviceId = topic.substring(0, topic.length - dataSuffix.length);
       final parsed = DataParser.parse(raw);
-      if (parsed == null) return;
+      if (parsed == null) {
+        _dataParseFailCount++;
+        return;
+      }
 
       _dataController.add(
         MqttDataMessage(deviceId: deviceId, data: parsed, raw: raw),

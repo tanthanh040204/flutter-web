@@ -30,8 +30,9 @@ class FeatureConfig {
 
   // Client ID prefix for MQTT connection
   static const String mqttClientIdPrefix = 'flutter-haq-';
-  // Keepalive interval for MQTT connection (seconds)
-  static const int mqttKeepalive = 60;
+  // Keepalive interval for MQTT connection (seconds). Lower detects dropped
+  // sockets (e.g. background-tab throttling) sooner, shrinking the data gap.
+  static const int mqttKeepalive = 30;
   // Default devices to subscribe to (can be overridden by user settings)
   static const List<String> defaultDevices = ['haq-trk-001'];
 
