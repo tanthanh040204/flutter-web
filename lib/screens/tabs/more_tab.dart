@@ -12,6 +12,7 @@ import '../../config/app_string.dart';
 import '../../config/feature_config.dart';
 import '../../models/app_note.dart';
 import '../../models/employee_account.dart';
+import '../../models/trip.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
@@ -50,6 +51,12 @@ class _MoreTabState extends State<MoreTab> {
   StreamSubscription<MqttDataMessage>? _dataSub;
   StreamSubscription<MqttNotiMessage>? _notiSub;
   bool _logsInited = false;
+
+  // ---- Trips scan/cleanup ----
+  final List<Trip> _scannedTrips = [];
+  final Set<String> _deletingTripKeys = <String>{};
+  bool _isScanningTrips = false;
+  bool _tripsScanned = false;
 
   bool _hideCurrent = true;
   bool _hideNew = true;
@@ -407,6 +414,174 @@ class _MoreTabState extends State<MoreTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.tr('Đã xóa ghi chú.', 'Note deleted successfully.'))),
+    );
+  }
+
+  String _tripKey(Trip t) => '${t.vehicleId}/${t.id}';
+
+  Future<void> _scanTrips() async {
+    if (_isScanningTrips) return;
+    final vehicles = context.read<FleetProvider>().vehicles;
+
+    setState(() {
+      _isScanningTrips = true;
+      _scannedTrips.clear();
+    });
+
+    final List<Trip> found = [];
+    for (final v in vehicles) {
+      try {
+        final trips = await FirebaseRepo.instance.watchTrips(v.id).first;
+        found.addAll(trips);
+      } catch (_) {
+        // No trips for this vehicle, or offline (empty stream). Skip.
+      }
+    }
+    found.sort((a, b) => b.startTime.compareTo(a.startTime));
+
+    if (!mounted) return;
+    setState(() {
+      _scannedTrips
+        ..clear()
+        ..addAll(found);
+      _isScanningTrips = false;
+      _tripsScanned = true;
+    });
+  }
+
+  Future<void> _deleteTrip(Trip t) async {
+    final key = _tripKey(t);
+    if (_deletingTripKeys.contains(key)) return;
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(context.tr('Xóa chuyến đi', 'Delete Trip')),
+            content: Text(
+              context.tr(
+                'Bạn có chắc muốn xóa chuyến đi ${t.id} của xe ${t.vehicleId}?',
+                'Are you sure you want to delete trip ${t.id} of vehicle ${t.vehicleId}?',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.tr('Hủy', 'Cancel')),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.tr('Xóa', 'Delete')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!ok) return;
+
+    setState(() => _deletingTripKeys.add(key));
+    try {
+      await FirebaseRepo.instance.deleteTrip(t.vehicleId, t.id);
+      if (!mounted) return;
+      setState(() {
+        _scannedTrips.removeWhere((e) => _tripKey(e) == key);
+        _deletingTripKeys.remove(key);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Đã xóa chuyến đi.', 'Trip deleted.'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _deletingTripKeys.remove(key));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Không xóa được chuyến đi: $e', 'Could not delete trip: $e')),
+        ),
+      );
+    }
+  }
+
+  Widget _buildTripsTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isScanningTrips ? null : _scanTrips,
+                  icon: _isScanningTrips
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.travel_explore),
+                  label: Text(context.tr('Quét chuyến đi', 'Scan Trips')),
+                ),
+              ),
+              if (_tripsScanned) ...[
+                const SizedBox(width: 12),
+                Text(
+                  context.tr('Tìm thấy ${_scannedTrips.length}', 'Found ${_scannedTrips.length}'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Expanded(
+          child: !_tripsScanned
+              ? Center(
+                  child: Text(
+                    context.tr(
+                      'Bấm "Quét chuyến đi" để tìm các chuyến đi còn lưu trong Firebase.',
+                      'Press "Scan Trips" to find trips still stored in Firebase.',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : _scannedTrips.isEmpty
+                  ? Center(
+                      child: Text(context.tr('Không còn chuyến đi nào.', 'No trips remaining.')),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: _scannedTrips.length,
+                      itemBuilder: (context, index) {
+                        final t = _scannedTrips[index];
+                        final deleting = _deletingTripKeys.contains(_tripKey(t));
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            leading: const Icon(Icons.route_outlined),
+                            title: Text(
+                              context.tr('Xe ${t.vehicleId} • ${t.id}', 'Vehicle ${t.vehicleId} • ${t.id}'),
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              '${_formatDateTime(t.startTime)} → ${_formatDateTime(t.endTime)}\n'
+                              '${t.distanceKm.toStringAsFixed(2)} km • ${t.points.length} ${context.tr('điểm', 'points')}',
+                            ),
+                            isThreeLine: true,
+                            trailing: deleting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : IconButton(
+                                    tooltip: context.tr('Xóa chuyến đi', 'Delete trip'),
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => _deleteTrip(t),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
     );
   }
 
@@ -1173,8 +1348,29 @@ class _MoreTabState extends State<MoreTab> {
     final fleet = context.watch<FleetProvider>();
     final auth = context.watch<AuthProvider>();
 
+    final tabs = <Tab>[
+      Tab(text: context.tr('Thông tin', 'Information')),
+      Tab(text: context.tr('Ghi chú', 'Notes')),
+      Tab(text: context.tr('Nhân viên', 'Employees')),
+      Tab(text: context.tr('Đổi mật khẩu', 'Change Password')),
+      Tab(text: context.tr('Ngôn ngữ', 'Language')),
+      if (FeatureConfig.enableTripCleanup)
+        Tab(text: context.tr('Chuyến đi', 'Trips')),
+      const Tab(text: 'MQTT'),
+    ];
+
+    final views = <Widget>[
+      _buildInfoTab(fleet, auth),
+      _buildNotesTab(),
+      _buildEmployeesTab(auth),
+      _buildChangePasswordTab(auth),
+      _buildLanguageTab(),
+      if (FeatureConfig.enableTripCleanup) _buildTripsTab(),
+      _buildMqttTab(),
+    ];
+
     return DefaultTabController(
-      length: 6,
+      length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
           title: Text(context.loc(AppStrings.titleMore)),
@@ -1186,25 +1382,11 @@ class _MoreTabState extends State<MoreTab> {
           ],
           bottom: TabBar(
             isScrollable: true,
-            tabs: [
-              Tab(text: context.tr('Thông tin', 'Information')),
-              Tab(text: context.tr('Ghi chú', 'Notes')),
-              Tab(text: context.tr('Nhân viên', 'Employees')),
-              Tab(text: context.tr('Đổi mật khẩu', 'Change Password')),
-              Tab(text: context.tr('Ngôn ngữ', 'Language')),
-              const Tab(text: 'MQTT'),
-            ],
+            tabs: tabs,
           ),
         ),
         body: TabBarView(
-          children: [
-            _buildInfoTab(fleet, auth),
-            _buildNotesTab(),
-            _buildEmployeesTab(auth),
-            _buildChangePasswordTab(auth),
-            _buildLanguageTab(),
-            _buildMqttTab(),
-          ],
+          children: views,
         ),
       ),
     );

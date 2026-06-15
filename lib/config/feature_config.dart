@@ -69,8 +69,10 @@ class FeatureConfig {
   static const bool showTripLocal = true; // local/session routes
   static const bool showTripFirestore = true; // Firestore stream routes
 
+  static const bool enableTripCleanup = true;
+
   // Force local mode: if true, the app ignores Firestore
-  static const bool forceLocalMode = true;
+  static const bool forceLocalMode = false;
 
   // Debug logs
   static const bool debugMqttLog = true;

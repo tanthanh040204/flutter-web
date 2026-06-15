@@ -1589,6 +1589,15 @@ class FirebaseRepo {
     }, SetOptions(merge: true));
   }
 
+  Future<void> deleteTrip(String vehicleId, String tripId) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) {
+      throw StateError('Firestore has not been initialized.');
+    }
+
+    await vehicles.doc(vehicleId).collection('trips').doc(tripId).delete();
+  }
+
   // Set endTime and mark a rental trip as closed.
   Future<void> finalizeTripEntry(
     String vehicleId, {

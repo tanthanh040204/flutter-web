@@ -204,7 +204,7 @@ class MqttService {
   void _subscribeRaw(String topic) {
     final isNew = _subscribedTopics.add(topic);
     if (isNew && _isConnected && _client != null) {
-      _client!.subscribe(topic, MqttQos.atMostOnce);
+      _client!.subscribe(topic, _qosFor(topic));
       if (FeatureConfig.debugMqttLog) {
         debugPrint('[MQTT] Subscribed: $topic');
       }
@@ -215,6 +215,14 @@ class MqttService {
     _client?.disconnect();
     _isConnected = false;
   }
+
+  MqttQos _qosFor(String topic) =>
+      (topic.endsWith(FeatureConfig.topicAppWebSuffix) ||
+          topic.endsWith(FeatureConfig.topicWebAppSuffix) ||
+          topic.endsWith('/request') ||
+          topic.endsWith('/response'))
+      ? MqttQos.exactlyOnce
+      : MqttQos.atLeastOnce;
 
   // Subscribe device topics for data and notifications.
   // No-op for topics already subscribed — safe to call repeatedly.
@@ -227,7 +235,7 @@ class MqttService {
     for (final topic in topics) {
       final isNew = _subscribedTopics.add(topic);
       if (isNew && _isConnected && _client != null) {
-        _client!.subscribe(topic, MqttQos.atMostOnce);
+        _client!.subscribe(topic, _qosFor(topic));
         if (FeatureConfig.debugMqttLog) {
           debugPrint('[MQTT] Subscribed: $topic');
         }
@@ -264,7 +272,7 @@ class MqttService {
     }
     final topic = '$deviceId${FeatureConfig.topicCmdSuffix}';
     final builder = MqttClientPayloadBuilder()..addString(command);
-    _client!.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
+    _client!.publishMessage(topic, _qosFor(topic), builder.payload!);
     if (FeatureConfig.debugMqttLog) {
       final preview = command.length > 80 ? command.substring(0, 80) : command;
       debugPrint('[MQTT] Published → $topic | $preview');
@@ -290,7 +298,7 @@ class MqttService {
       return false;
     }
     final builder = MqttClientPayloadBuilder()..addString(message);
-    _client!.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
+    _client!.publishMessage(topic, _qosFor(topic), builder.payload!);
     if (FeatureConfig.debugMqttLog) {
       debugPrint('[MQTT] Published (raw) → $topic | $message');
     }
@@ -314,7 +322,7 @@ class MqttService {
 
     // Re-subscribe all topics after reconnect
     for (final topic in _subscribedTopics) {
-      _client!.subscribe(topic, MqttQos.atMostOnce);
+      _client!.subscribe(topic, _qosFor(topic));
       if (FeatureConfig.debugMqttLog) {
         debugPrint('[MQTT] Re-subscribed: $topic');
       }

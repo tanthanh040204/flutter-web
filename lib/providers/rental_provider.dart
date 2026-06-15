@@ -299,6 +299,26 @@ class RentalProvider extends ChangeNotifier {
 
   void _onTokenRequest(MqttTokenRequestMessage msg) {
     final mqtt = _mqtt;
+
+    if (msg.raw.startsWith('QUERY_BALANCE=')) {
+      final userId = msg.raw.substring('QUERY_BALANCE='.length).trim();
+      if (!_userTokens.containsKey(userId)) {
+        mqtt?.publishRaw(
+          '$userId/response',
+          'RESP_ADD_TOKEN_ERROR=ERR_USER_NOT_FOUND',
+        );
+        debugPrint('[Token] QUERY_BALANCE ERR_USER_NOT_FOUND: $userId');
+        return;
+      }
+      final balance = _userTokens[userId] ?? 0;
+      final debt = _userDebt[userId] ?? 0;
+      mqtt?.publishRaw('$userId/response', 'RESP_BALANCE=$balance,$debt');
+      debugPrint(
+        '[Token] QUERY_BALANCE → RESP_BALANCE=$balance,$debt userId=$userId',
+      );
+      return;
+    }
+
     if (!msg.raw.startsWith('REQ_ADD_TOKEN=')) return;
     final parts = msg.raw.substring('REQ_ADD_TOKEN='.length).split(',');
     if (parts.length < 2) return;
@@ -386,6 +406,21 @@ class RentalProvider extends ChangeNotifier {
       _handleResume(bikeId, raw.substring('RESUME='.length).trim());
     } else if (raw.startsWith('STOP_RENTAL=')) {
       _handleStop(bikeId, raw.substring('STOP_RENTAL='.length).trim());
+    } else if (raw.startsWith('QUERY_STATUS=')) {
+      _handleQueryStatus(bikeId, raw.substring('QUERY_STATUS='.length).trim());
+    }
+  }
+
+  // ---- Resync: app asks whether its restored session is still active -----
+
+  void _handleQueryStatus(String bikeId, String userId) {
+    final rental = _activeRentals[bikeId];
+
+    if (rental == null || rental.userId != userId) {
+      _mqtt?.publishToApp(bikeId, 'NO_ACTIVE_RENTAL=$userId');
+      debugPrint(
+        '[Rental] QUERY_STATUS → NO_ACTIVE_RENTAL bikeId=$bikeId userId=$userId',
+      );
     }
   }
 
