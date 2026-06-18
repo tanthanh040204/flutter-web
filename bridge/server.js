@@ -42,13 +42,16 @@ const vehiclesCollection = config.firestore?.vehiclesCollection || 'vehicles';
 const writeIntervalMs = Number(config.firestore?.writeIntervalMs || 5000);
 const verbose = Boolean(config.logging?.verbose);
 
-if (!mqttHost || !mqttUsername || !mqttPassword) {
-  console.error('[FATAL] Thiếu cấu hình MQTT trong config.json');
+if (!mqttHost) {
+  console.error('[FATAL] Thiếu cấu hình MQTT host trong config.json');
   process.exit(1);
 }
 
 const clientId = `${clientIdPrefix}_${Date.now()}`;
-const mqttUrl = `mqtts://${mqttHost}:${mqttPort}`;
+// Protocol is configurable: 'mqtts' (TLS, e.g. HiveMQ:8883) or 'mqtt'
+// (plain TCP, e.g. broker.emqx.io:1883). Defaults to mqtts for back-compat.
+const mqttProtocol = config.mqtt?.protocol || 'mqtts';
+const mqttUrl = `${mqttProtocol}://${mqttHost}:${mqttPort}`;
 
 const lastWriteAt = new Map();
 const lastTotalKmCache = new Map();
@@ -78,14 +81,20 @@ function parseBoolean(value, fallback = false) {
 }
 
 function resolveVehicleId(topic, data) {
-  const parts = topic.split('/');
-  const topicVehicleId =
-    parts.length >= 2 && parts[1] ? String(parts[1]).trim() : '';
+  const parts = topic.split('/').filter(Boolean);
+
+  // Supports both topic conventions:
+  //   "<id>/data"            -> id at parts[0]   (device → web/bridge)
+  //   "vehicles/<id>/state"  -> id at parts[1]   (legacy bridge feed)
+  let topicVehicleId = '';
+  if (parts.length >= 2) {
+    topicVehicleId = (parts[0] === 'vehicles' ? parts[1] : parts[0]).trim();
+  }
 
   if (topicVehicleId) return topicVehicleId;
 
   if (data && typeof data.id === 'string' && data.id.trim()) {
-    return data.id.trim().toUpperCase();
+    return data.id.trim();
   }
 
   return '';
@@ -126,8 +135,8 @@ function routeIdOf(date = new Date()) {
   return `${day}_${hh}${mm}${ss}`;
 }
 
-function makePoint(lat, lon, ts, speedKmh, totalKm) {
-  return { lat, lon, ts, speedKmh, totalKm };
+function makePoint(lat, lon, ts, speedKmh, totalKm, distanceM = null) {
+  return { lat, lon, ts, speedKmh, totalKm, distanceM };
 }
 
 function distanceMetersApprox(a, b) {
@@ -266,6 +275,13 @@ async function pruneOldDailyUsage(vehicleId, keepDays = 30) {
 }
 
 async function createRouteDoc(vehicleId, route) {
+  // Trip distance = the device's last distance_m (meters -> km). Falls back to
+  // the odometer delta only when no distance_m was received for this route.
+  const distanceKm =
+    route.lastDistanceM != null
+      ? route.lastDistanceM / 1000
+      : Math.max(0, route.endTotalKm - route.startTotalKm);
+
   await db
     .collection(vehiclesCollection)
     .doc(vehicleId)
@@ -282,7 +298,7 @@ async function createRouteDoc(vehicleId, route) {
         isClosed: route.isClosed,
         startTotalKm: route.startTotalKm,
         endTotalKm: route.endTotalKm,
-        distanceKm: Math.max(0, route.endTotalKm - route.startTotalKm),
+        distanceKm,
         points: route.points,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -299,6 +315,7 @@ async function startRoute(vehicleId, point, totalKm, nowDate) {
     isClosed: false,
     startTotalKm: totalKm,
     endTotalKm: totalKm,
+    lastDistanceM: point.distanceM,
     lastPacketAt: nowDate,
     timeoutHandle: null,
     points: [point],
@@ -317,6 +334,7 @@ async function appendRoutePoint(vehicleId, point, totalKm, nowDate) {
 
   route.lastPacketAt = nowDate;
   route.endTotalKm = totalKm;
+  if (point.distanceM != null) route.lastDistanceM = point.distanceM;
 
   const lastPoint = route.points[route.points.length - 1];
   const movedEnough = !lastPoint || distanceMetersApprox(lastPoint, point) >= 5;
@@ -342,6 +360,7 @@ async function closeRoute(vehicleId, point, totalKm, nowDate) {
   route.endAt = nowDate;
   route.isClosed = true;
   route.endTotalKm = totalKm;
+  if (point.distanceM != null) route.lastDistanceM = point.distanceM;
 
   const lastPoint = route.points[route.points.length - 1];
   if (!lastPoint || distanceMetersApprox(lastPoint, point) >= 1) {
@@ -375,10 +394,138 @@ async function pruneOldRoutes(vehicleId, keepDays = 30) {
   log(`[ROUTE] PRUNE ${vehicleId} deleted ${snap.size} old routes`);
 }
 
+// Parse firmware "YYYY/MM/DD-HH:MM:SS", Unix-ms number, or ISO string → Date|null.
+function parseFirmwareOrIsoTime(value) {
+  if (typeof value === 'number') return isFinite(value) ? new Date(value) : null;
+  if (typeof value !== 'string' || !value) return null;
+  const m = value.match(/(\d+)\/(\d+)\/(\d+)-(\d+):(\d+):(\d+)/);
+  if (m) {
+    const d = new Date(
+      Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+      Number(m[4]), Number(m[5]), Number(m[6])
+    );
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Handle a single offline-trip data packet: merge point into history_routes/{trip_id},
+// keeping all points sorted by timestamp and applying start_time / stop_time metadata.
+async function saveOfflineTripData(vehicleId, data, nowDate) {
+  const tripId = String(data.trip_id);
+  const docRef = db
+    .collection(vehiclesCollection)
+    .doc(vehicleId)
+    .collection('history_routes')
+    .doc(tripId);
+
+  const lat = parseNumber(data.lat, 0);
+  const lon = parseNumber(data.lon, 0);
+  const mqttTs = parseNumber(data.ts, nowDate.getTime());
+  const speedKmh = parseNumber(data.speedKmh || data.velocity_kmh || data.velocityKmh, 0);
+  const totalKm = parseNumber(data.totalKm, 0);
+  const distanceM =
+    data.distance_m !== undefined ? parseNumber(data.distance_m, 0) : null;
+  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm, distanceM);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const existing = snap.exists ? snap.data() : null;
+
+    // Merge with existing points, deduplicate by ts+lat+lon, then sort by ts.
+    const prevPoints = existing && Array.isArray(existing.points) ? existing.points : [];
+    const seen = new Set();
+    const merged = [...prevPoints, point].filter(p => {
+      const key = `${p.ts}_${p.lat}_${p.lon}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    merged.sort((a, b) => a.ts - b.ts);
+
+    // startAt: prefer explicit start_time, fall back to first point ts, then existing.
+    let startAt = existing && existing.startAt ? existing.startAt : null;
+    if (data.start_time) {
+      const parsed = parseFirmwareOrIsoTime(data.start_time);
+      if (parsed) startAt = admin.firestore.Timestamp.fromDate(parsed);
+    }
+    if (!startAt && merged.length > 0) {
+      startAt = admin.firestore.Timestamp.fromMillis(merged[0].ts);
+    }
+
+    // endAt / isClosed: set when stop_time arrives; never unset once closed.
+    let endAt = existing && existing.endAt ? existing.endAt : null;
+    let isClosed = existing ? Boolean(existing.isClosed) : false;
+    if (data.stop_time) {
+      const parsed = parseFirmwareOrIsoTime(data.stop_time);
+      if (parsed) {
+        endAt = admin.firestore.Timestamp.fromDate(parsed);
+        isClosed = true;
+      }
+    }
+
+    const startTotalKm = existing != null && existing.startTotalKm != null
+      ? existing.startTotalKm
+      : (merged.length > 0 ? merged[0].totalKm : totalKm);
+    const endTotalKm = merged.length > 0 ? merged[merged.length - 1].totalKm : totalKm;
+    const dayKey = dayKeyOf(startAt ? startAt.toDate() : nowDate);
+
+    // Trip distance = the last point's distance_m (meters -> km), falling back
+    // to the odometer delta when no distance_m is present in the upload.
+    const lastDistanceM = merged.length > 0
+      ? merged[merged.length - 1].distanceM
+      : null;
+    const distanceKm = lastDistanceM != null
+      ? lastDistanceM / 1000
+      : Math.max(0, endTotalKm - startTotalKm);
+
+    log(`[TRIP] ${vehicleId} trip_id=${tripId} points=${merged.length} isClosed=${isClosed}`);
+
+    tx.set(docRef, {
+      vehicleId,
+      tripId,
+      dayKey,
+      startAt: startAt || admin.firestore.Timestamp.fromDate(nowDate),
+      endAt,
+      isClosed,
+      startTotalKm,
+      endTotalKm,
+      distanceKm,
+      points: merged,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
 async function saveVehicleState(topic, data) {
   const vehicleId = resolveVehicleId(topic, data);
   if (!vehicleId) {
     log('[WARN] Không xác định được vehicleId từ topic/payload:', topic, data);
+    return;
+  }
+
+  // "broker.emqx.io" is a shared public broker, so the "+/data" subscription
+  // can also receive unrelated topics. Only accept payloads that look like
+  // this project's device telemetry (or an offline-trip upload).
+  const looksLikeTelemetry =
+    data &&
+    (Array.isArray(data.position) ||
+      data.totalKm !== undefined ||
+      data.time !== undefined ||
+      data.lat !== undefined ||
+      data.trip_id !== undefined);
+  if (!looksLikeTelemetry) {
+    log(`[SKIP] ${topic} không phải telemetry hợp lệ — bỏ qua`);
+    return;
+  }
+
+  // Offline-trip uploads arrive as a burst of distinct historical points, all
+  // tagged with the same trip_id. Each must be persisted, so they bypass the
+  // live-telemetry write throttle below (which would drop most of the burst).
+  // They also must not touch live vehicle state / odometer cache, hence return.
+  if (data.trip_id !== undefined && data.trip_id !== null) {
+    await saveOfflineTripData(vehicleId, data, new Date());
     return;
   }
 
@@ -392,62 +539,87 @@ async function saveVehicleState(topic, data) {
 
   lastWriteAt.set(vehicleId, now);
 
-  const lat = parseNumber(data.lat, 0);
-  const lon = parseNumber(data.lon, 0);
+  // Device "<id>/data" payload (firmware v2) uses: position:[lat,lng],
+  // velocity_kmh, battery, time. Legacy "vehicles/<id>/state" used flat
+  // lat/lon, speedKmh, batteryPercent, ts. Support both via fallbacks.
+  const position = Array.isArray(data.position) ? data.position : null;
+  const lat = parseNumber(position ? position[0] : data.lat, 0);
+  const lon = parseNumber(
+    position ? position[1] : (data.lon !== undefined ? data.lon : data.lng),
+    0
+  );
   const batteryPercent = Math.max(
     0,
-    Math.min(100, parseNumber(data.batteryPercent, 0))
+    Math.min(
+      100,
+      parseNumber(
+        data.batteryPercent !== undefined ? data.batteryPercent : data.battery,
+        0
+      )
+    )
   );
   const totalKm = parseNumber(data.totalKm, 0);
-  const speedKmh = parseNumber(data.speedKmh, 0);
+  const speedKmh = parseNumber(
+    data.speedKmh !== undefined ? data.speedKmh : data.velocity_kmh,
+    0
+  );
   const avgSpeedKmh = parseNumber(data.avgSpeedKmh, 0);
 
   const temp = parseNumber(data.temp, 0);
   const hum = parseNumber(data.hum, 0);
   const dust = parseNumber(data.dust, 0);
 
+  // Lock/running are not present in the device "/data" payload; default false.
   const isLocked = parseBoolean(data.isLocked, false);
   const isRunning = parseBoolean(data.isRunning, false);
 
-  const mqttTs = parseNumber(data.ts, Date.now());
+  // Timestamp: "ts" (ms) if present, else firmware "time" string, else now.
+  const mqttTs = data.ts !== undefined
+    ? parseNumber(data.ts, Date.now())
+    : (parseFirmwareOrIsoTime(data.time)?.getTime() ?? Date.now());
   const nowDate = new Date();
 
   const previousTotalKm = await getPreviousTotalKm(vehicleId, totalKm);
   const deltaKm = Math.max(0, totalKm - previousTotalKm);
   lastTotalKmCache.set(vehicleId, totalKm);
 
-  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm);
+  // Device trip distance (meters); null when the firmware doesn't send it.
+  const distanceM =
+    data.distance_m !== undefined ? parseNumber(data.distance_m, 0) : null;
+  const point = makePoint(lat, lon, mqttTs, speedKmh, totalKm, distanceM);
 
+  // Live data: maintain in-memory route segments as before.
+  // (Offline trip uploads were already handled and returned above.)
   const prevState = lastVehicleStateCache.get(vehicleId) || {
-  isLocked: true,
-  isRunning: false,
-};
+    isLocked: true,
+    isRunning: false,
+  };
 
-const active = activeRoutes.get(vehicleId);
+  const active = activeRoutes.get(vehicleId);
 
-// nếu qua ngày mới thì đóng route cũ và mở route mới
-if (active && active.dayKey !== dayKeyOf(nowDate)) {
-  await closeRoute(vehicleId, point, totalKm, nowDate);
-}
+  // nếu qua ngày mới thì đóng route cũ và mở route mới
+  if (active && active.dayKey !== dayKeyOf(nowDate)) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
+  }
 
-if (!activeRoutes.has(vehicleId)) {
-  await startRoute(vehicleId, point, totalKm, nowDate);
-} else {
-  await appendRoutePoint(vehicleId, point, totalKm, nowDate);
-}
+  if (!activeRoutes.has(vehicleId)) {
+    await startRoute(vehicleId, point, totalKm, nowDate);
+  } else {
+    await appendRoutePoint(vehicleId, point, totalKm, nowDate);
+  }
 
-const shouldCloseRoute =
-  activeRoutes.has(vehicleId) &&
-  ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
+  const shouldCloseRoute =
+    activeRoutes.has(vehicleId) &&
+    ((prevState.isRunning && !isRunning) || (!prevState.isLocked && isLocked));
 
-if (shouldCloseRoute) {
-  await closeRoute(vehicleId, point, totalKm, nowDate);
-}
+  if (shouldCloseRoute) {
+    await closeRoute(vehicleId, point, totalKm, nowDate);
+  }
 
-lastVehicleStateCache.set(vehicleId, {
-  isLocked,
-  isRunning,
-});
+  lastVehicleStateCache.set(vehicleId, {
+    isLocked,
+    isRunning,
+  });
 
   const doc = {
     id: vehicleId,

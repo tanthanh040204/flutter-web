@@ -1,5 +1,10 @@
+// @file       employee_account.dart
+// @brief      Data model for Employee Account.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/* Public classes ----------------------------------------------------- */
 class EmployeeAccount {
   const EmployeeAccount({
     required this.employeeCode,
@@ -34,3 +39,5 @@ class EmployeeAccount {
     };
   }
 }
+
+/* End of file -------------------------------------------------------- */

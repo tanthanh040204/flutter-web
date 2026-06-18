@@ -1,12 +1,17 @@
+// @file       simple_bar_chart.dart
+// @brief      Widget for Simple Bar Chart.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 
+/* Public classes ----------------------------------------------------- */
 class SimpleBarChart extends StatelessWidget {
   final List<double> values;
   final List<String> labels;
   final List<Color>? barColors;
   final double height;
 
-  // max cố định cho biểu đồ
+  // max possible value
   final double maxValue;
 
   const SimpleBarChart({
@@ -62,7 +67,7 @@ class SimpleBarChart extends StatelessWidget {
                             ),
                           ),
 
-                          // Giá trị km hiển thị ở giữa cột
+                          // Value display in the middle of the bar
                           Center(
                             child: Text(
                               value > 0 ? '${value.toStringAsFixed(1)} km' : '',
@@ -95,3 +100,5 @@ class SimpleBarChart extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

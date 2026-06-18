@@ -1,9 +1,15 @@
+// @file       trip_detail_screen.dart
+// @brief      Screen UI for Trip Detail.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
+import '../providers/language_provider.dart';
 
+/* Public classes ----------------------------------------------------- */
 class TripDetailScreen extends StatelessWidget {
   final Trip trip;
   const TripDetailScreen({super.key, required this.trip});
@@ -14,7 +20,7 @@ class TripDetailScreen extends StatelessWidget {
     final center = points.isEmpty ? const LatLng(0, 0) : points[points.length ~/ 2];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chi tiết hành trình')),
+      appBar: AppBar(title: Text(context.tr('Chi tiết chuyến đi', 'Trip Details'))),
       body: Column(
         children: [
           _Summary(trip: trip),
@@ -63,6 +69,7 @@ class TripDetailScreen extends StatelessWidget {
   }
 }
 
+/* Private classes ---------------------------------------------------- */
 class _Summary extends StatelessWidget {
   final Trip trip;
   const _Summary({required this.trip});
@@ -80,8 +87,8 @@ class _Summary extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          Text('Quãng đường: ${trip.distanceKm.toStringAsFixed(2)} km'),
-          Text('Tốc độ TB: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Tối đa: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h'),
+          Text(context.tr('Quãng đường: ${trip.distanceKm.toStringAsFixed(2)} km', 'Distance: ${trip.distanceKm.toStringAsFixed(2)} km')),
+          Text(context.tr('Tốc độ TB: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Cao nhất: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h', 'Average Speed: ${trip.avgSpeedKmh.toStringAsFixed(1)} km/h  •  Max: ${trip.maxSpeedKmh.toStringAsFixed(0)} km/h')),
         ],
       ),
     );
@@ -115,7 +122,7 @@ class _SpeedChips extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Tốc độ (mẫu điểm cuối)', style: TextStyle(fontWeight: FontWeight.w800)),
+          Text(context.tr('Tốc độ (các điểm gần nhất)', 'Speed (Last Points)'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
@@ -130,3 +137,5 @@ class _SpeedChips extends StatelessWidget {
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

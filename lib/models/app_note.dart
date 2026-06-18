@@ -1,5 +1,10 @@
+// @file       app_note.dart
+// @brief      Data model for App Note.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/* Public classes ----------------------------------------------------- */
 class AppNote {
   const AppNote({
     required this.id,
@@ -49,3 +54,5 @@ class AppNote {
     };
   }
 }
+
+/* End of file -------------------------------------------------------- */

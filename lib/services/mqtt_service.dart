@@ -1,13 +1,56 @@
+// @file       mqtt_service.dart
+// @brief      Service for MQTT.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_browser_client.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
-import '../config/mqtt_config.dart';
+import '../config/feature_config.dart';
+import '../models/device_data.dart';
+import 'data_parser.dart';
 
+/* Public classes ----------------------------------------------------- */
+class MqttDataMessage {
+  final String deviceId;
+  final DeviceData data;
+  final String raw;
+
+  const MqttDataMessage({
+    required this.deviceId,
+    required this.data,
+    required this.raw,
+  });
+}
+
+// Notification from topic <deviceId>/noti
+class MqttNotiMessage {
+  final String deviceId;
+  final String message;
+
+  const MqttNotiMessage({required this.deviceId, required this.message});
+}
+
+// Message from mobile app via topic <bikeId>/app_web
+class MqttRentalRequestMessage {
+  final String bikeId;
+  final String raw;
+
+  const MqttRentalRequestMessage({required this.bikeId, required this.raw});
+}
+
+// Message from topic Q7M4K2P/request — add tokens to a user account.
+class MqttTokenRequestMessage {
+  final String raw;
+  const MqttTokenRequestMessage({required this.raw});
+}
+
+// Backward-compat: vehicle state from bridge server (vehicles/+/state)
 class MqttVehicleState {
   final String topic;
   final Map<String, dynamic> payload;
@@ -21,137 +64,410 @@ class MqttVehicleState {
   }
 }
 
+// MQTT client for all MQTT interactions: connect, subscribe, publish, and message handling.
+// Workflow:
+//   Broker →(WS)→ MqttService._handleMessage()
+//                → DataParser.parse(raw)
+//                → dataMessages stream → DeviceProvider
+//                → notifications stream → DeviceProvider
+//
+// Topics MCU and web:
+//   <deviceId>/data  – subscription (subscribe)
+//   <deviceId>/noti  – notification  (subscribe)
+//   <deviceId>/cmd   – control command (publish)
 class MqttService {
   MqttClient? _client;
   bool _isConnected = false;
 
-  final StreamController<MqttVehicleState> _vehicleStateController =
+  // Set of currently subscribed topics to avoid duplicate subscriptions, re-subscribe on reconnect.
+  final Set<String> _subscribedTopics = {};
+
+  // ---- Telemetry receipt counters (diagnostics) ----
+  // Compare _dataRxCount against the device-side sent count to measure transport loss.
+  int _dataRxCount = 0;
+  int _dataParseFailCount = 0;
+  int _dataRxAtConnect = 0;
+
+  // ---- Streams ----
+  final _dataController = StreamController<MqttDataMessage>.broadcast();
+  final _notiController = StreamController<MqttNotiMessage>.broadcast();
+  final _connectionController = StreamController<bool>.broadcast();
+  final _rentalRequestController =
+      StreamController<MqttRentalRequestMessage>.broadcast();
+  final _tokenRequestController =
+      StreamController<MqttTokenRequestMessage>.broadcast();
+
+  // Backward-compat stream cho FleetProvider
+  final _vehicleStateController =
       StreamController<MqttVehicleState>.broadcast();
 
+  // Stream parsed data, notifications, and connection state to listeners (providers).
+  Stream<MqttDataMessage> get dataMessages => _dataController.stream;
+  Stream<MqttNotiMessage> get notifications => _notiController.stream;
+  Stream<bool> get connectionState => _connectionController.stream;
+
+  // Messages from mobile app via topic <bikeId>/app_web
+  Stream<MqttRentalRequestMessage> get rentalRequests =>
+      _rentalRequestController.stream;
+
+  // Messages from topic Q7M4K2P/request — add tokens to user accounts
+  Stream<MqttTokenRequestMessage> get tokenRequests =>
+      _tokenRequestController.stream;
+
+  // Backward-compat: stream vehicle state (use by FleetProvider)
   Stream<MqttVehicleState> get vehicleStates => _vehicleStateController.stream;
+
   bool get isConnected => _isConnected;
 
+  // Total `/data` messages received / failed to parse since startup.
+  int get dataRxCount => _dataRxCount;
+  int get dataParseFailCount => _dataParseFailCount;
+
+  /* Public functions --------------------------------------------------- */
+  // Connect to MQTT broker with configured settings.
   Future<void> connect() async {
     if (_isConnected && _client != null) return;
 
-    final clientId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
+    final rand = math.Random();
+    final clientId =
+        FeatureConfig.mqttClientIdPrefix +
+        rand.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
 
     if (kIsWeb) {
-      final client = MqttBrowserClient(MqttConfig.wsUrl, clientId);
+      final proto = FeatureConfig.mqttUseSsl ? 'wss' : 'ws';
+      final serverBase = '$proto://${FeatureConfig.mqttHost}/mqtt';
+      final wsUrl =
+          '$proto://${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort}/mqtt';
 
-      client.logging(on: false);
-      client.keepAlivePeriod = 20;
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint('[MQTT] Connecting → $wsUrl | clientId: $clientId');
+      }
+
+      final client = MqttBrowserClient(serverBase, clientId);
+      client.port = FeatureConfig.mqttWsPort;
+      client.setProtocolV311();
+      client.logging(on: FeatureConfig.debugMqttLog);
+      client.keepAlivePeriod = FeatureConfig.mqttKeepalive;
       client.autoReconnect = true;
       client.resubscribeOnAutoReconnect = true;
       client.onConnected = _onConnected;
       client.onDisconnected = _onDisconnected;
-
       client.connectionMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
-          .startClean()
-          .keepAliveFor(20);
+          .startClean();
 
       _client = client;
-
-      await client.connect(MqttConfig.username, MqttConfig.password);
+      try {
+        final u = FeatureConfig.mqttUsername;
+        final p = FeatureConfig.mqttPassword;
+        await client.connect(u.isEmpty ? null : u, p.isEmpty ? null : p);
+      } catch (e) {
+        debugPrint('[MQTT] Connect error (web): $e');
+        rethrow;
+      }
     } else {
-      final client = MqttServerClient(MqttConfig.host, clientId);
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint(
+          '[MQTT] Connecting → ${FeatureConfig.mqttHost}:${FeatureConfig.mqttWsPort} | clientId: $clientId',
+        );
+      }
 
-      client.port = MqttConfig.tlsPort;
-      client.secure = true;
-      client.logging(on: false);
-      client.keepAlivePeriod = 20;
+      final client = MqttServerClient(FeatureConfig.mqttHost, clientId);
+      client.port = FeatureConfig.mqttWsPort;
+      client.setProtocolV311();
+      client.secure = FeatureConfig.mqttUseSsl;
+      client.logging(on: FeatureConfig.debugMqttLog);
+      client.keepAlivePeriod = FeatureConfig.mqttKeepalive;
       client.autoReconnect = true;
       client.resubscribeOnAutoReconnect = true;
       client.onConnected = _onConnected;
       client.onDisconnected = _onDisconnected;
-
       client.connectionMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
-          .startClean()
-          .keepAliveFor(20);
+          .startClean();
 
       _client = client;
-
-      await client.connect(MqttConfig.username, MqttConfig.password);
+      try {
+        final u = FeatureConfig.mqttUsername;
+        final p = FeatureConfig.mqttPassword;
+        await client.connect(u.isEmpty ? null : u, p.isEmpty ? null : p);
+      } catch (e) {
+        debugPrint('[MQTT] Connect error (native): $e');
+        rethrow;
+      }
     }
 
     final status = _client?.connectionStatus?.state;
+    if (FeatureConfig.debugMqttLog) {
+      debugPrint('[MQTT] Connection status: $status');
+    }
     if (status != MqttConnectionState.connected) {
-      throw Exception('MQTT chưa kết nối được. Status: $status');
+      throw Exception('MQTT connection failed. Status: $status');
     }
 
-    _client?.updates?.listen((List<MqttReceivedMessage<MqttMessage?>>? events) {
-      if (events == null) return;
+    _client!.updates!.listen(_onMessage);
 
-      for (final event in events) {
-        final message = event.payload;
-        if (message is! MqttPublishMessage) continue;
+    // Subscribe to the token request topic
+    _subscribeRaw(FeatureConfig.tokenRequestTopic);
+  }
 
-        final payloadString = MqttPublishPayload.bytesToStringAsString(
-          message.payload.message,
-        );
+  void _subscribeRaw(String topic) {
+    final isNew = _subscribedTopics.add(topic);
+    if (isNew && _isConnected && _client != null) {
+      _client!.subscribe(topic, _qosFor(topic));
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint('[MQTT] Subscribed: $topic');
+      }
+    }
+  }
 
-        try {
-          final decoded = jsonDecode(payloadString);
-          if (decoded is Map<String, dynamic>) {
-            _vehicleStateController.add(
-              MqttVehicleState(topic: event.topic, payload: decoded),
-            );
-          }
-        } catch (e) {
-          debugPrint('MQTT parse error: $e');
+  void disconnect() {
+    _client?.disconnect();
+    _isConnected = false;
+  }
+
+  MqttQos _qosFor(String topic) =>
+      (topic.endsWith(FeatureConfig.topicAppWebSuffix) ||
+          topic.endsWith(FeatureConfig.topicWebAppSuffix) ||
+          topic.endsWith('/request') ||
+          topic.endsWith('/response'))
+      ? MqttQos.exactlyOnce
+      : MqttQos.atLeastOnce;
+
+  // Subscribe device topics for data and notifications.
+  // No-op for topics already subscribed — safe to call repeatedly.
+  void subscribeDevice(String deviceId) {
+    final topics = [
+      '$deviceId${FeatureConfig.topicDataSuffix}',
+      '$deviceId${FeatureConfig.topicNotiSuffix}',
+      '$deviceId${FeatureConfig.topicAppWebSuffix}',
+    ];
+    for (final topic in topics) {
+      final isNew = _subscribedTopics.add(topic);
+      if (isNew && _isConnected && _client != null) {
+        _client!.subscribe(topic, _qosFor(topic));
+        if (FeatureConfig.debugMqttLog) {
+          debugPrint('[MQTT] Subscribed: $topic');
         }
       }
-    });
+    }
   }
 
+  // Unsubscribe device topics for data and notifications
+  void unsubscribeDevice(String deviceId) {
+    final topics = [
+      '$deviceId${FeatureConfig.topicDataSuffix}',
+      '$deviceId${FeatureConfig.topicNotiSuffix}',
+    ];
+    for (final topic in topics) {
+      _subscribedTopics.remove(topic);
+      if (_isConnected && _client != null) {
+        _client!.unsubscribe(topic);
+      }
+    }
+  }
+
+  // Backward-compat: subscribe all devices from FeatureConfig.
   Future<void> subscribeFleetState() async {
-    final client = _client;
-    if (client == null || !_isConnected) {
-      throw Exception('MQTT chưa connect');
+    for (final id in FeatureConfig.defaultDevices) {
+      subscribeDevice(id);
     }
-
-    client.subscribe(MqttConfig.fleetStateTopic, MqttQos.atLeastOnce);
   }
 
-  Future<void> publishCommand(
-    String vehicleId,
-    Map<String, dynamic> payload,
-  ) async {
-    final client = _client;
-    if (client == null || !_isConnected) {
-      throw Exception('MQTT chưa connect');
+  // Publish command (string)
+  bool publish(String deviceId, String command) {
+    if (!_isConnected || _client == null) {
+      debugPrint('[MQTT] Cannot publish: not connected');
+      return false;
     }
-
-    final builder = MqttClientPayloadBuilder();
-    builder.addString(jsonEncode(payload));
-
-    client.publishMessage(
-      MqttConfig.commandTopic(vehicleId),
-      MqttQos.atLeastOnce,
-      builder.payload!,
-      retain: false,
-    );
+    final topic = '$deviceId${FeatureConfig.topicCmdSuffix}';
+    final builder = MqttClientPayloadBuilder()..addString(command);
+    _client!.publishMessage(topic, _qosFor(topic), builder.payload!);
+    if (FeatureConfig.debugMqttLog) {
+      final preview = command.length > 80 ? command.substring(0, 80) : command;
+      debugPrint('[MQTT] Published → $topic | $preview');
+    }
+    return true;
   }
 
+  // Publish JSON command
+  bool publishCommand(String vehicleId, Map<String, dynamic> payload) {
+    return publish(vehicleId, jsonEncode(payload));
+  }
+
+  // Publish response to mobile app via topic <bikeId>/app_web
+  bool publishToApp(String bikeId, String message) {
+    final topic = '$bikeId${FeatureConfig.topicWebAppSuffix}';
+    return publishRaw(topic, message);
+  }
+
+  // Publish to topic
+  bool publishRaw(String topic, String message) {
+    if (!_isConnected || _client == null) {
+      debugPrint('[MQTT] Cannot publish: not connected');
+      return false;
+    }
+    final builder = MqttClientPayloadBuilder()..addString(message);
+    _client!.publishMessage(topic, _qosFor(topic), builder.payload!);
+    if (FeatureConfig.debugMqttLog) {
+      debugPrint('[MQTT] Published (raw) → $topic | $message');
+    }
+    return true;
+  }
+
+  void dispose() {
+    disconnect();
+    _dataController.close();
+    _notiController.close();
+    _connectionController.close();
+    _rentalRequestController.close();
+    _tokenRequestController.close();
+    _vehicleStateController.close();
+  }
+
+  // ---- Private methods ----
   void _onConnected() {
     _isConnected = true;
-    debugPrint('MQTT connected');
+    _dataRxAtConnect = _dataRxCount;
+    if (FeatureConfig.debugMqttLog) debugPrint('[MQTT] Connected');
+
+    // Re-subscribe all topics after reconnect
+    for (final topic in _subscribedTopics) {
+      _client!.subscribe(topic, _qosFor(topic));
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint('[MQTT] Re-subscribed: $topic');
+      }
+    }
+
+    _connectionController.add(true);
   }
 
   void _onDisconnected() {
     _isConnected = false;
-    debugPrint('MQTT disconnected');
+    if (FeatureConfig.debugMqttLog) {
+      final spanRx = _dataRxCount - _dataRxAtConnect;
+      debugPrint(
+        '[MQTT] Disconnected — data RX this span: $spanRx '
+        '(total: $_dataRxCount, parse-fail: $_dataParseFailCount)',
+      );
+    }
+    _connectionController.add(false);
   }
 
-  Future<void> disconnect() async {
-    _client?.disconnect();
-    _isConnected = false;
+  void _onMessage(List<MqttReceivedMessage<MqttMessage?>>? events) {
+    if (events == null) return;
+    for (final event in events) {
+      final msg = event.payload;
+      if (msg is! MqttPublishMessage) continue;
+
+      final raw = MqttPublishPayload.bytesToStringAsString(msg.payload.message);
+      if (FeatureConfig.debugMqttLog) {
+        final preview = raw.length > 100 ? raw.substring(0, 100) : raw;
+        debugPrint('[MQTT] RX  topic=${event.topic}  payload=$preview');
+      }
+
+      _handleMessage(event.topic, raw);
+    }
   }
 
-  void dispose() {
-    _client?.disconnect();
-    _vehicleStateController.close();
+  // Handle incoming MQTT message: parse and add to streams.
+  void _handleMessage(String topic, String raw) {
+    final dataSuffix = FeatureConfig.topicDataSuffix;
+    final notiSuffix = FeatureConfig.topicNotiSuffix;
+    final appWebSuffix = FeatureConfig.topicAppWebSuffix;
+
+    if (topic == FeatureConfig.tokenRequestTopic) {
+      // ---- TOKEN REQUEST ----
+      _tokenRequestController.add(MqttTokenRequestMessage(raw: raw.trim()));
+      return;
+    }
+
+    if (topic.endsWith(appWebSuffix)) {
+      // ---- RENTAL REQUEST from mobile app ----
+      final bikeId = topic.substring(0, topic.length - appWebSuffix.length);
+      _rentalRequestController.add(
+        MqttRentalRequestMessage(bikeId: bikeId, raw: raw.trim()),
+      );
+      return;
+    }
+
+    if (topic.endsWith(dataSuffix)) {
+      // ---- DATA message ----
+      _dataRxCount++;
+      final deviceId = topic.substring(0, topic.length - dataSuffix.length);
+      final parsed = DataParser.parse(raw);
+      if (parsed == null) {
+        _dataParseFailCount++;
+        return;
+      }
+
+      _dataController.add(
+        MqttDataMessage(deviceId: deviceId, data: parsed, raw: raw),
+      );
+
+      // Backward-compat: map MCU data → MqttVehicleState cho FleetProvider
+      final vKmh =
+          parsed.velocityKmh ??
+          (parsed.velocityMs != null ? parsed.velocityMs! * 3.6 : null);
+      final payload = <String, dynamic>{
+        'id': deviceId,
+        'lat': parsed.lat ?? 0.0,
+        'lon': parsed.lng ?? 0.0,
+        'isLocked': false,
+        'isRunning': (vKmh ?? 0) > 0,
+      };
+      // Battery now arrives via the KEEPALIVE noti; only let /data set it when
+      // the telemetry JSON still carries it, so it never clobbers it with 0.
+      if (parsed.battery != null) {
+        payload['batteryPercent'] = parsed.battery!.toInt();
+      }
+      if (parsed.totalKm != null) {
+        payload['totalKm'] = parsed.totalKm;
+      }
+      if (parsed.temp != null) payload['temp'] = parsed.temp;
+      if (parsed.hum != null) payload['hum'] = parsed.hum;
+      if (parsed.dust != null) payload['dust'] = parsed.dust;
+      if (vKmh != null) payload['velocityKmh'] = vKmh;
+
+      _vehicleStateController.add(
+        MqttVehicleState(topic: topic, payload: payload),
+      );
+    } else if (topic.endsWith(notiSuffix)) {
+      // ---- NOTI message ----
+      if (!FeatureConfig.enableNotifications) return;
+      final deviceId = topic.substring(0, topic.length - notiSuffix.length);
+      final message = raw.trim();
+      if (FeatureConfig.debugMqttLog) {
+        debugPrint('[MQTT] Noti ← $deviceId: $message');
+      }
+      _notiController.add(
+        MqttNotiMessage(deviceId: deviceId, message: message),
+      );
+
+      // Backward-compat: "KEEPALIVE=<n>%" carries battery % → FleetProvider.
+      final battery = _parseKeepaliveBattery(message);
+      if (battery != null) {
+        _vehicleStateController.add(
+          MqttVehicleState(
+            topic: topic,
+            payload: {'id': deviceId, 'batteryPercent': battery},
+          ),
+        );
+      }
+    }
+  }
+
+  // Extract battery % from a "KEEPALIVE=<n>%" noti payload.
+  // Returns null when the message is not in that form.
+  int? _parseKeepaliveBattery(String message) {
+    final m = message.trim();
+    if (!m.toUpperCase().startsWith('KEEPALIVE=')) return null;
+    final value = double.tryParse(
+      m.substring(m.indexOf('=') + 1).replaceAll('%', '').trim(),
+    );
+    if (value == null) return null;
+    return value.round().clamp(0, 100).toInt();
   }
 }
+
+/* End of file -------------------------------------------------------- */

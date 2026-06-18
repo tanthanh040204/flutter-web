@@ -1,3 +1,7 @@
+// @file       maintenance_provider.dart
+// @brief      State provider for Maintenance.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +10,7 @@ import '../models/maintenance_item.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_repo.dart';
 
+/* Public classes ----------------------------------------------------- */
 class MaintenanceProvider extends ChangeNotifier {
   final Map<String, List<MaintenanceItem>> _byVehicle = {};
   final Map<String, StreamSubscription<List<MaintenanceItem>>> _subs = {};
@@ -30,21 +35,23 @@ class MaintenanceProvider extends ChangeNotifier {
 
       if (_subs.containsKey(vehicle.id)) continue;
 
-      _subs[vehicle.id] = FirebaseRepo.instance.watchMaintenance(vehicle.id).listen(
-        (items) async {
-          if (items.isEmpty) {
-            await ensureDefaults(vehicle.id);
-            return;
-          }
-          _byVehicle[vehicle.id] = items;
-          notifyListeners();
-        },
-        onError: (_) async {
-          if (!_byVehicle.containsKey(vehicle.id)) {
-            await ensureDefaults(vehicle.id);
-          }
-        },
-      );
+      _subs[vehicle.id] = FirebaseRepo.instance
+          .watchMaintenance(vehicle.id)
+          .listen(
+            (items) async {
+              if (items.isEmpty) {
+                await ensureDefaults(vehicle.id);
+                return;
+              }
+              _byVehicle[vehicle.id] = items;
+              notifyListeners();
+            },
+            onError: (_) async {
+              if (!_byVehicle.containsKey(vehicle.id)) {
+                await ensureDefaults(vehicle.id);
+              }
+            },
+          );
     }
 
     notifyListeners();
@@ -56,28 +63,9 @@ class MaintenanceProvider extends ChangeNotifier {
 
     _creatingDefaults.add(vehicleId);
     try {
-      final defaults = <MaintenanceItem>[
-        const MaintenanceItem(
-          id: 'oil',
-          name: 'Thay nhớt',
-          maintanceKm: 0,
-          cycleKm: 2000,
-        ),
-        const MaintenanceItem(
-          id: 'brake',
-          name: 'Tra/Thay nhớt thắng',
-          maintanceKm: 0,
-          cycleKm: 4000,
-        ),
-        const MaintenanceItem(
-          id: 'battery',
-          name: 'Kiểm tra/Thay pin',
-          maintanceKm: 0,
-          cycleKm: 12000,
-        ),
-      ];
-
-      _byVehicle[vehicleId] = defaults;
+      _byVehicle[vehicleId] = List<MaintenanceItem>.from(
+        MaintenanceItem.defaultSeed,
+      );
       notifyListeners();
 
       await FirebaseRepo.instance.ensureDefaultMaintenanceItems(vehicleId);
@@ -142,7 +130,7 @@ class MaintenanceProvider extends ChangeNotifier {
 
     for (final it in list) {
       if (it.isDue) {
-        msgs.add('Đã đến lúc bảo dưỡng cho "${it.name}"');
+        msgs.add('Maintenance due for "${it.name}"');
       }
     }
     return msgs;
@@ -157,3 +145,5 @@ class MaintenanceProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

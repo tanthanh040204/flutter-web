@@ -1,10 +1,22 @@
+// @file       control_tab.dart
+// @brief      Tab UI for Control.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
+import '../../models/device_state.dart';
+import '../../models/vehicle.dart';
+import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/language_provider.dart';
+import '../../widgets/vehicle_picker.dart';
 
+/* Public classes ----------------------------------------------------- */
 class ControlTab extends StatelessWidget {
   const ControlTab({super.key});
 
@@ -13,18 +25,31 @@ class ControlTab extends StatelessWidget {
     final fleet = context.watch<FleetProvider>();
     final v = fleet.selectedOrNull;
 
+    // Real-time device state for lock status and online indicator
+    final deviceProvider = context.watch<DeviceProvider>();
+    final device = v != null ? deviceProvider.deviceById(v.id) : null;
+
+    final tripM = device?.latest?.distanceM;
+    final controlTripKmStr = tripM == null
+        ? '--'
+        : '${(tripM / 1000.0).toStringAsFixed(2)} km';
+    final velLive = fleet.selectedVelocityKmh;
+    final controlSpeedStr = velLive == null
+        ? '--'
+        : '${velLive.toStringAsFixed(1)} km/h';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Điều khiển'),
+        title: Text(context.loc(AppStrings.titleControl)),
         actions: [
           IconButton(
-            tooltip: 'Thêm xe',
+            tooltip: context.tr('Thêm xe mới', 'Add new vehicle'),
             icon: const Icon(Icons.add),
             onPressed: fleet.isAddingVehicle
                 ? null
                 : () => _showAddVehicleDialog(context),
           ),
-          const _VehiclePicker(),
+          const VehiclePicker(),
           const SizedBox(width: 8),
         ],
       ),
@@ -41,74 +66,86 @@ class ControlTab extends StatelessWidget {
                   vehicleName: v.name,
                   odoKm: v.totalKm,
                   batteryPercent: v.batteryPercent,
+                  online: device?.online ?? false,
+                  lockState: device?.lockState,
                 ),
                 const SizedBox(height: 14),
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.thermostat,
-                        title: 'Nhiệt độ',
-                        value: fleet.selectedTemp == null
-                            ? '--'
-                            : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.thermostat,
+                            title: context.tr('Nhiệt độ', 'Temperature'),
+                            value: fleet.selectedTemp == null
+                                ? '--'
+                                : '${fleet.selectedTemp!.toStringAsFixed(1)} °C',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.water_drop,
+                            title: context.tr('Độ ẩm', 'Humidity'),
+                            value: fleet.selectedHum == null
+                                ? '--'
+                                : '${fleet.selectedHum!.toStringAsFixed(1)} %',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.air,
+                            title: context.tr('Bụi', 'Dust value'),
+                            value: fleet.selectedDust == null
+                                ? '--'
+                                : fleet.selectedDust!.toStringAsFixed(1),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.water_drop,
-                        title: 'Độ ẩm',
-                        value: fleet.selectedHum == null
-                            ? '--'
-                            : '${fleet.selectedHum!.toStringAsFixed(1)} %',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SensorCard(
-                        icon: Icons.air,
-                        title: 'Nồng độ bụi',
-                        value: fleet.selectedDust == null
-                            ? '--'
-                            : '${fleet.selectedDust!.toStringAsFixed(1)}',
-                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.speed,
+                            title: context.tr('Tốc độ', 'Speed'),
+                            value: controlSpeedStr,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SensorCard(
+                            icon: Icons.route,
+                            title: context.tr(
+                              'Quãng đường chuyến',
+                              'Trip distance',
+                            ),
+                            value: controlTripKmStr,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Điều khiển nhanh',
+                Text(
+                  context.tr('Điều khiển nhanh', 'Quick Control'),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: _SquareButton(
-                        icon: v.isRunning
-                            ? Icons.pause_circle
-                            : Icons.play_circle,
-                        label: v.isRunning ? 'Dừng xe' : 'Chạy xe',
-                        active: v.isRunning,
-                        onTap: () => fleet.setRunning(!v.isRunning),
-                      ),
-                    ),
+                    // Lock / Unlock / Resume — LOCK or UNLOCK from device state; waits for OK (30 s)
+                    Expanded(child: _InlockButton(vehicleId: v.id)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _SquareButton(
-                        icon: Icons.edit,
-                        label: 'Đổi tên',
-                        onTap: () async {
-                          final name = await _askVehicleName(
-                            context,
-                            title: 'Đổi tên xe',
-                            initial: v.name,
-                          );
-                          if (name != null && name.trim().isNotEmpty) {
-                            await fleet.renameSelected(name.trim());
-                          }
-                        },
+                        icon: Icons.settings_remote,
+                        label: context.tr('Cài đặt thiết bị', 'Set Device'),
+                        onTap: () => _showSetDeviceDialog(context, v),
                       ),
                     ),
                   ],
@@ -118,44 +155,50 @@ class ControlTab extends StatelessWidget {
     );
   }
 
+  // Dialog accepts 3-digit vehicle number; ID becomes haq-trk-xxx.
   static Future<void> _showAddVehicleDialog(BuildContext context) async {
-    final nameCtl = TextEditingController();
-    final odoCtl = TextEditingController(text: '0');
-    final batCtl = TextEditingController(text: '80');
+    final numCtl = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Thêm xe'),
+        title: Text(context.tr('Thêm xe mới', 'Add New Vehicle')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: nameCtl,
-              decoration: const InputDecoration(labelText: 'Tên xe'),
-            ),
-            TextField(
-              controller: odoCtl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Tổng km hiện tại (ODO)',
+            Text(
+              context.tr(
+                'Nhập số xe gồm 3 chữ số.\nID sẽ là: haq-trk-XXX',
+                'Enter 3-digit vehicle number.\nID will be: haq-trk-XXX',
               ),
+              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
+            const SizedBox(height: 12),
             TextField(
-              controller: batCtl,
+              controller: numCtl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Pin (%)'),
+              maxLength: 3,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: context.tr(
+                  'Mã Xe (Vd: 001)',
+                  'Vehicle Number (e.g. 001)',
+                ),
+                prefixText: 'haq-trk-',
+                border: const OutlineInputBorder(),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Thêm'),
+            child: Text(context.tr('Thêm', 'Add')),
           ),
         ],
       ),
@@ -163,62 +206,131 @@ class ControlTab extends StatelessWidget {
 
     if (ok != true) return;
 
-    final name = nameCtl.text.trim();
-    if (name.isEmpty) return;
-
-    final odo = double.tryParse(odoCtl.text.trim()) ?? 0;
-    final bat = int.tryParse(batCtl.text.trim()) ?? 80;
+    final number = numCtl.text.trim().padLeft(3, '0');
+    if (number.isEmpty || number.length != 3) return;
 
     try {
-      await context.read<FleetProvider>().addVehicle(
-        name: name,
-        totalKm: odo,
-        batteryPercent: bat,
-      );
+      await context.read<FleetProvider>().addVehicle(vehicleNumber: number);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã thêm xe và đồng bộ lên Firebase.')),
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Đã thêm haq-trk-$number vào Firebase.',
+                'Added haq-trk-$number to Firebase.',
+              ),
+            ),
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Không thể thêm xe: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr('Không thể thêm xe: $e', 'Cannot add vehicle: $e'),
+            ),
+          ),
+        );
       }
     }
   }
 
-  static Future<String?> _askVehicleName(
-    BuildContext context, {
-    required String title,
-    required String initial,
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
+  // Sends SET_DEVICE=<id>,<serial> to <vehicleId>/cmd (sets the device's id +
+  // serial on the firmware). Does not write Firestore.
+  static Future<void> _showSetDeviceDialog(
+    BuildContext context,
+    Vehicle v,
+  ) async {
+    final initialNum =
+        RegExp(r'(\d+)$').firstMatch(v.id)?.group(1)?.padLeft(3, '0') ?? '';
+    final numCtl = TextEditingController(text: initialNum);
+    final serialCtl = TextEditingController(text: v.serialNumber);
+
+    final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Tên xe'),
+        title: Text(context.tr('Cài đặt thiết bị', 'Set Device')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr(
+                'Gửi lệnh SET_DEVICE tới thiết bị (mã 3 số + serial number).',
+                'Sends SET_DEVICE to the device (3-digit id + serial number).',
+              ),
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: numCtl,
+              keyboardType: TextInputType.number,
+              maxLength: 3,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: context.tr(
+                  'Mã thiết bị (Vd: 001)',
+                  'Device id (e.g. 001)',
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: serialCtl,
+              decoration: InputDecoration(
+                labelText: context.tr('Serial number', 'Serial number'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Huỷ'),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.tr('Hủy', 'Cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Lưu'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.tr('Gửi', 'Send')),
           ),
         ],
+      ),
+    );
+
+    if (ok != true || !context.mounted) return;
+
+    final number = numCtl.text.trim().padLeft(3, '0');
+    final serial = serialCtl.text.trim();
+    if (number.length != 3 || serial.isEmpty) return;
+
+    final sent = context.read<DeviceProvider>().publishCommand(
+      v.id,
+      'SET_DEVICE=$number,$serial',
+    );
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sent
+              ? context.trRead(
+                  'Đã gửi SET_DEVICE tới ${v.id}.',
+                  'SET_DEVICE sent to ${v.id}.',
+                )
+              : context.trRead(
+                  'Gửi lệnh thất bại (chưa kết nối MQTT).',
+                  'Failed to send (MQTT not connected).',
+                ),
+        ),
       ),
     );
   }
 }
 
+/* Private classes ---------------------------------------------------- */
 class _EmptyState extends StatelessWidget {
   final bool isSyncing;
   final String? error;
@@ -228,8 +340,8 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = isSyncing
-        ? 'Đang đồng bộ danh sách xe từ Firebase...'
-        : 'Chưa có xe nào để hiển thị.';
+        ? context.tr('Đang thêm xe mới...', 'Adding new vehicle...')
+        : context.tr('Chưa có xe để hiển thị.', 'No vehicles to display.');
 
     return Center(
       child: Padding(
@@ -313,11 +425,15 @@ class _HeroCard extends StatelessWidget {
   final String vehicleName;
   final double odoKm;
   final int batteryPercent;
+  final bool online;
+  final DeviceLockState? lockState;
 
   const _HeroCard({
     required this.vehicleName,
     required this.odoKm,
     required this.batteryPercent,
+    this.online = false,
+    this.lockState,
   });
 
   @override
@@ -374,6 +490,34 @@ class _HeroCard extends StatelessWidget {
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // Online/Offline dot
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: online
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            online ? 'Online' : 'Offline',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (lockState != null) ...[
+                            const SizedBox(width: 10),
+                            _LockStateBadge(state: lockState!),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -539,7 +683,7 @@ class _VehicleLogoBadge extends StatelessWidget {
       ),
       child: Center(
         child: Icon(
-          Icons.electric_scooter,
+          Icons.pedal_bike,
           size: 98,
           color: Colors.white.withOpacity(0.92),
         ),
@@ -632,23 +776,16 @@ class _SquareButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
 
   const _SquareButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = Colors.green;
-    final bg = active
-        ? activeColor.withOpacity(0.14)
-        : Theme.of(context).colorScheme.surface;
-    final border = active ? activeColor.withOpacity(0.40) : Colors.transparent;
-    final fg = active ? activeColor : Theme.of(context).colorScheme.onSurface;
+    final fg = Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -657,8 +794,7 @@ class _SquareButton extends StatelessWidget {
         height: 82,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: bg,
-          border: Border.all(color: border),
+          color: Theme.of(context).colorScheme.surface,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -675,3 +811,163 @@ class _SquareButton extends StatelessWidget {
     );
   }
 }
+
+// Small badge showing Active / Locked / Pause state.
+class _LockStateBadge extends StatelessWidget {
+  final DeviceLockState state;
+  const _LockStateBadge({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (state) {
+      DeviceLockState.active => (
+        context.tr('Đang hoạt động', 'Active'),
+        Colors.greenAccent,
+      ),
+      DeviceLockState.locked => (
+        context.tr('Đang khóa', 'Locked'),
+        Colors.redAccent,
+      ),
+      DeviceLockState.pause => (
+        context.tr('Tạm dừng', 'Pause'),
+        Colors.orangeAccent,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// Lock / Unlock / Resume — DeviceProvider.sendUnlock maps state → LOCK or UNLOCK; waits for OK (30 s).
+class _InlockButton extends StatefulWidget {
+  final String vehicleId;
+  const _InlockButton({required this.vehicleId});
+
+  @override
+  State<_InlockButton> createState() => _InlockButtonState();
+}
+
+class _InlockButtonState extends State<_InlockButton> {
+  bool _loading = false;
+
+  Future<void> _onTap() async {
+    final deviceProvider = context.read<DeviceProvider>();
+    final device = deviceProvider.deviceById(widget.vehicleId);
+    if (device == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.trRead(
+              'Không tìm thấy thiết bị trong MQTT.',
+              'Device not found in MQTT registry.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final ok = await deviceProvider.sendUnlock(widget.vehicleId);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? context.trRead(
+                  'Thiết bị đã xác nhận lệnh.',
+                  'Command acknowledged by device.',
+                )
+              : context.trRead(
+                  'Không có phản hồi - hết thời gian chờ.',
+                  'No response - timeout.',
+                ),
+        ),
+        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade600,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deviceProvider = context.watch<DeviceProvider>();
+    final device = deviceProvider.deviceById(widget.vehicleId);
+    final lockState = device?.lockState ?? DeviceLockState.locked;
+    final isPending = deviceProvider.isPendingLock(widget.vehicleId);
+
+    final isLocked = lockState == DeviceLockState.locked;
+    final isPause = lockState == DeviceLockState.pause;
+    final icon = _loading || isPending
+        ? Icons.hourglass_top
+        : (isLocked
+              ? Icons.lock_open
+              : isPause
+              ? Icons.play_circle_outline
+              : Icons.lock);
+    final label = _loading || isPending
+        ? context.tr('Đang chờ...', 'Waiting...')
+        : (isLocked
+              ? context.tr('Mở khóa', 'Unlock')
+              : isPause
+              ? context.tr('Tiếp tục', 'Resume')
+              : context.tr('Khóa', 'Lock'));
+
+    final bg = (isLocked || isPause)
+        ? Colors.orange.withValues(alpha: 0.15)
+        : Colors.red.withValues(alpha: 0.12);
+    final fg = (isLocked || isPause)
+        ? Colors.orange.shade700
+        : Colors.red.shade600;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: (_loading || isPending) ? null : _onTap,
+      child: Container(
+        height: 82,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: bg,
+          border: Border.all(color: fg.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_loading || isPending)
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: fg),
+              )
+            else
+              Icon(icon, size: 30, color: fg),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* End of file -------------------------------------------------------- */

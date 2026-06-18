@@ -1,20 +1,38 @@
+// @file       firebase_repo.dart
+// @brief      Service for Firebase Repo.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/feature_config.dart';
 import '../models/app_note.dart';
 import '../models/app_notification.dart';
 import '../models/employee_account.dart';
 import '../models/daily_stat.dart';
 import '../models/history_route.dart';
 import '../models/maintenance_item.dart';
+import '../models/parking_zone.dart';
+import '../models/rental_user.dart';
+import '../models/rental_user_info.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
 
+/* Public classes ----------------------------------------------------- */
 class FirebaseRepo {
-  FirebaseRepo._();
+  FirebaseRepo._() {
+    // Hydrate the persisted local mirror only when we will actually serve from
+    // it; while online the mirror is kept fresh by the watch* read paths.
+    if (FeatureConfig.forceLocalMode) {
+      _restoreLocalCaches();
+    }
+  }
   static final FirebaseRepo instance = FirebaseRepo._();
 
   final Map<String, Vehicle> _localVehicles = <String, Vehicle>{};
@@ -24,6 +42,21 @@ class FirebaseRepo {
   final Map<String, String> _localEmployeePasswords = <String, String>{
     '1001': '123456',
   };
+
+  // Persisted local fallback mirror for parking_zones / rental_users (vehicles
+  // and employee accounts already have in-memory stores above). Hydrated from
+  // local storage on startup when FeatureConfig.forceLocalMode is on.
+  final List<ParkingZone> _localZones = <ParkingZone>[];
+  final StreamController<List<ParkingZone>> _localZonesCtl =
+      StreamController<List<ParkingZone>>.broadcast();
+
+  final List<RentalUser> _localRentalUsers = <RentalUser>[];
+  final StreamController<List<RentalUser>> _localRentalUsersCtl =
+      StreamController<List<RentalUser>>.broadcast();
+
+  // saveVehicle echoes a Firestore snapshot on every MQTT telemetry tick, so
+  // throttle the vehicles mirror write to avoid many disk writes per second.
+  DateTime? _lastVehiclesCacheAt;
 
   final List<AppNotificationItem> _localNotifications = <AppNotificationItem>[];
   final StreamController<List<AppNotificationItem>> _localNotificationsCtl =
@@ -39,6 +72,7 @@ class FirebaseRepo {
   bool get _isReady => Firebase.apps.isNotEmpty;
 
   bool get _shouldUseLocalMode {
+    if (FeatureConfig.forceLocalMode) return true;
     if (!_isReady) return true;
     try {
       final options = Firebase.app().options;
@@ -68,6 +102,281 @@ class FirebaseRepo {
 
   CollectionReference<Map<String, dynamic>>? get _appNotes =>
       _db?.collection('app_notes');
+
+  CollectionReference<Map<String, dynamic>>? get _parkingZones =>
+      _db?.collection('parking_zones');
+
+  CollectionReference<Map<String, dynamic>>? get _rentalUsers =>
+      _db?.collection('rental_users');
+
+  CollectionReference<Map<String, dynamic>>? get _users =>
+      _db?.collection('users');
+
+  // ---- Rental user profile (read-only, shown on web during a rental) ----
+  // Looks up a mobile user's profile by their MQTT wire user id. Contact
+  // fields (email/phone/full name) live only in the app-owned `users/{uid}`
+  // profile, so the `rental_users/{id}` doc is merged *under* the `users`
+  // doc (resolved by its `uid`, then by a `wireUserId` lookup). The
+  // rental_users values win on overlapping keys (tokens/lock are web-owned).
+  // Returns null offline or when neither doc exists.
+  Future<RentalUserInfo?> getRentalUserInfo(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return null;
+
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) return null;
+
+    final rentalSnap = await rentalUsers.doc(id).get();
+    final rentalData = rentalSnap.exists
+        ? (rentalSnap.data() ?? <String, dynamic>{})
+        : null;
+
+    Map<String, dynamic>? userData;
+    final users = _users;
+    if (users != null) {
+      final uid = rentalData?['uid']?.toString().trim();
+      if (uid != null && uid.isNotEmpty) {
+        final snap = await users.doc(uid).get();
+        if (snap.exists) userData = snap.data();
+      }
+      if (userData == null) {
+        final query = await users
+            .where('wireUserId', isEqualTo: id)
+            .limit(1)
+            .get();
+        if (query.docs.isNotEmpty) userData = query.docs.first.data();
+      }
+    }
+
+    if (rentalData == null && userData == null) return null;
+
+    return RentalUserInfo.fromMap(id, <String, dynamic>{
+      ...?userData,
+      ...?rentalData,
+    });
+  }
+
+  // ---- Parking zones (shared by web admin + mobile app) ----------------
+  Future<void> _ensureSeedParkingZones() async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+
+    final snap = await zones.limit(1).get();
+    if (snap.docs.isNotEmpty) return;
+
+    for (final zone in ParkingZone.defaultSeed) {
+      await zones.doc(zone.id).set({
+        ...zone.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  List<ParkingZone> _mergeParkingZones(List<ParkingZone> remote) {
+    return ParkingZone.mergeRemoteAndLocal(
+      remote,
+      includeLocal: FeatureConfig.parkingZonesLocal,
+    );
+  }
+
+  Stream<List<ParkingZone>> watchParkingZones() {
+    final zones = _parkingZones;
+    if (zones == null) {
+      Future.microtask(_emitLocalZones);
+      return _localZonesCtl.stream.map(_mergeParkingZones);
+    }
+
+    Future.microtask(_ensureSeedParkingZones);
+
+    return zones.snapshots().map((snap) {
+      final remote = snap.docs
+          .map((doc) => ParkingZone.fromMap(doc.id, doc.data()))
+          .toList();
+      _cacheParkingZones(remote);
+      return _mergeParkingZones(remote);
+    });
+  }
+
+  Future<void> upsertParkingZone(ParkingZone zone) async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+    await zones.doc(zone.id).set({
+      ...zone.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteParkingZone(String zoneId) async {
+    final zones = _parkingZones;
+    if (zones == null) return;
+    await zones.doc(zoneId).delete();
+  }
+
+  // ---- Rental users (shared by web admin + mobile app) -----------------
+  Future<void> _ensureSeedRentalUsers() async {
+    final users = _rentalUsers;
+    if (users == null) return;
+
+    final snap = await users.limit(1).get();
+    if (snap.docs.isNotEmpty) return;
+
+    for (final user in RentalUser.defaultSeed) {
+      await users.doc(user.userId).set({
+        ...user.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Stream<List<RentalUser>> watchRentalUsers() {
+    final users = _rentalUsers;
+    if (users == null) {
+      Future.microtask(_emitLocalRentalUsers);
+      return _localRentalUsersCtl.stream;
+    }
+
+    Future.microtask(_ensureSeedRentalUsers);
+
+    return users.snapshots().map((snap) {
+      final list = snap.docs
+          .map((doc) => RentalUser.fromMap(doc.id, doc.data()))
+          .toList();
+      list.sort((a, b) => a.userId.compareTo(b.userId));
+      _cacheRentalUsers(list);
+      return list;
+    });
+  }
+
+  Future<void> upsertRentalUser(RentalUser user) async {
+    final users = _rentalUsers;
+    if (users == null) {
+      _ensureLocalRentalUsersMaterialized();
+      final idx = _localRentalUsers.indexWhere((u) => u.userId == user.userId);
+      if (idx >= 0) {
+        _localRentalUsers[idx] = user;
+      } else {
+        _localRentalUsers.add(user);
+      }
+      _emitLocalRentalUsers();
+      await _cacheRentalUsers(List<RentalUser>.from(_localRentalUsers));
+      return;
+    }
+    await users.doc(user.userId).set({
+      ...user.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setRentalUserTokens(String userId, int tokens) async {
+    final users = _rentalUsers;
+    if (users == null) {
+      await _patchLocalRentalUser(
+        userId,
+        (c) => RentalUser(
+          userId: c.userId,
+          tokens: tokens < 0 ? 0 : tokens,
+          debt: c.debt,
+          debtStartedAt: c.debtStartedAt,
+          isLocked: c.isLocked,
+          displayName: c.displayName,
+          isActive: c.isActive,
+          phone: c.phone,
+          email: c.email,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      return;
+    }
+    await users.doc(userId).set({
+      'userId': userId,
+      'tokens': tokens < 0 ? 0 : tokens,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setRentalUserState({
+    required String userId,
+    required int tokens,
+    required int debt,
+    required DateTime? debtStartedAt,
+    required bool isLocked,
+  }) async {
+    final users = _rentalUsers;
+    if (users == null) {
+      await _patchLocalRentalUser(
+        userId,
+        (c) => RentalUser(
+          userId: c.userId,
+          tokens: tokens < 0 ? 0 : tokens,
+          debt: debt < 0 ? 0 : debt,
+          debtStartedAt: debtStartedAt,
+          isLocked: isLocked,
+          displayName: c.displayName,
+          isActive: c.isActive,
+          phone: c.phone,
+          email: c.email,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      return;
+    }
+    await users.doc(userId).set({
+      'userId': userId,
+      'tokens': tokens < 0 ? 0 : tokens,
+      'debt': debt < 0 ? 0 : debt,
+      'debtStartedAt': debtStartedAt == null
+          ? null
+          : Timestamp.fromDate(debtStartedAt),
+      'isLocked': isLocked,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteRentalUser(String userId) async {
+    final users = _rentalUsers;
+    if (users == null) {
+      _ensureLocalRentalUsersMaterialized();
+      _localRentalUsers.removeWhere((u) => u.userId == userId);
+      _emitLocalRentalUsers();
+      await _cacheRentalUsers(List<RentalUser>.from(_localRentalUsers));
+      return;
+    }
+    await users.doc(userId).delete();
+  }
+
+  // Full removal used by the user management tab: deletes the web-owned
+  // `rental_users/{wireUserId}` doc and the app-owned `users` profile
+  // (resolved via the doc's `uid` field, then by a `wireUserId` lookup).
+  Future<void> deleteRentalUserCompletely(String wireUserId) async {
+    final id = wireUserId.trim();
+    if (id.isEmpty) return;
+
+    final rentalUsers = _rentalUsers;
+    if (rentalUsers == null) {
+      _ensureLocalRentalUsersMaterialized();
+      _localRentalUsers.removeWhere((u) => u.userId == id);
+      _emitLocalRentalUsers();
+      await _cacheRentalUsers(List<RentalUser>.from(_localRentalUsers));
+      return;
+    }
+    String? uid;
+    final snap = await rentalUsers.doc(id).get();
+    if (snap.exists) {
+      uid = snap.data()?['uid']?.toString().trim();
+    }
+    await rentalUsers.doc(id).delete();
+
+    final users = _users;
+    if (users == null) return;
+
+    if (uid != null && uid.isNotEmpty) {
+      await users.doc(uid).delete();
+    }
+    final query = await users.where('wireUserId', isEqualTo: id).get();
+    for (final doc in query.docs) {
+      await doc.reference.delete();
+    }
+  }
 
   List<Vehicle> _sortedLocalVehicles() {
     final list = _localVehicles.values.toList();
@@ -120,6 +429,231 @@ class FirebaseRepo {
   void _emitLocalNotes() {
     if (_localNotesCtl.isClosed) return;
     _localNotesCtl.add(_sortedLocalNotes());
+  }
+
+  // ---- Local fallback mirror (forceLocalMode) --------------------------
+  // Keys for the persisted snapshot of each covered collection.
+  static const String _kCacheVehiclesKey = 'local_cache_vehicles';
+  static const String _kCacheZonesKey = 'local_cache_parking_zones';
+  static const String _kCacheRentalUsersKey = 'local_cache_rental_users';
+  static const String _kCacheEmployeesKey = 'local_cache_employee_accounts';
+  static const Duration _kVehiclesCacheMinInterval = Duration(seconds: 15);
+
+  void _emitLocalZones() {
+    if (_localZonesCtl.isClosed) return;
+    _localZonesCtl.add(List<ParkingZone>.from(_localZones));
+  }
+
+  void _emitLocalRentalUsers() {
+    if (_localRentalUsersCtl.isClosed) return;
+    final list = _localRentalUsers.isEmpty
+        ? List<RentalUser>.from(RentalUser.defaultSeed)
+        : List<RentalUser>.from(_localRentalUsers);
+    list.sort((a, b) => a.userId.compareTo(b.userId));
+    _localRentalUsersCtl.add(list);
+  }
+
+  // Materialize the seed into the backing list before a local-mode mutation so
+  // what the user sees (defaultSeed when empty) is what they edit.
+  void _ensureLocalRentalUsersMaterialized() {
+    if (_localRentalUsers.isEmpty) {
+      _localRentalUsers.addAll(RentalUser.defaultSeed);
+    }
+  }
+
+  // Upsert-and-persist a single local rental user via a field transform.
+  // Mirrors Firestore set(merge:true): updates the matching user or creates one.
+  Future<void> _patchLocalRentalUser(
+    String userId,
+    RentalUser Function(RentalUser current) update,
+  ) async {
+    _ensureLocalRentalUsersMaterialized();
+    final idx = _localRentalUsers.indexWhere((u) => u.userId == userId);
+    final current = idx >= 0
+        ? _localRentalUsers[idx]
+        : RentalUser(userId: userId, tokens: 0);
+    final next = update(current);
+    if (idx >= 0) {
+      _localRentalUsers[idx] = next;
+    } else {
+      _localRentalUsers.add(next);
+    }
+    _emitLocalRentalUsers();
+    await _cacheRentalUsers(List<RentalUser>.from(_localRentalUsers));
+  }
+
+  Future<void> _cacheVehicles(List<Vehicle> list) async {
+    final now = DateTime.now();
+    final last = _lastVehiclesCacheAt;
+    if (last != null && now.difference(last) < _kVehiclesCacheMinInterval) {
+      return;
+    }
+    _lastVehiclesCacheAt = now;
+    await _writeCache(
+      _kCacheVehiclesKey,
+      list.map(_vehicleToCacheMap).toList(),
+    );
+  }
+
+  Future<void> _cacheParkingZones(List<ParkingZone> list) => _writeCache(
+    _kCacheZonesKey,
+    list.map((z) => {'id': z.id, ...z.toMap()}).toList(),
+  );
+
+  Future<void> _cacheRentalUsers(List<RentalUser> list) => _writeCache(
+    _kCacheRentalUsersKey,
+    list.map(_rentalUserToCacheMap).toList(),
+  );
+
+  Future<void> _cacheEmployeeAccounts(List<EmployeeAccount> list) =>
+      _writeCache(
+        _kCacheEmployeesKey,
+        list
+            .map(
+              (e) => {'employeeCode': e.employeeCode, 'password': e.password},
+            )
+            .toList(),
+      );
+
+  Future<void> _writeCache(String key, List<Map<String, dynamic>> rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, jsonEncode(rows));
+    } catch (e) {
+      debugPrint('[FirebaseRepo] write cache $key failed: $e');
+    }
+  }
+
+  Future<void> _restoreLocalCaches() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final vehicles = _readCache(prefs, _kCacheVehiclesKey);
+      if (vehicles.isNotEmpty) {
+        _localVehicles
+          ..clear()
+          ..addEntries(
+            vehicles.map((m) {
+              final v = _vehicleFromCacheMap(m);
+              return MapEntry(v.id, v);
+            }),
+          );
+        _emitLocalVehicles();
+      }
+
+      final zones = _readCache(prefs, _kCacheZonesKey);
+      if (zones.isNotEmpty) {
+        _localZones
+          ..clear()
+          ..addAll(
+            zones.map(
+              (m) => ParkingZone.fromMap((m['id'] ?? '').toString(), m),
+            ),
+          );
+        _emitLocalZones();
+      }
+
+      final users = _readCache(prefs, _kCacheRentalUsersKey);
+      if (users.isNotEmpty) {
+        _localRentalUsers
+          ..clear()
+          ..addAll(users.map(_rentalUserFromCacheMap));
+        _emitLocalRentalUsers();
+      }
+
+      final employees = _readCache(prefs, _kCacheEmployeesKey);
+      if (employees.isNotEmpty) {
+        for (final m in employees) {
+          final code = (m['employeeCode'] ?? '').toString();
+          if (code.isEmpty) continue;
+          _localEmployeePasswords[code] = (m['password'] ?? '').toString();
+        }
+        _emitLocalEmployeeAccounts();
+      }
+    } catch (e) {
+      debugPrint('[FirebaseRepo] restore local caches failed: $e');
+    }
+  }
+
+  List<Map<String, dynamic>> _readCache(SharedPreferences prefs, String key) {
+    final raw = prefs.getString(key);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Map<String, dynamic> _vehicleToCacheMap(Vehicle v) => {
+    'id': v.id,
+    'name': v.name,
+    'serialNumber': v.serialNumber,
+    'batteryPercent': v.batteryPercent,
+    'isLocked': v.isLocked,
+    'isRunning': v.isRunning,
+    'totalKm': v.totalKm,
+    'temp': v.temp,
+    'hum': v.hum,
+    'dust': v.dust,
+    'lat': v.lastLocation.latitude,
+    'lon': v.lastLocation.longitude,
+    'updatedAt': v.updatedAt.millisecondsSinceEpoch,
+  };
+
+  Vehicle _vehicleFromCacheMap(Map<String, dynamic> m) {
+    final updatedMs = _asInt(m['updatedAt']);
+    return Vehicle(
+      id: (m['id'] ?? '').toString(),
+      name: (m['name'] ?? m['id'] ?? '').toString(),
+      serialNumber: (m['serialNumber'] ?? '').toString(),
+      batteryPercent: (_asInt(m['batteryPercent']) ?? 0).clamp(0, 100).toInt(),
+      isLocked: _asBool(m['isLocked']) ?? true,
+      isRunning: _asBool(m['isRunning']) ?? false,
+      totalKm: _asDouble(m['totalKm']) ?? 0.0,
+      temp: _asDouble(m['temp']) ?? 0.0,
+      hum: _asDouble(m['hum']) ?? 0.0,
+      dust: _asDouble(m['dust']) ?? 0.0,
+      velocityKmh: 0,
+      lastLocation: LatLng(
+        _asDouble(m['lat']) ?? 0.0,
+        _asDouble(m['lon']) ?? 0.0,
+      ),
+      updatedAt: updatedMs == null
+          ? DateTime.now()
+          : DateTime.fromMillisecondsSinceEpoch(updatedMs),
+    );
+  }
+
+  Map<String, dynamic> _rentalUserToCacheMap(RentalUser u) => {
+    'userId': u.userId,
+    'tokens': u.tokens,
+    'debt': u.debt,
+    'debtStartedAt': u.debtStartedAt?.millisecondsSinceEpoch,
+    'isLocked': u.isLocked,
+    'displayName': u.displayName,
+    'isActive': u.isActive,
+    'phone': u.phone,
+    'email': u.email,
+    'updatedAt': u.updatedAt?.millisecondsSinceEpoch,
+  };
+
+  RentalUser _rentalUserFromCacheMap(Map<String, dynamic> m) {
+    DateTime? fromMs(dynamic v) {
+      final ms = _asInt(v);
+      return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+    }
+
+    return RentalUser.fromMap((m['userId'] ?? '').toString(), {
+      ...m,
+      'debtStartedAt': fromMs(m['debtStartedAt']),
+      'updatedAt': fromMs(m['updatedAt']),
+    });
   }
 
   Future<void> _ensureSeedEmployeeAccount() async {
@@ -213,6 +747,7 @@ class FirebaseRepo {
           .map((doc) => EmployeeAccount.fromMap(doc.data(), id: doc.id))
           .toList();
       list.sort((a, b) => a.employeeCode.compareTo(b.employeeCode));
+      _cacheEmployeeAccounts(list);
       return list;
     });
   }
@@ -270,7 +805,8 @@ class FirebaseRepo {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final message = 'Mã số $employeeCode vừa đăng nhập lúc $hour:$minute';
+    final message =
+        'Employee code $employeeCode has logged in at $hour:$minute';
 
     final notifications = _appNotifications;
     if (notifications == null) {
@@ -331,6 +867,13 @@ class FirebaseRepo {
     await notifications.doc(id).delete();
   }
 
+  // Batch helper over deleteAppNotification for multi-select UI.
+  Future<void> deleteAppNotifications(List<String> notificationIds) async {
+    for (final id in notificationIds) {
+      await deleteAppNotification(id);
+    }
+  }
+
   Stream<List<AppNote>> watchNotes() {
     final notes = _appNotes;
     if (notes == null) {
@@ -338,14 +881,11 @@ class FirebaseRepo {
       return _localNotesCtl.stream;
     }
 
-    return notes
-        .orderBy('updatedAt', descending: true)
-        .snapshots()
-        .map((snap) {
-          return snap.docs
-              .map((doc) => AppNote.fromMap(doc.id, doc.data()))
-              .toList();
-        });
+    return notes.orderBy('updatedAt', descending: true).snapshots().map((snap) {
+      return snap.docs
+          .map((doc) => AppNote.fromMap(doc.id, doc.data()))
+          .toList();
+    });
   }
 
   Future<void> createNote({
@@ -431,7 +971,7 @@ class FirebaseRepo {
   Future<void> deleteHistoryRoute(String vehicleId, String routeId) async {
     final vehicles = _vehicles;
     if (vehicles == null) {
-      throw StateError('Firestore chưa được khởi tạo.');
+      throw StateError('Firestore has not been initialized.');
     }
 
     await vehicles
@@ -439,6 +979,46 @@ class FirebaseRepo {
         .collection('history_routes')
         .doc(routeId)
         .delete();
+  }
+
+  // Best-effort persist of a web-built session route. The Node bridge is the
+  // primary writer of history_routes; this is a fallback used when the bridge
+  // is not running, so failures are swallowed. Idempotent by route id.
+  Future<void> upsertHistoryRouteFromWeb(HistoryRouteRecord route) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+    try {
+      await vehicles
+          .doc(route.vehicleId)
+          .collection('history_routes')
+          .doc(route.id)
+          .set({
+            'vehicleId': route.vehicleId,
+            'dayKey': route.dayKey,
+            'startAt': Timestamp.fromDate(route.startAt),
+            'endAt': route.endAt == null
+                ? null
+                : Timestamp.fromDate(route.endAt!),
+            'isClosed': route.isClosed,
+            'startTotalKm': route.startTotalKm,
+            'endTotalKm': route.endTotalKm,
+            'distanceKm': route.distanceKm,
+            'points': route.points
+                .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+                .toList(),
+            'source': 'web',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[FirebaseRepo] upsertHistoryRouteFromWeb failed: $e');
+    }
+  }
+
+  // Batch helper over deleteHistoryRoute for multi-select UI.
+  Future<void> deleteHistoryRoutes(String vehicleId, List<String> ids) async {
+    for (final id in ids) {
+      await deleteHistoryRoute(vehicleId, id);
+    }
   }
 
   Future<void> saveVehicle(Vehicle v) async {
@@ -453,6 +1033,7 @@ class FirebaseRepo {
       await vehicles.doc(v.id).set({
         'id': v.id,
         'name': v.name,
+        'serialNumber': v.serialNumber,
         'batteryPercent': v.batteryPercent,
         'isLocked': v.isLocked,
         'isRunning': v.isRunning,
@@ -460,6 +1041,7 @@ class FirebaseRepo {
         'temp': v.temp,
         'hum': v.hum,
         'dust': v.dust,
+        'velocityKmh': v.velocityKmh,
         'lastLocation': {
           'lat': v.lastLocation.latitude,
           'lon': v.lastLocation.longitude,
@@ -474,19 +1056,22 @@ class FirebaseRepo {
     }
   }
 
+  // Create a vehicle with an explicit ID (format: haq-trk-xxx).
   Future<String> createVehicle({
-    required String name,
+    required String vehicleId,
     int batteryPercent = 80,
     double totalKm = 0,
     LatLng? lastLocation,
   }) async {
-    final nextId = await getNextVehicleId();
+    final safeId = vehicleId.trim();
+    if (safeId.isEmpty) throw ArgumentError('vehicleId cannot be empty');
+
     final location = lastLocation ?? const LatLng(21.0287, 105.8522);
 
     await saveVehicle(
       Vehicle(
-        id: nextId,
-        name: name,
+        id: safeId,
+        name: safeId,
         batteryPercent: batteryPercent.clamp(0, 100).toInt(),
         isLocked: true,
         isRunning: false,
@@ -494,39 +1079,25 @@ class FirebaseRepo {
         temp: 0,
         hum: 0,
         dust: 0,
+        velocityKmh: 0,
         lastLocation: location,
         updatedAt: DateTime.now(),
       ),
     );
 
-    await ensureDefaultMaintenanceItems(nextId);
-    return nextId;
+    await ensureDefaultMaintenanceItems(safeId);
+    return safeId;
   }
 
-  Future<String> getNextVehicleId() async {
+  // Delete a vehicle document and its sub-collections are pruned over time by TTL.
+  Future<void> deleteVehicle(String vehicleId) async {
     final vehicles = _vehicles;
     if (vehicles == null) {
-      return 'V${_nextVehicleNumber(_localVehicles.keys) + 1}';
+      _localVehicles.remove(vehicleId);
+      _emitLocalVehicles();
+      return;
     }
-
-    try {
-      final snap = await vehicles.get();
-      return 'V${_nextVehicleNumber(snap.docs.map((d) => d.id)) + 1}';
-    } catch (_) {
-      return 'V${_nextVehicleNumber(_localVehicles.keys) + 1}';
-    }
-  }
-
-  int _nextVehicleNumber(Iterable<String> ids) {
-    int maxNumber = 0;
-    for (final rawId in ids) {
-      final id = rawId.trim().toUpperCase();
-      final match = RegExp(r'^V(\d+)$').firstMatch(id);
-      if (match == null) continue;
-      final number = int.tryParse(match.group(1) ?? '0') ?? 0;
-      if (number > maxNumber) maxNumber = number;
-    }
-    return maxNumber;
+    await vehicles.doc(vehicleId).delete();
   }
 
   Stream<List<Vehicle>> watchVehicles() {
@@ -541,6 +1112,7 @@ class FirebaseRepo {
       list.sort(
         (a, b) => _vehicleSortKey(a.id).compareTo(_vehicleSortKey(b.id)),
       );
+      _cacheVehicles(list);
       return list;
     });
   }
@@ -574,7 +1146,7 @@ class FirebaseRepo {
 
   Stream<List<HistoryRouteRecord>> watchHistoryRoutes(
     String vehicleId, {
-    int keepDays = 30,
+    int keepDays = FeatureConfig.historyKeepDays,
   }) {
     final vehicles = _vehicles;
     if (vehicles == null) {
@@ -615,14 +1187,59 @@ class FirebaseRepo {
               endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
               distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
               points: points,
+              tripId: m['tripId']?.toString(),
             );
           }).toList();
         });
   }
 
+  // Watches a single history route doc for live updates (read-only).
+  Stream<HistoryRouteRecord?> watchHistoryRoute(
+    String vehicleId,
+    String routeId,
+  ) {
+    final vehicles = _vehicles;
+    if (vehicles == null) return Stream<HistoryRouteRecord?>.value(null);
+
+    return vehicles
+        .doc(vehicleId)
+        .collection('history_routes')
+        .doc(routeId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final m = doc.data() ?? const <String, dynamic>{};
+
+          final rawPoints = (m['points'] as List?) ?? const [];
+          final points = rawPoints.map((e) {
+            final p = Map<String, dynamic>.from(e as Map);
+            return LatLng(
+              ((p['lat'] ?? 0) as num).toDouble(),
+              ((p['lon'] ?? 0) as num).toDouble(),
+            );
+          }).toList();
+
+          return HistoryRouteRecord(
+            id: doc.id,
+            vehicleId: (m['vehicleId'] ?? vehicleId).toString(),
+            dayKey: (m['dayKey'] ?? '').toString(),
+            startAt: (m['startAt'] as Timestamp).toDate(),
+            endAt: m['endAt'] == null
+                ? null
+                : (m['endAt'] as Timestamp).toDate(),
+            isClosed: (m['isClosed'] ?? false) as bool,
+            startTotalKm: ((m['startTotalKm'] ?? 0) as num).toDouble(),
+            endTotalKm: ((m['endTotalKm'] ?? 0) as num).toDouble(),
+            distanceKm: ((m['distanceKm'] ?? 0) as num).toDouble(),
+            points: points,
+            tripId: m['tripId']?.toString(),
+          );
+        });
+  }
+
   Future<void> upsertDailyUsageFromOdo(
     Vehicle vehicle, {
-    int keepDays = 30,
+    int keepDays = FeatureConfig.historyKeepDays,
   }) async {
     final db = _db;
     final vehicles = _vehicles;
@@ -674,7 +1291,10 @@ class FirebaseRepo {
     await pruneOldDailyUsage(vehicle.id, keepDays: keepDays);
   }
 
-  Future<void> pruneOldDailyUsage(String vehicleId, {int keepDays = 30}) async {
+  Future<void> pruneOldDailyUsage(
+    String vehicleId, {
+    int keepDays = FeatureConfig.historyKeepDays,
+  }) async {
     final db = _db;
     final vehicles = _vehicles;
 
@@ -743,6 +1363,7 @@ class FirebaseRepo {
     return Vehicle(
       id: d.id,
       name: vehicleName,
+      serialNumber: _asString(m['serialNumber']) ?? '',
       batteryPercent: batteryPercent.clamp(0, 100).toInt(),
       isLocked: isLocked,
       isRunning: isRunning,
@@ -750,15 +1371,23 @@ class FirebaseRepo {
       temp: _asDouble(m['temp']) ?? 0.0,
       hum: _asDouble(m['hum']) ?? 0.0,
       dust: _asDouble(m['dust']) ?? 0.0,
+      velocityKmh: _asDouble(m['velocityKmh']) ?? 0.0,
       lastLocation: LatLng(lat, lon),
       updatedAt: updatedAt,
     );
   }
 
   int _vehicleSortKey(String id) {
-    final match = RegExp(r'^(?:V|v)(\d+)$').firstMatch(id.trim());
-    if (match == null) return 1 << 30;
-    return int.tryParse(match.group(1) ?? '') ?? (1 << 30);
+    final s = id.trim();
+    // haq-trk-001 format
+    final matchNew = RegExp(r'^haq-trk-(\d+)$').firstMatch(s);
+    if (matchNew != null)
+      return int.tryParse(matchNew.group(1) ?? '') ?? (1 << 30);
+    // Legacy V1/V2 format
+    final matchOld = RegExp(r'^(?:V|v)(\d+)$').firstMatch(s);
+    if (matchOld != null)
+      return int.tryParse(matchOld.group(1) ?? '') ?? (1 << 30);
+    return 1 << 30;
   }
 
   String? _asString(dynamic value) {
@@ -824,29 +1453,8 @@ class FirebaseRepo {
     final snap = await ref.limit(1).get();
     if (snap.docs.isNotEmpty) return;
 
-    final defaults = <MaintenanceItem>[
-      const MaintenanceItem(
-        id: 'oil',
-        name: 'Thay nhớt',
-        maintanceKm: 0,
-        cycleKm: 2000,
-      ),
-      const MaintenanceItem(
-        id: 'brake',
-        name: 'Tra/Thay nhớt thắng',
-        maintanceKm: 0,
-        cycleKm: 4000,
-      ),
-      const MaintenanceItem(
-        id: 'battery',
-        name: 'Kiểm tra/Thay pin',
-        maintanceKm: 0,
-        cycleKm: 12000,
-      ),
-    ];
-
     final batch = db.batch();
-    for (final item in defaults) {
+    for (final item in MaintenanceItem.defaultSeed) {
       batch.set(ref.doc(item.id), {
         'name': item.name,
         'maintanceKm': item.maintanceKm,
@@ -946,4 +1554,69 @@ class FirebaseRepo {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  // Merge a single GPS point into a rental trip doc, deduplicating and
+  // sorting by timestamp. Creates the doc if it doesn't exist yet.
+  Future<void> mergeTripPoint(
+    String vehicleId, {
+    required String tripId,
+    required String userId,
+    required DateTime startTime,
+    required Map<String, dynamic> point,
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    final ref = vehicles.doc(vehicleId).collection('trips').doc(tripId);
+    final snap = await ref.get();
+    final existing = snap.data() ?? {};
+
+    final prevPts = (existing['points'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    // Key on time+position, not time alone: the MCU polls ~0.7s but "time" is
+    // second-resolution, so distinct samples can share a second.
+    String keyOf(Map<String, dynamic> p) =>
+        '${p['time']}_${p['lat']}_${p['lon']}';
+    final newKey = keyOf(point);
+    final merged = [...prevPts.where((p) => keyOf(p) != newKey), point]
+      ..sort((a, b) => (a['time'] as String).compareTo(b['time'] as String));
+
+    await ref.set({
+      'vehicleId': vehicleId,
+      'userId': userId,
+      'startTime': startTime.toIso8601String(),
+      'points': merged,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteTrip(String vehicleId, String tripId) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) {
+      throw StateError('Firestore has not been initialized.');
+    }
+
+    await vehicles.doc(vehicleId).collection('trips').doc(tripId).delete();
+  }
+
+  // Set endTime and mark a rental trip as closed.
+  Future<void> finalizeTripEntry(
+    String vehicleId, {
+    required String tripId,
+    required DateTime endTime,
+  }) async {
+    final vehicles = _vehicles;
+    if (vehicles == null) return;
+
+    await vehicles.doc(vehicleId).collection('trips').doc(tripId).set({
+      'endTime': endTime.toIso8601String(),
+      'isClosed': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }
+
+/* End of file -------------------------------------------------------- */

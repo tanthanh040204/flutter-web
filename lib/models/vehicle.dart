@@ -1,8 +1,16 @@
+// @file       vehicle.dart
+// @brief      Data model for Vehicle.
+
+/* Imports ------------------------------------------------------------ */
 import 'package:latlong2/latlong.dart';
 
+/* Public classes ----------------------------------------------------- */
 class Vehicle {
   final String id;
   final String name;
+
+  /// Admin-managed device serial number (Firestore metadata).
+  final String serialNumber;
 
   final int batteryPercent;
   final bool isLocked;
@@ -13,12 +21,16 @@ class Vehicle {
   final double hum;
   final double dust;
 
+  /// Live speed from last MQTT /data (km/h); not persisted as critical odometer data.
+  final double velocityKmh;
+
   final LatLng lastLocation;
   final DateTime updatedAt;
 
   const Vehicle({
     required this.id,
     required this.name,
+    this.serialNumber = '',
     required this.batteryPercent,
     required this.isLocked,
     required this.isRunning,
@@ -26,12 +38,14 @@ class Vehicle {
     this.temp = 0,
     this.hum = 0,
     this.dust = 0,
+    this.velocityKmh = 0,
     required this.lastLocation,
     required this.updatedAt,
   });
 
   Vehicle copyWith({
     String? name,
+    String? serialNumber,
     int? batteryPercent,
     bool? isLocked,
     bool? isRunning,
@@ -39,12 +53,14 @@ class Vehicle {
     double? temp,
     double? hum,
     double? dust,
+    double? velocityKmh,
     LatLng? lastLocation,
     DateTime? updatedAt,
   }) {
     return Vehicle(
       id: id,
       name: name ?? this.name,
+      serialNumber: serialNumber ?? this.serialNumber,
       batteryPercent: batteryPercent ?? this.batteryPercent,
       isLocked: isLocked ?? this.isLocked,
       isRunning: isRunning ?? this.isRunning,
@@ -52,8 +68,11 @@ class Vehicle {
       temp: temp ?? this.temp,
       hum: hum ?? this.hum,
       dust: dust ?? this.dust,
+      velocityKmh: velocityKmh ?? this.velocityKmh,
       lastLocation: lastLocation ?? this.lastLocation,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
+
+/* End of file -------------------------------------------------------- */

@@ -1,18 +1,34 @@
+// @file       fleet_provider.dart
+// @brief      State provider for Fleet.
+
+/* Imports ------------------------------------------------------------ */
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../config/feature_config.dart';
 import '../models/vehicle.dart';
 import '../services/firebase_repo.dart';
 import '../services/mqtt_service.dart';
 
+/* Public classes ----------------------------------------------------- */
 class FleetProvider extends ChangeNotifier {
   final List<Vehicle> _vehicles = [];
 
   StreamSubscription<List<Vehicle>>? _vehiclesSub;
   MqttService? _mqttService;
   StreamSubscription<MqttVehicleState>? _mqttSub;
+  StreamSubscription<MqttNotiMessage>? _notiSub;
+
+  // Last seen totalKm per vehicle — used to compute delta for maintenance
+  final Map<String, double> _lastSeenTotalKm = {};
+
+  // Per-vehicle low-battery state with hysteresis (see _applyBatteryHysteresis).
+  final Map<String, bool> _lowBattery = {};
+
+  // Vehicles awaiting OK ack for CLEAR_TOTAL_DISTANCE
+  final Set<String> _pendingClearTotal = {};
 
   int _selectedIndex = 0;
   bool _isSyncing = false;
@@ -37,14 +53,31 @@ class FleetProvider extends ChangeNotifier {
   Vehicle get selected {
     final value = selectedOrNull;
     if (value == null) {
-      throw StateError('Chưa có xe nào trong danh sách.');
+      throw StateError('No vehicles available');
     }
     return value;
+  }
+
+  // True when the vehicle is in the low-battery state (hysteresis applied).
+  bool isLowBattery(String vehicleId) => _lowBattery[vehicleId] ?? false;
+
+  // Enter "low" below the enter threshold; only clear at/above the exit
+  // threshold. Between the two, keep the previous state (no flicker).
+  void _applyBatteryHysteresis(Vehicle v) {
+    final wasLow = _lowBattery[v.id] ?? false;
+    if (v.batteryPercent < FeatureConfig.lowBatteryEnterPercent) {
+      _lowBattery[v.id] = true;
+    } else if (v.batteryPercent >= FeatureConfig.lowBatteryExitPercent) {
+      _lowBattery[v.id] = false;
+    } else {
+      _lowBattery[v.id] = wasLow;
+    }
   }
 
   double? get selectedTemp => selectedOrNull?.temp;
   double? get selectedHum => selectedOrNull?.hum;
   double? get selectedDust => selectedOrNull?.dust;
+  double? get selectedVelocityKmh => selectedOrNull?.velocityKmh;
 
   void selectVehicle(int index) {
     if (index < 0 || index >= _vehicles.length) return;
@@ -52,30 +85,21 @@ class FleetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addVehicle({
-    required String name,
-    int batteryPercent = 80,
-    double totalKm = 0,
-    LatLng? lastLocation,
-  }) async {
+  // Add vehicle with 3-digit number — creates ID haq-trk-xxx in Firebase.
+  Future<void> addVehicle({required String vehicleNumber}) async {
     if (_isAddingVehicle) return;
+
+    final vehicleId = 'haq-trk-$vehicleNumber';
 
     _isAddingVehicle = true;
     _lastError = null;
     notifyListeners();
 
     try {
-      final newId = await FirebaseRepo.instance.createVehicle(
-        name: name,
-        batteryPercent: batteryPercent,
-        totalKm: totalKm,
-        lastLocation: lastLocation,
-      );
+      await FirebaseRepo.instance.createVehicle(vehicleId: vehicleId);
 
-      final newIndex = _vehicles.indexWhere((v) => v.id == newId);
-      if (newIndex >= 0) {
-        _selectedIndex = newIndex;
-      }
+      final newIndex = _vehicles.indexWhere((v) => v.id == vehicleId);
+      if (newIndex >= 0) _selectedIndex = newIndex;
     } catch (e) {
       _lastError = e.toString();
       rethrow;
@@ -85,6 +109,19 @@ class FleetProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteVehicle(String vehicleId) async {
+    await FirebaseRepo.instance.deleteVehicle(vehicleId);
+
+    final index = _vehicles.indexWhere((v) => v.id == vehicleId);
+    if (index < 0) return;
+
+    _vehicles.removeAt(index);
+    if (_selectedIndex >= _vehicles.length) {
+      _selectedIndex = _vehicles.isEmpty ? 0 : _vehicles.length - 1;
+    }
+    notifyListeners();
+  }
+
   Future<void> renameSelected(String name) async {
     final current = selectedOrNull;
     if (current == null) return;
@@ -92,6 +129,34 @@ class FleetProvider extends ChangeNotifier {
     await _replaceAndPush(
       current.copyWith(name: name, updatedAt: DateTime.now()),
     );
+  }
+
+  // Manual edit of vehicle metadata (name / serial) by id — Firestore only,
+  // no MQTT command. Used by the Overview tab's manual-edit feature.
+  Future<void> editVehicleInfo(
+    String vehicleId, {
+    String? name,
+    String? serialNumber,
+  }) async {
+    final index = _vehicles.indexWhere((v) => v.id == vehicleId);
+    if (index < 0) return;
+
+    final current = _vehicles[index];
+    final next = current.copyWith(
+      name: name ?? current.name,
+      serialNumber: serialNumber ?? current.serialNumber,
+      updatedAt: DateTime.now(),
+    );
+
+    _vehicles[index] = next;
+    notifyListeners();
+
+    try {
+      await FirebaseRepo.instance.saveVehicle(next);
+    } catch (e) {
+      _lastError = e.toString();
+      notifyListeners();
+    }
   }
 
   Future<void> toggleLock() async {
@@ -187,6 +252,15 @@ class FleetProvider extends ChangeNotifier {
           ..clear()
           ..addAll(remote);
 
+        for (final v in _vehicles) {
+          _applyBatteryHysteresis(v);
+        }
+
+        // Auto-subscribe MQTT topics for all vehicles from Firebase
+        for (final v in _vehicles) {
+          _mqttService?.subscribeDevice(v.id);
+        }
+
         if (_vehicles.isEmpty) {
           _selectedIndex = 0;
         } else {
@@ -209,6 +283,12 @@ class FleetProvider extends ChangeNotifier {
   void bindToMqtt(MqttService service) {
     _mqttService = service;
     _mqttSub?.cancel();
+    _notiSub?.cancel();
+
+    // Subscribe topics for vehicles already loaded from Firebase
+    for (final v in _vehicles) {
+      service.subscribeDevice(v.id);
+    }
 
     _mqttSub = service.vehicleStates.listen(
       (message) {
@@ -219,6 +299,44 @@ class FleetProvider extends ChangeNotifier {
         notifyListeners();
       },
     );
+
+    _notiSub = service.notifications.listen(_onNoti);
+  }
+
+  bool clearTotalDistance() {
+    final mqtt = _mqttService;
+    if (mqtt == null || _vehicles.isEmpty) return false;
+
+    var sent = false;
+    for (final v in _vehicles) {
+      if (mqtt.publish(v.id, 'CLEAR_TOTAL_DISTANCE')) {
+        _pendingClearTotal.add(v.id);
+        sent = true;
+      }
+    }
+    if (sent) notifyListeners();
+    return sent;
+  }
+
+  void _onNoti(MqttNotiMessage msg) {
+    final token = msg.message.trim().toUpperCase();
+    if (token != 'OK') return;
+    if (!_pendingClearTotal.remove(msg.deviceId)) return;
+
+    final index = _vehicles.indexWhere((v) => v.id == msg.deviceId);
+    if (index < 0) return;
+
+    _lastSeenTotalKm[msg.deviceId] = 0;
+    final reset = _vehicles[index].copyWith(
+      totalKm: 0,
+      updatedAt: DateTime.now(),
+    );
+    _vehicles[index] = reset;
+    notifyListeners();
+
+    FirebaseRepo.instance.saveVehicle(reset).catchError((e) {
+      debugPrint('[FleetProvider] saveVehicle after clear error: $e');
+    });
   }
 
   void applyMqttState(Map<String, dynamic> data) {
@@ -235,6 +353,23 @@ class FleetProvider extends ChangeNotifier {
 
     final current = _vehicles[index];
 
+    // ---- totalKm + maintenance accrual ----
+    double nextTotalKm = current.totalKm;
+    if (data.containsKey('totalKm')) {
+      nextTotalKm = _toDouble(data['totalKm'], current.totalKm);
+
+      final last = _lastSeenTotalKm[id];
+      if (last != null && nextTotalKm > last) {
+        final deltaKm = nextTotalKm - last;
+        FirebaseRepo.instance
+            .incrementMaintenanceByDistance(id, deltaKm)
+            .catchError((e) {
+              debugPrint('[FleetProvider] incrementMaintenance error: $e');
+            });
+      }
+      _lastSeenTotalKm[id] = nextTotalKm;
+    }
+
     final next = current.copyWith(
       batteryPercent: _toInt(
         data['batteryPercent'],
@@ -242,7 +377,19 @@ class FleetProvider extends ChangeNotifier {
       ).clamp(0, 100).toInt(),
       isLocked: _toBool(data['isLocked'], current.isLocked),
       isRunning: _toBool(data['isRunning'], current.isRunning),
-      totalKm: _toDouble(data['totalKm'], current.totalKm),
+      totalKm: nextTotalKm,
+      temp: data.containsKey('temp')
+          ? _toDouble(data['temp'], current.temp)
+          : current.temp,
+      hum: data.containsKey('hum')
+          ? _toDouble(data['hum'], current.hum)
+          : current.hum,
+      dust: data.containsKey('dust')
+          ? _toDouble(data['dust'], current.dust)
+          : current.dust,
+      velocityKmh: data.containsKey('velocityKmh')
+          ? _toDouble(data['velocityKmh'], current.velocityKmh)
+          : current.velocityKmh,
       lastLocation: LatLng(
         _toDouble(data['lat'], current.lastLocation.latitude),
         _toDouble(data['lon'], current.lastLocation.longitude),
@@ -251,51 +398,57 @@ class FleetProvider extends ChangeNotifier {
     );
 
     _vehicles[index] = next;
+    _applyBatteryHysteresis(next);
     notifyListeners();
+
+    // Persist latest sensor/location data to Firebase for all devices
+    FirebaseRepo.instance.saveVehicle(next).catchError((e) {
+      debugPrint('[FleetProvider] Firebase save error: $e');
+    });
   }
 
-  Future<void> sendSetLock(bool locked) async {
+  void sendSetLock(bool locked) {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': locked ? 'lock' : 'unlock',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> sendSetRunning(bool running) async {
+  void sendSetRunning(bool running) {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': running ? 'start' : 'stop',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> requestHorn() async {
+  void requestHorn() {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': 'horn',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
-  Future<void> requestFindVehicle() async {
+  void requestFindVehicle() {
     final current = selectedOrNull;
     final mqtt = _mqttService;
     if (current == null || mqtt == null) return;
 
-    await mqtt.publishCommand(current.id, {
+    mqtt.publishCommand(current.id, {
       'action': 'find_vehicle',
       'source': 'flutter_app',
       'ts': DateTime.now().millisecondsSinceEpoch,
@@ -326,6 +479,9 @@ class FleetProvider extends ChangeNotifier {
   void dispose() {
     _vehiclesSub?.cancel();
     _mqttSub?.cancel();
+    _notiSub?.cancel();
     super.dispose();
   }
 }
+
+/* End of file -------------------------------------------------------- */

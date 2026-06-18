@@ -1,3 +1,7 @@
+// @file       daily_stat.dart
+// @brief      Data model for Daily Stat.
+
+/* Public classes ----------------------------------------------------- */
 class DailyStat {
   final DateTime day; // yyyy-mm-dd
   final double distanceKm;
@@ -11,3 +15,5 @@ class DailyStat {
     required this.maxSpeedKmh,
   });
 }
+
+/* End of file -------------------------------------------------------- */
