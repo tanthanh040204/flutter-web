@@ -577,7 +577,10 @@ class RentalProvider extends ChangeNotifier {
     _userTokens[userId] = balance - chargeFromBalance;
 
     final r = _activeRentals[bikeId]!;
-    _activeRentals[bikeId] = r.withChargedTokens(r.chargedTokens + rate);
+    final int newCharged = r.chargedTokens + rate;
+    _activeRentals[bikeId] = r.withChargedTokens(newCharged);
+
+    _mqtt?.publishToApp(bikeId, 'BLOCK_TICK=${newCharged ~/ rate},$newCharged');
 
     if (shortfall > 0) {
       final int newDebt = (_userDebt[userId] ?? 0) + shortfall;
