@@ -488,6 +488,13 @@ class RentalProvider extends ChangeNotifier {
       return;
     }
 
+    final battery = deviceProvider.deviceById(bikeId)?.latest?.battery;
+    if (battery != null && battery < FeatureConfig.minBatteryToRentPercent) {
+      mqtt.publishToApp(bikeId, 'RENTAL_ERR=ERR_LOW_BATTERY');
+      debugPrint('[Rental] ERR_LOW_BATTERY: bikeId=$bikeId battery=$battery%');
+      return;
+    }
+
     // Deduct first block deposit and mark in-progress
     _userTokens[userId] = balance - FeatureConfig.minTokenToRent;
     _persistUserState(userId);

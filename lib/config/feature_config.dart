@@ -97,6 +97,7 @@ class FeatureConfig {
   static const int rentalBlockDurationsSeconds =
       3600; // 1 hour block for rentals
   static const int minTokenToRent = 10000; // 10k VND
+  static const int minBatteryToRentPercent = 20;
   static const int outOfZonePenaltyTokens = 5000;
   static const int rentalDebtMaxTokens = 50000; // 50k VND
   static const int rentalDebtMaxDays = 7;
