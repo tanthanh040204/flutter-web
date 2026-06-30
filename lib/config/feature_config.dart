@@ -116,6 +116,13 @@ class FeatureConfig {
   // Timeout for commands like UNLOCK / LOCK before considering it failed.
   static const int unlockCommandTimeoutSeconds = 5;
 
+  static const int deviceStatusTimeoutSeconds = 5;
+  static const bool deviceStatusFallbackLocked = true;
+  static const bool deviceStatusFallbackRental = false;
+  static const int deviceStatusFallbackBatteryPercent = 100;
+  static const double deviceStatusFallbackLat = 10.853205; // PZ001 center
+  static const double deviceStatusFallbackLng = 106.782647; // PZ001 center
+
   // History retention
   // History routes and daily-usage docs older than this are filtered out
   // (and pruned from Firestore for daily_usage).

@@ -17,6 +17,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../providers/rental_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../../services/mqtt_service.dart';
 import '../../widgets/mqtt_status_badge.dart';
@@ -580,6 +581,124 @@ class _MoreTabState extends State<MoreTab> {
                         );
                       },
                     ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmForceClearRental(ActiveRental r) async {
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(context.tr('Xóa chuyến đang thuê', 'Delete active rental')),
+            content: Text(
+              context.tr(
+                'Xóa chuyến thuê của xe ${r.bikeId} (tài khoản ${r.userId})?\n\n'
+                'Trạng thái thuê của xe và nợ/khóa của tài khoản sẽ được đặt lại. '
+                'Không tính tiền, không lưu chuyến đi.',
+                'Delete the rental of bike ${r.bikeId} (account ${r.userId})?\n\n'
+                'The bike rental state and the account debt/lock will be reset. '
+                'No billing, no trip saved.',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.tr('Hủy', 'Cancel')),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.tr('Xóa', 'Delete')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!ok || !mounted) return;
+
+    context.read<RentalProvider>().forceClearRental(r.bikeId);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.tr('Đã xóa chuyến thuê của xe ${r.bikeId}.', 'Cleared rental of bike ${r.bikeId}.')),
+      ),
+    );
+  }
+
+  Widget _buildActiveRentalsTab() {
+    final rental = context.watch<RentalProvider>();
+    final rentals = rental.activeRentals;
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.bug_report_outlined, color: Colors.orange),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.tr(
+                    'Công cụ debug: xóa chuyến đang thuê sẽ gỡ trạng thái thuê của xe và đặt lại tài khoản (nợ/khóa). Không tính tiền, không lưu chuyến.',
+                    'Debug tool: deleting an active rental clears the bike rental state and resets the account (debt/lock). No billing, no trip saved.',
+                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: rentals.isEmpty
+              ? Center(
+                  child: Text(context.tr('Không có chuyến đang thuê.', 'No active rentals.')),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  itemCount: rentals.length,
+                  itemBuilder: (context, index) {
+                    final r = rentals[index];
+                    final paused = rental.isBikePaused(r.bikeId);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        leading: Icon(
+                          paused ? Icons.pause_circle_outline : Icons.directions_bike,
+                          color: paused ? Colors.orange : Colors.blue,
+                        ),
+                        title: Text(
+                          context.tr('Xe ${r.bikeId} • Tài khoản ${r.userId}', 'Bike ${r.bikeId} • Account ${r.userId}'),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          '${context.tr('Bắt đầu', 'Started')}: ${_formatDateTime(r.startTime)}\n'
+                          '${context.tr('Đã tính', 'Charged')}: ${r.chargedTokens} • '
+                          '${paused ? context.tr('Tạm dừng', 'Paused') : context.tr('Đang chạy', 'Active')}',
+                        ),
+                        isThreeLine: true,
+                        trailing: IconButton(
+                          tooltip: context.tr('Xóa chuyến thuê', 'Delete rental'),
+                          icon: const Icon(Icons.delete_forever, color: Colors.red),
+                          onPressed: () => _confirmForceClearRental(r),
+                        ),
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -1356,6 +1475,7 @@ class _MoreTabState extends State<MoreTab> {
       Tab(text: context.tr('Ngôn ngữ', 'Language')),
       if (FeatureConfig.enableTripCleanup)
         Tab(text: context.tr('Chuyến đi', 'Trips')),
+      Tab(text: context.tr('Xóa thuê (debug)', 'Clear rentals (debug)')),
       const Tab(text: 'MQTT'),
     ];
 
@@ -1366,6 +1486,7 @@ class _MoreTabState extends State<MoreTab> {
       _buildChangePasswordTab(auth),
       _buildLanguageTab(),
       if (FeatureConfig.enableTripCleanup) _buildTripsTab(),
+      _buildActiveRentalsTab(),
       _buildMqttTab(),
     ];
 

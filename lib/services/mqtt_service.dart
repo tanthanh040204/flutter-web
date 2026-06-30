@@ -295,6 +295,15 @@ class MqttService {
     return publish(vehicleId, jsonEncode(payload));
   }
 
+  void emitVehicleState(String deviceId, Map<String, dynamic> fields) {
+    _vehicleStateController.add(
+      MqttVehicleState(
+        topic: '$deviceId${FeatureConfig.topicDataSuffix}',
+        payload: {'id': deviceId, ...fields},
+      ),
+    );
+  }
+
   // Publish response to mobile app via topic <bikeId>/app_web
   bool publishToApp(String bikeId, String message) {
     final topic = '$bikeId${FeatureConfig.topicWebAppSuffix}';

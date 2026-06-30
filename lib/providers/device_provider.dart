@@ -3,10 +3,12 @@
 
 /* Imports ------------------------------------------------------------ */
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../config/feature_config.dart';
+import '../models/device_data.dart';
 import '../models/device_state.dart';
 import '../services/mqtt_service.dart';
 import '../utils/date_utils.dart';
@@ -61,6 +63,11 @@ class DeviceProvider extends ChangeNotifier {
 
   // ---- Pending UNLOCK tracking (one per device) ----
   final Map<String, _PendingLock> _pendingLocks = {};
+  final Map<String, Timer> _statusTimers = {};
+
+  // ---- DEVICE_STATUS login sync ----
+  bool _statusSyncArmed = false;
+  bool _statusSyncDone = false;
 
   // Public getters
   List<DeviceState> get devices => _devices.values.toList();
@@ -106,6 +113,10 @@ class DeviceProvider extends ChangeNotifier {
       if (!p.completer.isCompleted) p.completer.complete(false);
     }
     _pendingLocks.clear();
+    for (final t in _statusTimers.values) {
+      t.cancel();
+    }
+    _statusTimers.clear();
     super.dispose();
   }
 
@@ -124,8 +135,11 @@ class DeviceProvider extends ChangeNotifier {
 
     _connSub = service.connectionState.listen((connected) {
       _mqttConnected = connected;
+      if (connected) _maybeRunStatusSync();
       notifyListeners();
     });
+
+    if (_mqttConnected) _maybeRunStatusSync();
 
     _dataSub = service.dataMessages.listen(_onDataMessage);
     _notiSub = service.notifications.listen((msg) {
@@ -140,6 +154,8 @@ class DeviceProvider extends ChangeNotifier {
     if (_devices.containsKey(id)) return false;
     _addDeviceInternal(id);
     _mqttService?.subscribeDevice(id);
+
+    if (_statusSyncDone && _mqttConnected) _requestDeviceStatus(id);
     notifyListeners();
     return true;
   }
@@ -157,6 +173,7 @@ class DeviceProvider extends ChangeNotifier {
     if (pending != null && !pending.completer.isCompleted) {
       pending.completer.complete(false);
     }
+    _statusTimers.remove(id)?.cancel();
 
     if (_activeId == id) {
       _activeId = _devices.isEmpty ? null : _devices.keys.first;
@@ -206,6 +223,35 @@ class DeviceProvider extends ChangeNotifier {
       return false;
     }
     return mqtt.publish(deviceId, command);
+  }
+
+  // Arm the login status sync. Safe to call before MQTT is connected or before
+  // all devices are registered — the broadcast runs once MQTT is ready, and
+  // late-registering devices are synced individually (see addDevice).
+  void requestAllDeviceStatus() {
+    _statusSyncArmed = true;
+    _maybeRunStatusSync();
+  }
+
+  void _maybeRunStatusSync() {
+    if (!_statusSyncArmed || _statusSyncDone) return;
+    if (_mqttService == null || !_mqttConnected) return;
+    _statusSyncDone = true;
+    debugPrint('[DeviceProvider] DEVICE_STATUS broadcast → ${_devices.length}');
+    for (final id in _devices.keys.toList()) {
+      _requestDeviceStatus(id);
+    }
+  }
+
+  void _requestDeviceStatus(String id) {
+    final mqtt = _mqttService;
+    if (mqtt == null || !_mqttConnected) return;
+    _statusTimers[id]?.cancel();
+    if (!mqtt.publish(id, 'DEVICE_STATUS')) return;
+    _statusTimers[id] = Timer(
+      const Duration(seconds: FeatureConfig.deviceStatusTimeoutSeconds),
+      () => _onStatusTimeout(id),
+    );
   }
 
   // Send START_RENTAL=<ts> and wait for OK (device unlocks on receipt).
@@ -423,6 +469,12 @@ class DeviceProvider extends ChangeNotifier {
     // Append raw noti to debug log
     _appendLog(_rawNotiLog, deviceId, AppDateUtils.formatTime(now), message);
 
+    final trimmed = message.trim();
+    if (trimmed.startsWith('{') &&
+        _handleStatusResponse(deviceId, trimmed, now)) {
+      return;
+    }
+
     final token = message.trim().toUpperCase();
     // KEEPALIVE may carry a battery suffix ("KEEPALIVE=<n>%"); collapse it so it
     // still drives online/lastSeen. Battery % is applied via FleetProvider.
@@ -530,6 +582,118 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  bool _handleStatusResponse(String deviceId, String raw, DateTime now) {
+    final Map<String, dynamic> map;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic> || !decoded.containsKey('lock')) {
+        return false;
+      }
+      map = decoded;
+    } catch (_) {
+      return false;
+    }
+
+    _statusTimers.remove(deviceId)?.cancel();
+
+    final lock = '${map['lock']}'.toLowerCase();
+    final rental =
+        map['rental'] == true || '${map['rental']}'.toLowerCase() == 'true';
+    final lockState = lock == 'unlocked'
+        ? DeviceLockState.active
+        : (rental ? DeviceLockState.pause : DeviceLockState.locked);
+
+    final lat = _asDouble(map['lat']);
+    final lng = _asDouble(map['lng']);
+    final battery = _asDouble(map['battery']);
+
+    _applyDeviceStatus(
+      deviceId,
+      lockState: lockState,
+      lat: lat,
+      lng: lng,
+      battery: battery,
+      now: now,
+      online: true,
+    );
+
+    _notifications.add(
+      DeviceNotification(deviceId: deviceId, message: raw, receivedAt: now),
+    );
+    if (_notifications.length > _maxNotifications) {
+      _notifications.removeAt(0);
+    }
+
+    debugPrint(
+      '[DeviceProvider] DEVICE_STATUS $deviceId → $lockState batt=$battery',
+    );
+    notifyListeners();
+    return true;
+  }
+
+  void _onStatusTimeout(String deviceId) {
+    _statusTimers.remove(deviceId);
+    if (!_devices.containsKey(deviceId)) return;
+
+    final lockState = FeatureConfig.deviceStatusFallbackLocked
+        ? (FeatureConfig.deviceStatusFallbackRental
+              ? DeviceLockState.pause
+              : DeviceLockState.locked)
+        : DeviceLockState.active;
+
+    _applyDeviceStatus(
+      deviceId,
+      lockState: lockState,
+      lat: FeatureConfig.deviceStatusFallbackLat,
+      lng: FeatureConfig.deviceStatusFallbackLng,
+      battery: FeatureConfig.deviceStatusFallbackBatteryPercent.toDouble(),
+      now: DateTime.now(),
+      online: false,
+    );
+
+    debugPrint('[DeviceProvider] DEVICE_STATUS timeout $deviceId → fallback');
+    notifyListeners();
+  }
+
+  void _applyDeviceStatus(
+    String deviceId, {
+    required DeviceLockState lockState,
+    required double? lat,
+    required double? lng,
+    required double? battery,
+    required DateTime now,
+    required bool online,
+  }) {
+    final current = _devices[deviceId];
+    if (current == null) return;
+
+    DeviceData? latest = current.latest;
+    if (lat != null && lng != null) {
+      latest = DeviceData(lat: lat, lng: lng, timestamp: now, battery: battery);
+    }
+
+    _devices[deviceId] = current.copyWith(
+      online: online ? true : current.online,
+      lastSeen: online ? now : current.lastSeen,
+      lockState: lockState,
+      latest: latest,
+    );
+
+    final fields = <String, dynamic>{};
+    if (battery != null) fields['batteryPercent'] = battery.round();
+    if (lat != null && lng != null) {
+      fields['lat'] = lat;
+      fields['lon'] = lng;
+    }
+    if (fields.isNotEmpty) _mqttService?.emitVehicleState(deviceId, fields);
+  }
+
+  static double? _asDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   void _startOfflineTimer() {

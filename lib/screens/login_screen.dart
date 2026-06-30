@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../config/app_string.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/device_provider.dart';
 import '../providers/language_provider.dart';
 
 /* Public classes ----------------------------------------------------- */
@@ -43,7 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!mounted) return;
 
-    if (!ok && auth.errorMessage != null) {
+    if (ok) {
+      context.read<DeviceProvider>().requestAllDeviceStatus();
+    } else if (auth.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(auth.errorMessage!)),
       );

@@ -112,6 +112,9 @@ class FirebaseRepo {
   CollectionReference<Map<String, dynamic>>? get _users =>
       _db?.collection('users');
 
+  CollectionReference<Map<String, dynamic>>? get _activeRentalsCol =>
+      _db?.collection('active_rentals');
+
   // ---- Rental user profile (read-only, shown on web during a rental) ----
   // Looks up a mobile user's profile by their MQTT wire user id. Contact
   // fields (email/phone/full name) live only in the app-owned `users/{uid}`
@@ -330,6 +333,41 @@ class FirebaseRepo {
       'isLocked': isLocked,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  // ---- Active rental sessions ------------------------------
+  Future<void> saveActiveRental({
+    required String bikeId,
+    required String userId,
+    required DateTime startTime,
+    required int chargedTokens,
+    required bool paused,
+  }) async {
+    final col = _activeRentalsCol;
+    if (col == null) return;
+    await col.doc(bikeId).set({
+      'bikeId': bikeId,
+      'userId': userId,
+      'startTime': startTime.toIso8601String(),
+      'chargedTokens': chargedTokens,
+      'paused': paused,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteActiveRental(String bikeId) async {
+    final col = _activeRentalsCol;
+    if (col == null) return;
+    await col.doc(bikeId).delete();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchActiveRentals() async {
+    final col = _activeRentalsCol;
+    if (col == null) return const <Map<String, dynamic>>[];
+    final snap = await col.get();
+    return snap.docs
+        .map((d) => <String, dynamic>{...d.data(), 'bikeId': d.id})
+        .toList();
   }
 
   Future<void> deleteRentalUser(String userId) async {

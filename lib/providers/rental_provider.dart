@@ -248,6 +248,7 @@ class RentalProvider extends ChangeNotifier {
     _usersSub = FirebaseRepo.instance.watchRentalUsers().listen(
       _onRentalUsersUpdated,
     );
+    unawaited(_restoreActiveRentals());
   }
 
   void _onZonesUpdated(List<ParkingZone> zones) {
@@ -293,6 +294,61 @@ class RentalProvider extends ChangeNotifier {
         isLocked: isLocked,
       ),
     );
+  }
+
+  void _persistActiveRental(String bikeId) {
+    final r = _activeRentals[bikeId];
+    if (r == null) return;
+    unawaited(
+      FirebaseRepo.instance.saveActiveRental(
+        bikeId: bikeId,
+        userId: r.userId,
+        startTime: r.startTime,
+        chargedTokens: r.chargedTokens,
+        paused: _pausedBikes.contains(bikeId),
+      ),
+    );
+  }
+
+  Future<void> _restoreActiveRentals() async {
+    try {
+      final docs = await FirebaseRepo.instance.fetchActiveRentals();
+      var changed = false;
+      for (final m in docs) {
+        final bikeId = (m['bikeId'] ?? '').toString();
+        final userId = (m['userId'] ?? '').toString();
+        if (bikeId.isEmpty || userId.isEmpty) continue;
+        if (_activeRentals.containsKey(bikeId)) continue;
+
+        final startTime =
+            DateTime.tryParse((m['startTime'] ?? '').toString()) ??
+            DateTime.now();
+        final charged = m['chargedTokens'] is num
+            ? (m['chargedTokens'] as num).toInt()
+            : 0;
+        final paused = m['paused'] == true;
+
+        _activeRentals[bikeId] = ActiveRental(
+          bikeId: bikeId,
+          userId: userId,
+          startTime: startTime,
+          chargedTokens: charged,
+        );
+        if (paused) {
+          _pausedBikes.add(bikeId);
+          _startPauseTimeout(bikeId, userId);
+        }
+        _startBlockTimer(bikeId, userId);
+        changed = true;
+        debugPrint(
+          '[Rental] restored active rental bikeId=$bikeId userId=$userId '
+          'paused=$paused charged=$charged',
+        );
+      }
+      if (changed) notifyListeners();
+    } catch (e) {
+      debugPrint('[Rental] restore active rentals failed: $e');
+    }
   }
 
   // ---- Token requests ------------------------------------------------
@@ -525,6 +581,7 @@ class RentalProvider extends ChangeNotifier {
       startTime: startTime,
       chargedTokens: FeatureConfig.minTokenToRent,
     );
+    _persistActiveRental(bikeId);
     notifyListeners();
 
     mqtt.publishToApp(
@@ -586,6 +643,7 @@ class RentalProvider extends ChangeNotifier {
     final r = _activeRentals[bikeId]!;
     final int newCharged = r.chargedTokens + rate;
     _activeRentals[bikeId] = r.withChargedTokens(newCharged);
+    _persistActiveRental(bikeId);
 
     _mqtt?.publishToApp(bikeId, 'BLOCK_TICK=${newCharged ~/ rate},$newCharged');
 
@@ -663,6 +721,7 @@ class RentalProvider extends ChangeNotifier {
     }
 
     _pausedBikes.add(bikeId);
+    _persistActiveRental(bikeId);
     notifyListeners();
     mqtt.publishToApp(bikeId, 'PAUSE_SUCCESS=$userId');
     debugPrint('[Rental] PAUSE (app) bikeId=$bikeId userId=$userId');
@@ -677,6 +736,7 @@ class RentalProvider extends ChangeNotifier {
     if (rental == null || _pausedBikes.contains(bikeId)) return;
 
     _pausedBikes.add(bikeId);
+    _persistActiveRental(bikeId);
     notifyListeners();
 
     // Ack device and notify app
@@ -720,6 +780,7 @@ class RentalProvider extends ChangeNotifier {
     }
 
     _pausedBikes.remove(bikeId);
+    _persistActiveRental(bikeId);
     notifyListeners();
     mqtt.publishToApp(bikeId, 'RESUME_SUCCESS=$userId');
     debugPrint('[Rental] RESUME bikeId=$bikeId userId=$userId');
@@ -768,6 +829,7 @@ class RentalProvider extends ChangeNotifier {
     _blockTimers[bikeId]?.cancel();
     _blockTimers.remove(bikeId);
     _blockHundredths.remove(bikeId);
+    unawaited(FirebaseRepo.instance.deleteActiveRental(bikeId));
     notifyListeners();
 
     // Build a session route from the GPS collected during this rental.
@@ -867,6 +929,35 @@ class RentalProvider extends ChangeNotifier {
     _pauseTimeoutTimers[bikeId]?.cancel();
     _pauseTimeoutTimers.remove(bikeId);
     _endRental(bikeId, rental.userId);
+  }
+
+  void forceClearRental(String bikeId) {
+    final rental = _activeRentals.remove(bikeId);
+    if (rental == null) return;
+
+    _pausedBikes.remove(bikeId);
+    _inProgressBikes.remove(bikeId);
+    _blockTimers.remove(bikeId)?.cancel();
+    _blockHundredths.remove(bikeId);
+    _graceTimers.remove(bikeId)?.cancel();
+    _graceCheckers.remove(bikeId)?.cancel();
+    _pauseTimeoutTimers.remove(bikeId)?.cancel();
+    _rentalPoints.remove(bikeId);
+    _rentalStartKm.remove(bikeId);
+    _rentalLastKm.remove(bikeId);
+    _rentalLastDistanceM.remove(bikeId);
+
+    final userId = rental.userId;
+    _userDebt.remove(userId);
+    _debtStartedAt.remove(userId);
+    _lockedUsers.remove(userId);
+    _persistUserState(userId);
+    unawaited(FirebaseRepo.instance.deleteActiveRental(bikeId));
+
+    _mqtt?.publishToApp(bikeId, 'NO_ACTIVE_RENTAL=$userId');
+
+    notifyListeners();
+    debugPrint('[Rental] forceClearRental bikeId=$bikeId userId=$userId');
   }
 
   @override
