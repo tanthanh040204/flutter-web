@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/feature_config.dart';
+import '../../models/device_state.dart';
 import '../../models/vehicle.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
@@ -61,12 +62,14 @@ class OverviewTab extends StatelessWidget {
                     );
                   }
                   final v = vehicles[index - 1];
+                  final device = devices.deviceById(v.id);
                   return _VehicleCard(
                     vehicle: v,
                     renting: rental.isBikeRented(v.id),
                     paused: rental.isBikePaused(v.id),
-                    online: devices.deviceById(v.id)?.online ?? false,
+                    online: device?.online ?? false,
                     lowBattery: fleet.isLowBattery(v.id),
+                    lockState: device?.lockState,
                   );
                 },
               ),
@@ -166,6 +169,7 @@ class _VehicleCard extends StatelessWidget {
     required this.paused,
     required this.online,
     required this.lowBattery,
+    required this.lockState,
   });
 
   final Vehicle vehicle;
@@ -173,6 +177,13 @@ class _VehicleCard extends StatelessWidget {
   final bool paused;
   final bool online;
   final bool lowBattery;
+  // Live lock state from MQTT telemetry; null when no device data yet.
+  final DeviceLockState? lockState;
+
+  // Prefer live telemetry; fall back to the persisted Vehicle flag offline.
+  bool get _isLocked => lockState != null
+      ? lockState != DeviceLockState.active
+      : vehicle.isLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -275,9 +286,9 @@ class _VehicleCard extends StatelessWidget {
               value: '${vehicle.totalKm.toStringAsFixed(1)} km',
             ),
             _InfoRow(
-              icon: vehicle.isLocked ? Icons.lock : Icons.lock_open,
+              icon: _isLocked ? Icons.lock : Icons.lock_open,
               label: context.tr('Khóa xe', 'Lock'),
-              value: vehicle.isLocked
+              value: _isLocked
                   ? context.tr('Đã khóa', 'Locked')
                   : context.tr('Đã mở khóa', 'Unlocked'),
             ),
@@ -354,7 +365,7 @@ class _VehicleCard extends StatelessWidget {
     if (vehicle.isRunning) {
       return _VehicleStatus(Colors.green, context.tr('Đang chạy', 'Running'));
     }
-    if (vehicle.isLocked) {
+    if (_isLocked) {
       return _VehicleStatus(Colors.blueGrey, context.tr('Đã khóa', 'Locked'));
     }
     return _VehicleStatus(Colors.teal, context.tr('Sẵn sàng', 'Available'));
