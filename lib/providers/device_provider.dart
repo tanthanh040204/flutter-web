@@ -309,6 +309,51 @@ class DeviceProvider extends ChangeNotifier {
     return completer.future;
   }
 
+  // Send an explicit LOCK and wait for OK (max 30 s). Unlike sendUnlock, this
+  // never toggles on current lockState — used when ending a rental, where the
+  // bike may already be paused/locked and must end locked regardless.
+  Future<bool> sendLock(String deviceId) async {
+    final mqtt = _mqttService;
+    if (mqtt == null || !_mqttConnected) return false;
+
+    final current = _devices[deviceId];
+    if (current == null) return false;
+
+    // Cancel any in-flight pending lock for this device
+    _pendingLocks[deviceId]?.timer.cancel();
+    if (_pendingLocks[deviceId]?.completer.isCompleted == false) {
+      _pendingLocks[deviceId]!.completer.complete(false);
+    }
+
+    final completer = Completer<bool>();
+    final timer = Timer(
+      const Duration(seconds: FeatureConfig.unlockCommandTimeoutSeconds),
+      () {
+        _pendingLocks.remove(deviceId);
+        if (!completer.isCompleted) completer.complete(false);
+        notifyListeners();
+      },
+    );
+
+    _pendingLocks[deviceId] = _PendingLock(
+      targetState: DeviceLockState.locked,
+      completer: completer,
+      timer: timer,
+    );
+
+    notifyListeners();
+
+    final sent = mqtt.publish(deviceId, 'LOCK');
+    if (!sent) {
+      _pendingLocks.remove(deviceId);
+      timer.cancel();
+      if (!completer.isCompleted) completer.complete(false);
+      notifyListeners();
+    }
+
+    return completer.future;
+  }
+
   // Private helpers
   void _addDeviceInternal(String id, {int? colorIndex}) {
     final palette = FeatureConfig.deviceColorPalette;

@@ -94,8 +94,7 @@ class FeatureConfig {
   static const int rentalStartIntervalMs = 15 * 1000; // 15 seconds
 
   // Rental service
-  static const int rentalBlockDurationsSeconds =
-      3600; // 1 hour block for rentals
+  static const int rentalBlockDurationsSeconds = 3600; // 1 hour
   static const int minTokenToRent = 10000; // 10k VND
   static const int minBatteryToRentPercent = 20;
   static const int outOfZonePenaltyTokens = 5000;

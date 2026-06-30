@@ -756,8 +756,7 @@ class RentalProvider extends ChangeNotifier {
     final rental = _activeRentals[bikeId];
     if (mqtt == null || deviceProvider == null || rental == null) return;
 
-    // Send LOCK to device (sendUnlock sends LOCK when bike is active/locked)
-    final locked = await deviceProvider.sendUnlock(bikeId);
+    final locked = await deviceProvider.sendLock(bikeId);
     if (!locked) {
       debugPrint(
         '[Rental] _endRental: LOCK timeout bikeId=$bikeId — continuing',
