@@ -71,9 +71,9 @@ class ParkingZone {
     ),
     ParkingZone(
       id: 'PZ002',
-      name: 'UTE university, district 9',
-      lat: 10.849908,
-      lng: 106.771621,
+      name: 'Khu A, UTE, district 9',
+      lat: 10.852225,
+      lng: 106.77201,
       radiusMeters: 80.0,
     ),
     ParkingZone(
@@ -81,13 +81,6 @@ class ParkingZone {
       name: 'UTE D2, Le Van Viet street',
       lat: 10.846085,
       lng: 106.797446,
-      radiusMeters: 60.0,
-    ),
-    ParkingZone(
-      id: 'PZ004',
-      name: 'Khu C, UTE',
-      lat: 10.853257605857388,
-      lng: 106.77183955420634,
       radiusMeters: 60.0,
     ),
   ];
