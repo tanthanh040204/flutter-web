@@ -216,6 +216,13 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearDeviceErrors(String deviceId) {
+    final s = _devices[deviceId];
+    if (s == null || s.deviceErrors.isEmpty) return;
+    _devices[deviceId] = s.copyWith(deviceErrors: {});
+    notifyListeners();
+  }
+
   bool publishCommand(String deviceId, String command) {
     final mqtt = _mqttService;
     if (mqtt == null) {
@@ -476,6 +483,39 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     final token = message.trim().toUpperCase();
+
+    // Device self-diagnostic: "NOTI_DEVICE_ERROR=<device_error_t>". Code 0
+    // (DEVICE_ERROR_NONE) clears all active errors; any other code accrues.
+    if (token.startsWith('NOTI_DEVICE_ERROR=')) {
+      final code = int.tryParse(token.substring('NOTI_DEVICE_ERROR='.length));
+      if (code != null) {
+        final errors = Set<int>.of(current.deviceErrors);
+        if (code == 0) {
+          errors.clear();
+        } else {
+          errors.add(code);
+        }
+        _devices[deviceId] = current.copyWith(
+          online: true,
+          lastSeen: now,
+          deviceErrors: errors,
+        );
+        _notifications.add(
+          DeviceNotification(
+            deviceId: deviceId,
+            message: message,
+            receivedAt: now,
+          ),
+        );
+        if (_notifications.length > _maxNotifications) {
+          _notifications.removeAt(0);
+        }
+        debugPrint('[DeviceProvider] NOTI_DEVICE_ERROR $deviceId → $code');
+        notifyListeners();
+        return;
+      }
+    }
+
     // KEEPALIVE may carry a battery suffix ("KEEPALIVE=<n>%"); collapse it so it
     // still drives online/lastSeen. Battery % is applied via FleetProvider.
     final normalized = token.startsWith('KEEPALIVE') ? 'KEEPALIVE' : token;

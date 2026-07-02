@@ -11,9 +11,11 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_string.dart';
 import '../../config/app_theme.dart';
+import '../../models/device_state.dart';
 import '../../models/parking_zone.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/firebase_repo.dart';
 import '../../widgets/vehicle_picker.dart';
 
@@ -102,6 +104,44 @@ class _LocationTabState extends State<LocationTab> {
     return Color(int.parse(h, radix: 16) | 0xFF000000);
   }
 
+  Widget _buildBikeMarker(BuildContext context, DeviceState? ds, Color? color) {
+    if (ds?.helpRequested ?? false) {
+      return const Icon(Icons.warning, size: 44, color: Colors.red);
+    }
+    if ((ds?.deviceErrors.isNotEmpty ?? false)) {
+      return GestureDetector(
+        onTap: () => _showDeviceErrorDialog(context, ds!),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          size: 44,
+          color: Color(0xFFF9A825),
+        ),
+      );
+    }
+    return color != null
+        ? Icon(Icons.location_on, size: 44, color: color)
+        : const Icon(Icons.location_on, size: 44);
+  }
+
+  void _showDeviceErrorDialog(BuildContext context, DeviceState ds) {
+    final lang = context.read<LanguageProvider>();
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          lang.tr('Lỗi thiết bị ${ds.id}', 'Device errors - ${ds.id}'),
+        ),
+        content: Text(deviceErrorNames(context, ds.deviceErrors)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(lang.tr('Đóng', 'Close')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _fitAll(List<LatLng> points) {
     if (points.isEmpty) return;
     if (points.length == 1) {
@@ -169,9 +209,7 @@ class _LocationTabState extends State<LocationTab> {
             point: loc,
             width: 50,
             height: 50,
-            child: (ds?.helpRequested ?? false)
-                ? const Icon(Icons.warning, size: 44, color: Colors.red)
-                : Icon(Icons.location_on, size: 44, color: color),
+            child: _buildBikeMarker(context, ds, color),
           ),
         );
 
@@ -213,9 +251,7 @@ class _LocationTabState extends State<LocationTab> {
           point: loc,
           width: 50,
           height: 50,
-          child: (ds?.helpRequested ?? false)
-              ? const Icon(Icons.warning, size: 44, color: Colors.red)
-              : const Icon(Icons.location_on, size: 44),
+          child: _buildBikeMarker(context, ds, null),
         ),
       );
 

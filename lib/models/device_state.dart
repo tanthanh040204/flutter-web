@@ -72,6 +72,8 @@ class DeviceState {
   final bool helpRequested;
   // Raised by a NOTI_LOW_BATT event; cleared from the Notifications tab.
   final bool lowBattery;
+  // Active device_error_t codes reported via NOTI_DEVICE_ERROR (0 clears all).
+  final Set<int> deviceErrors;
 
   const DeviceState({
     required this.id,
@@ -84,6 +86,7 @@ class DeviceState {
     this.routePoints = const [],
     this.helpRequested = false,
     this.lowBattery = false,
+    this.deviceErrors = const {},
   });
 
   DeviceState copyWith({
@@ -96,6 +99,7 @@ class DeviceState {
     List<RoutePoint>? routePoints,
     bool? helpRequested,
     bool? lowBattery,
+    Set<int>? deviceErrors,
   }) {
     return DeviceState(
       id: id,
@@ -108,6 +112,7 @@ class DeviceState {
       routePoints: routePoints ?? this.routePoints,
       helpRequested: helpRequested ?? this.helpRequested,
       lowBattery: lowBattery ?? this.lowBattery,
+      deviceErrors: deviceErrors ?? this.deviceErrors,
     );
   }
 }

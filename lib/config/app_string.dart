@@ -64,6 +64,37 @@ class AppStrings {
   static const AppText hideRoute = (vi: 'Ẩn chuyến đi', en: 'Hide route');
   static const AppText fitMap = (vi: 'Căn chỉnh bản đồ', en: 'Fit map');
   static const AppText trackAll = (vi: 'Theo dõi tất cả', en: 'Track all ');
+
+  // ---- Device errors (device_error_t reported via NOTI_DEVICE_ERROR) ----
+  static const AppText deviceErrorSection = (
+    vi: 'Lỗi thiết bị',
+    en: 'Device Errors',
+  );
+  static const AppText deviceErrorPrefix = (vi: 'Lỗi', en: 'Error');
+
+  static const Map<int, AppText> deviceErrorLabels = {
+    1: (vi: 'khởi tạo thẻ SD', en: 'SD init'),
+    2: (vi: 'gắn thẻ SD', en: 'SD mount'),
+    3: (vi: 'tạo thư mục trên thẻ SD', en: 'SD mkdir'),
+    4: (vi: 'mở tệp trên thẻ SD', en: 'SD open file'),
+    5: (vi: 'khởi tạo SIM', en: 'SIM init'),
+    6: (vi: 'SIM gửi dữ liệu Firebase', en: 'SIM send data to Firebase'),
+    7: (vi: 'SIM nhận dữ liệu Firebase', en: 'SIM get data from Firebase'),
+    8: (vi: 'cảm biến pin', en: 'fuel gauge init'),
+    9: (vi: 'cảm biến nhiệt độ, độ ẩm', en: 'temperature/humidity sensor init'),
+    10: (vi: 'cảm biến chuyển động (IMU)', en: 'IMU init'),
+    11: (vi: 'la bàn', en: 'compass init'),
+    12: (vi: 'màn hình', en: 'display init'),
+    13: (vi: 'GPS', en: 'GPS init'),
+  };
+}
+
+String deviceErrorNames(BuildContext context, Iterable<int> codes) {
+  return codes
+      .map((c) => AppStrings.deviceErrorLabels[c])
+      .whereType<AppText>()
+      .map((t) => context.tr(t.vi, t.en))
+      .join('; ');
 }
 
 /* Public extensions -------------------------------------------------- */

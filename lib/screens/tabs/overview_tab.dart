@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_string.dart';
 import '../../config/feature_config.dart';
 import '../../models/device_state.dart';
 import '../../models/vehicle.dart';
@@ -70,6 +71,7 @@ class OverviewTab extends StatelessWidget {
                     online: device?.online ?? false,
                     lowBattery: fleet.isLowBattery(v.id),
                     lockState: device?.lockState,
+                    deviceErrors: device?.deviceErrors ?? const <int>{},
                   );
                 },
               ),
@@ -170,6 +172,7 @@ class _VehicleCard extends StatelessWidget {
     required this.online,
     required this.lowBattery,
     required this.lockState,
+    required this.deviceErrors,
   });
 
   final Vehicle vehicle;
@@ -179,6 +182,8 @@ class _VehicleCard extends StatelessWidget {
   final bool lowBattery;
   // Live lock state from MQTT telemetry; null when no device data yet.
   final DeviceLockState? lockState;
+  // Active device_error_t codes reported via NOTI_DEVICE_ERROR.
+  final Set<int> deviceErrors;
 
   // Prefer live telemetry; fall back to the persisted Vehicle flag offline.
   bool get _isLocked => lockState != null
@@ -297,6 +302,30 @@ class _VehicleCard extends StatelessWidget {
               label: context.tr('Cập nhật lúc', 'Updated at'),
               value: _dateTime(vehicle.updatedAt),
             ),
+            if (deviceErrors.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${context.tr(AppStrings.deviceErrorPrefix.vi, AppStrings.deviceErrorPrefix.en)}: '
+                      '${deviceErrorNames(context, deviceErrors)}',
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

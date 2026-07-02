@@ -36,6 +36,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final filters = <(String, String)>[
       ('all', context.tr('Tất cả', 'All')),
       ('help', context.tr('Cứu trợ', 'Help')),
+      ('error', context.tr('Lỗi thiết bị', 'Errors')),
       ('login', context.tr('Đăng nhập', 'Login')),
       ('maintenance', context.tr('Bảo trì', 'Maintenance')),
     ];
@@ -196,6 +197,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final deviceProvider = context.watch<DeviceProvider>();
 
     final showHelp = _filter == 'all' || _filter == 'help';
+    final showError = _filter == 'all' || _filter == 'error';
     final showLogin = _filter == 'all' || _filter == 'login';
     final showMaint = _filter == 'all' || _filter == 'maintenance';
 
@@ -208,6 +210,12 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
     final List<DeviceState> helpDevices = showHelp
         ? deviceProvider.devices.where((d) => d.helpRequested).toList()
+        : const <DeviceState>[];
+
+    final List<DeviceState> errorDevices = showError
+        ? deviceProvider.devices
+              .where((d) => d.deviceErrors.isNotEmpty)
+              .toList()
         : const <DeviceState>[];
 
     final List<DeviceState> lowBatteryDevices = showMaint
@@ -243,6 +251,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
                 final hasAny =
                     helpDevices.isNotEmpty ||
+                    errorDevices.isNotEmpty ||
                     visibleLoginNotifications.isNotEmpty ||
                     maintenanceMessages.isNotEmpty ||
                     lowBatteryDevices.isNotEmpty;
@@ -300,6 +309,60 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                     context.read<DeviceProvider>().clearHelp(
                                       d.id,
                                     );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          context.tr(
+                                            'Đã tắt cảnh báo.',
+                                            'Alarm dismissed.',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (errorDevices.isNotEmpty) ...[
+                          Text(
+                            context.loc(AppStrings.deviceErrorSection),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ...errorDevices.map(
+                            (d) => Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              color: Colors.amber.shade50,
+                              child: ListTile(
+                                leading: Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.amber.shade800,
+                                ),
+                                title: Text(
+                                  context.tr(
+                                    'Lỗi thiết bị ${d.id}',
+                                    'Device error - ${d.id}',
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  deviceErrorNames(context, d.deviceErrors),
+                                ),
+                                trailing: IconButton(
+                                  tooltip: context.tr(
+                                    'Tắt cảnh báo',
+                                    'Dismiss alarm',
+                                  ),
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    context
+                                        .read<DeviceProvider>()
+                                        .clearDeviceErrors(d.id);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
